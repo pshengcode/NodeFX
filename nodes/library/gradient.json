@@ -1,9 +1,10 @@
 {
   "id": "gradient",
   "label": "Gradient",
-  "category": "Generator",
+  "category": "Source",
   "description": "Generates various types of gradients (Linear, Radial, Angular, Diamond).",
   "data": {
+    "outputType": "float",
     "glsl": [
     "// Gradient Generator",
     "// Outputs a float value (0.0 - 1.0) representing the gradient.",
