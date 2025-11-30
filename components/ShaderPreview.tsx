@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 import { CompilationResult } from '../types';
-import { AlertCircle, Grid, Maximize, RotateCcw } from 'lucide-react';
+import { AlertCircle, Grid, Maximize, RotateCcw, Code, X, Copy, Check } from 'lucide-react';
 import { webglSystem } from '../utils/webglSystem';
 import { assetManager } from '../utils/assetManager';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +30,8 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   const [isDarkBg, setIsDarkBg] = useState(true);
   const animationFrameRef = useRef<number>(0);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [showCode, setShowCode] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Expose canvas ref
   useImperativeHandle(ref, () => canvasRef.current as HTMLCanvasElement);
@@ -89,6 +91,14 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       render();
       return () => cancelAnimationFrame(animationFrameRef.current);
   }, [data, paused, width, height, channelMode, onNodeError, lastError, tiling, zoom, pan]);
+
+  const handleCopyCode = () => {
+      if (!data) return;
+      const code = data.passes.map(p => `// Pass: ${p.outputTo}\n${p.fragmentShader}`).join('\n\n');
+      navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleDownload = () => {
     if (canvasRef.current) {
@@ -218,12 +228,68 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
              >
                  <RotateCcw size={12} />
              </button>
+             <div className="w-px bg-zinc-700 mx-0.5" />
+             <button 
+                onClick={() => setShowCode(true)}
+                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+                title={t("View Compiled GLSL")}
+             >
+                 <Code size={12} />
+             </button>
           </div>
       </div>
 
       <button onClick={handleDownload} className="absolute bottom-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity border border-zinc-600 z-20 shadow-lg">
         {t("Save Image")}
       </button>
+
+      {/* Code View Modal */}
+      {showCode && data && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-8" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
+                    <h3 className="text-zinc-100 font-medium flex items-center gap-2">
+                        <Code size={16} className="text-blue-400"/>
+                        {t("Compiled GLSL")}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                         <button 
+                            onClick={handleCopyCode}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs transition-colors border border-zinc-700"
+                        >
+                            {copied ? <Check size={14} className="text-green-400"/> : <Copy size={14}/>}
+                            {copied ? t("Copied") : t("Copy")}
+                        </button>
+                        <button 
+                            onClick={() => setShowCode(false)}
+                            className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-auto p-4 bg-zinc-950 font-mono text-xs text-zinc-300">
+                    {data.passes.map((pass, i) => (
+                        <div key={pass.id} className="mb-8 last:mb-0">
+                            {data.passes.length > 1 && (
+                                <div className="text-zinc-500 mb-2 font-bold uppercase tracking-wider text-[10px]">
+                                    Pass {i + 1}: {pass.outputTo}
+                                </div>
+                            )}
+                            
+                            <div className="mb-4">
+                                <div className="text-zinc-600 mb-1 text-[10px] uppercase">Fragment Shader</div>
+                                <pre className="whitespace-pre-wrap break-all bg-zinc-900/50 p-4 rounded border border-zinc-800/50 selection:bg-blue-500/30">
+                                    {pass.fragmentShader}
+                                </pre>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 });

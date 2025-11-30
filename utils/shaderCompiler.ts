@@ -67,6 +67,20 @@ const castGLSLVariable = (varName: string, fromType: GLSLType, toType: GLSLType)
     return `${toType}(${varName})`;
 };
 
+// Helper to generate function signature consistently
+const generateFunctionSignature = (
+    funcName: string, 
+    inputs: { type: string; id: string }[] = [], 
+    outputs: { type: string; id: string }[] = []
+): string => {
+    const args = ['vec2 uv'];
+    
+    inputs.forEach(i => args.push(`${i.type} ${i.id}`));
+    outputs.forEach(o => args.push(`out ${o.type} ${o.id}`));
+    
+    return `void ${funcName}(${args.join(', ')})`;
+};
+
 // --- COMPOUND NODE COMPILER ---
 export const compileCompoundNode = (
     compoundNode: Node<NodeData>,
@@ -193,17 +207,24 @@ export const compileCompoundNode = (
                     } else {
                         // Standard Node
                         const sourceIdClean = sourceNode.id.replace(/-/g, '_');
-                        let varName = `out_${sourceIdClean}_out`; // Default
+                        let varName: string | null = null;
                         let sourceType = sourceNode.data.outputType;
 
-                        if (edge.sourceHandle) {
-                             varName = `out_${sourceIdClean}_${edge.sourceHandle}`;
-                             const outputDef = sourceNode.data.outputs?.find(o => o.id === edge.sourceHandle);
-                             if (outputDef) sourceType = outputDef.type;
+                        const targetOutputId = edge.sourceHandle || 'out';
+                        const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+                        const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+
+                        if (outputDef) {
+                            varName = `out_${sourceIdClean}_${outputDef.id}`;
+                            sourceType = outputDef.type;
                         }
                         
-                        const targetType = sanitizeType(inp.type);
-                        args.push(castGLSLVariable(varName, sanitizeType(sourceType), targetType));
+                        if (varName) {
+                            const targetType = sanitizeType(inp.type);
+                            args.push(castGLSLVariable(varName, sanitizeType(sourceType), targetType));
+                        } else {
+                            args.push(getDefaultGLSLValue(inp.type));
+                        }
                     }
                 } else {
                     args.push(getDefaultGLSLValue(inp.type));
@@ -248,10 +269,11 @@ export const compileCompoundNode = (
     }
     
     // Generate Signature
-    const inputArgs = (compoundNode.data.inputs || []).map(i => `${i.type} ${i.id}`).join(', ');
-    const outputArgs = (compoundNode.data.outputs || []).map(o => `out ${o.type} ${o.id}`).join(', ');
-    
-    const sig = `void run(vec2 uv, ${inputArgs}${inputArgs && outputArgs ? ', ' : ''}${outputArgs})`;
+    const sig = generateFunctionSignature(
+        'run', 
+        compoundNode.data.inputs || [], 
+        compoundNode.data.outputs || []
+    );
     
     code += `${sig} {\n${body}}\n`;
     
@@ -398,24 +420,17 @@ uniform sampler2D u_empty_tex;
             });
 
             // 2. Generate Function
-            const outArgs = outputs.map(o => `out ${o.type} ${o.id}`).join(', ');
             let body = '';
             outputs.forEach(o => {
                 body += `${o.id} = u_${nodeIdClean}_${o.id};\n`;
             });
             // If no outputs, body is empty
-            if (outputs.length === 0) body = '// No outputs';
+            if (outputs.length === 0) body = '// No outputs\n';
             
-            functionsCode += `void ${mainFuncName}(vec2 uv, ${outArgs}) {\n${body}}\n\n`;
+            const sig = generateFunctionSignature(mainFuncName, [], outputs);
+            
+            functionsCode += `${sig} {\n${body}}\n\n`;
 
-            // 3. Generate Call (in Main)
-            const callOutVars: string[] = [];
-            outputs.forEach(out => {
-                const varName = `out_${nodeIdClean}_${out.id}`;
-                mainBodyCode += `  ${out.type} ${varName};\n`;
-                callOutVars.push(varName);
-            });
-            mainBodyCode += `  ${mainFuncName}(uv, ${callOutVars.join(', ')});\n`;
             return; // Done for GraphInput
         }
 
@@ -423,7 +438,6 @@ uniform sampler2D u_empty_tex;
         if (node.type === 'graphOutput') {
             // 1. Generate Function
             const inputs = node.data.inputs || [];
-            const inputArgs = inputs.map(i => `${i.type} ${i.id}`).join(', ');
             
             // Logic: Pass first input to result (preview)
             let body = 'result = vec4(0.0);';
@@ -434,50 +448,14 @@ uniform sampler2D u_empty_tex;
                 body = `result = ${castGLSLVariable(first.id, first.type, 'vec4')};`;
             }
             
-            functionsCode += `void ${mainFuncName}(vec2 uv, ${inputArgs}, out vec4 result) {\n  ${body}\n}\n\n`;
+            const sig = generateFunctionSignature(
+                mainFuncName, 
+                inputs, 
+                [{ id: 'result', type: 'vec4' }]
+            );
+            
+            functionsCode += `${sig} {\n  ${body}\n}\n\n`;
 
-            // 2. Prepare Input Arguments (Copy of standard logic)
-            const callArgs: string[] = [];
-            inputs.forEach(input => {
-                  const passTextureUniform = inputTextureUniforms[`${node.id}_${input.id}`];
-                  if (passTextureUniform) {
-                      callArgs.push(passTextureUniform);
-                  } else {
-                      const edge = edges.find(e => e.target === node.id && e.targetHandle === input.id);
-                      if (edge) {
-                          const sourceNode = getNodeById(edge.source);
-                          const isSourceAvailable = sourceNode && localNodes.some(n => n.id === sourceNode.id);
-
-                          if (isSourceAvailable && sourceNode) {
-                              const sourceIdClean = sourceNode.id.replace(/-/g, '_');
-                              let sourceVarName = `out_${sourceIdClean}_out`; 
-                              let sourceType = sourceNode.data.outputType;
-
-                              if (edge.sourceHandle) {
-                                  // Check if source is GraphInput (it has outputs)
-                                  const outputDef = sourceNode.data.outputs?.find(o => o.id === edge.sourceHandle);
-                                  if (outputDef) {
-                                      sourceVarName = `out_${sourceIdClean}_${edge.sourceHandle}`;
-                                      sourceType = outputDef.type;
-                                  }
-                              }
-                              const targetType = sanitizeType(input.type);
-                              callArgs.push(castGLSLVariable(sourceVarName, sanitizeType(sourceType), targetType));
-                          } else {
-                               // Fallback
-                               callArgs.push(getDefaultGLSLValue(input.type));
-                          }
-                      } else {
-                          // Unconnected
-                          callArgs.push(getDefaultGLSLValue(input.type));
-                      }
-                  }
-            });
-
-            // 3. Declare Output & Call
-            const outVar = `out_${nodeIdClean}_result`;
-            mainBodyCode += `  vec4 ${outVar};\n`;
-            mainBodyCode += `  ${mainFuncName}(uv, ${callArgs.join(', ')}, ${outVar});\n`;
             return; // Done for GraphOutput
         }
 
@@ -582,11 +560,73 @@ uniform sampler2D u_empty_tex;
       mainBodyCode += `void main() {\n  vec2 uv = vUv;\n`;
 
       localNodes.forEach(node => {
-          // Skip GraphInput/Output as they are already handled
-          if (node.type === 'graphInput' || node.type === 'graphOutput') return;
-
           const nodeIdClean = node.id.replace(/-/g, '_');
           const funcName = `node_${nodeIdClean}_run`;
+          
+          // --- SPECIAL HANDLING: GRAPH INPUT ---
+          if (node.type === 'graphInput') {
+              const outputs = node.data.outputs || [];
+              const callOutVars: string[] = [];
+              outputs.forEach(out => {
+                  const varName = `out_${nodeIdClean}_${out.id}`;
+                  mainBodyCode += `  ${out.type} ${varName};\n`;
+                  callOutVars.push(varName);
+              });
+              const args = ['uv', ...callOutVars];
+              mainBodyCode += `  ${funcName}(${args.join(', ')});\n`;
+              return;
+          }
+
+          // --- SPECIAL HANDLING: GRAPH OUTPUT ---
+          if (node.type === 'graphOutput') {
+              const inputs = node.data.inputs || [];
+              const callArgs: string[] = [];
+              
+              inputs.forEach(input => {
+                  const passTextureUniform = inputTextureUniforms[`${node.id}_${input.id}`];
+                  if (passTextureUniform) {
+                      callArgs.push(passTextureUniform);
+                  } else {
+                      const edge = edges.find(e => e.target === node.id && e.targetHandle === input.id);
+                      if (edge) {
+                          const sourceNode = getNodeById(edge.source);
+                          const isSourceAvailable = sourceNode && localNodes.some(n => n.id === sourceNode.id);
+
+                          if (isSourceAvailable && sourceNode) {
+                              const sourceIdClean = sourceNode.id.replace(/-/g, '_');
+                              let sourceVarName: string | null = null;
+                              let sourceType = sourceNode.data.outputType;
+
+                              const targetOutputId = edge.sourceHandle || 'out';
+                              const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+                              const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+
+                              if (outputDef) {
+                                  sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
+                                  sourceType = outputDef.type;
+                              }
+                              
+                              if (sourceVarName) {
+                                  const targetType = sanitizeType(input.type);
+                                  callArgs.push(castGLSLVariable(sourceVarName, sanitizeType(sourceType), targetType));
+                              } else {
+                                  callArgs.push(getDefaultGLSLValue(input.type));
+                              }
+                          } else {
+                               callArgs.push(getDefaultGLSLValue(input.type));
+                          }
+                      } else {
+                          callArgs.push(getDefaultGLSLValue(input.type));
+                      }
+                  }
+              });
+
+              const outVar = `out_${nodeIdClean}_result`;
+              mainBodyCode += `  vec4 ${outVar};\n`;
+              const args = ['uv', ...callArgs, outVar];
+              mainBodyCode += `  ${funcName}(${args.join(', ')});\n`;
+              return;
+          }
           
           // 1. Prepare Arguments
           const callArgs: string[] = ['uv']; 
@@ -606,18 +646,31 @@ uniform sampler2D u_empty_tex;
 
                       if (isSourceAvailable && sourceNode) {
                           const sourceIdClean = sourceNode.id.replace(/-/g, '_');
-                          let sourceVarName = `out_${sourceIdClean}_out`; 
+                          let sourceVarName: string | null = null;
                           let sourceType = sourceNode.data.outputType;
 
-                          if (edge.sourceHandle) {
-                              const outputDef = sourceNode.data.outputs?.find(o => o.id === edge.sourceHandle);
-                              if (outputDef) {
-                                  sourceVarName = `out_${sourceIdClean}_${edge.sourceHandle}`;
-                                  sourceType = outputDef.type;
-                              }
+                          const targetOutputId = edge.sourceHandle || 'out';
+                          const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+                          const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+
+                          if (outputDef) {
+                              sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
+                              sourceType = outputDef.type;
                           }
-                          const targetType = sanitizeType(input.type);
-                          callArgs.push(castGLSLVariable(sourceVarName, sanitizeType(sourceType), targetType));
+
+                          if (sourceVarName) {
+                              const targetType = sanitizeType(input.type);
+                              callArgs.push(castGLSLVariable(sourceVarName, sanitizeType(sourceType), targetType));
+                          } else {
+                               // Fallback to uniform if source not found (cycle broken)
+                               if (node.data.uniforms && node.data.uniforms[input.id]) {
+                                   const uniformName = `u_${nodeIdClean}_${input.id}`;
+                                   const actualType = node.data.uniforms[input.id].type;
+                                   callArgs.push(castGLSLVariable(uniformName, sanitizeType(actualType), input.type));
+                               } else {
+                                   callArgs.push(getDefaultGLSLValue(input.type));
+                               }
+                          }
                       } else {
                            // Fallback to uniform if source not found (cycle broken)
                            if (node.data.uniforms && node.data.uniforms[input.id]) {

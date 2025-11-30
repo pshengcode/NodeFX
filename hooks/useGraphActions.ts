@@ -123,6 +123,23 @@ export function useGraphActions(
     
             if (!sourceNode || !targetNode) return;
 
+            // --- RESTRICTION: GraphInputNode Source Handles (Max 1 Connection) ---
+            if (sourceNode.type === 'graphInput') {
+                // Check if this handle already has an outgoing connection
+                const existingConnection = edges.find(e => 
+                    e.source === params.source && 
+                    e.sourceHandle === params.sourceHandle
+                );
+                
+                if (existingConnection) {
+                    // Option A: Prevent connection
+                    // return; 
+                    
+                    // Option B: Replace connection (Remove old one)
+                    setEdges((eds) => eds.filter(e => e.id !== existingConnection.id));
+                }
+            }
+
             // --- DYNAMIC PORT CREATION LOGIC ---
             if (currentScope !== 'root') {
                 // 1. Create Input

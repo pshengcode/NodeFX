@@ -503,7 +503,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveProject, loadProject, importNodeFromJson, resetCanvas,
     userNodes, addToLibrary, removeFromLibrary, importLibrary, exportLibrary,
     nodesByCategory: allNodesByCategory, fullRegistry: allFullRegistry, nodeRegistryList,
-    currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs
+    currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs,
+    
+    // Missing properties added
+    externalNodes, isRefreshingNodes, refreshExternalNodes,
+    projectFileInputRef, nodeImportInputRef,
+    pendingShareData, handleShareAction
   };
 
   return (

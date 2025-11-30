@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Node, Edge } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, UniformValueType } from '../types';
 import { extractAllSignatures } from '../utils/glslParser';
+import { inferGraphInputNodes, inferGraphOutputNodes } from '../utils/inferenceHelpers';
 
 // Helper to sanitize types (Duplicate from shaderCompiler to avoid circular deps if any, or just for safety)
 const sanitizeType = (type: string): GLSLType => {
@@ -14,7 +15,6 @@ const sanitizeType = (type: string): GLSLType => {
 // Helper to rank types for polymorphism
 const getTypeRank = (type: GLSLType): number => {
     switch (type) {
-        case 'bool': return 1; // Treat bool as float-compatible (0.0/1.0)
         case 'float': return 1;
         case 'int': return 1; // Treat int as float-compatible for rank
         case 'vec2': return 2;
@@ -40,7 +40,14 @@ const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType): Unif
     
     // Check if u exists and value is numeric (number or array of numbers)
     // We skip complex types like textures or strings for auto-migration logic
-    const isNumeric = u && u.value !== null && typeof u.value !== 'string' && !('isRaw' in (u.value as any));
+    let isNumeric = false;
+    if (u && u.value !== null) {
+        if (typeof u.value === 'number') {
+            isNumeric = true;
+        } else if (Array.isArray(u.value)) {
+            isNumeric = true;
+        }
+    }
 
     if (isNumeric && u) {
         // Perform conversion
@@ -85,87 +92,15 @@ export function useTypeInference() {
         currentEdges: Edge[]
     ): Node<NodeData>[] | null => {
         let nodes = [...currentNodes];
-        let hasGraphInputUpdates = false;
         const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-        // --- STEP 1: GraphInput Reverse Inference ---
-        nodes.forEach((node, index) => {
-            if (node.type !== 'graphInput') return;
-            
-            const groupNodeId = node.data.scopeId;
-            const groupNode = groupNodeId ? nodeMap.get(groupNodeId) : null;
-            
-            let inputUpdates = false;
-            const newInputs = node.data.inputs.map(inputDef => {
-                // Find connections FROM this input
-                const edges = currentEdges.filter(e => e.source === node.id && e.sourceHandle === inputDef.id);
-                if (edges.length === 0) return inputDef;
-
-                let maxRank = 0;
-
-                edges.forEach(edge => {
-                    const targetNode = nodeMap.get(edge.target);
-                    if (!targetNode) return;
-                    
-                    const targetInput = targetNode.data.inputs.find(i => i.id === edge.targetHandle);
-                    if (targetInput) {
-                        const rank = getTypeRank(targetInput.type);
-                        if (rank > maxRank) {
-                            maxRank = rank;
-                        }
-                    }
-                });
-
-                if (maxRank > 0) {
-                    const bestType = getRankType(maxRank);
-                    if (bestType !== inputDef.type) {
-                        inputUpdates = true;
-                        return { ...inputDef, type: bestType };
-                    }
-                }
-                return inputDef;
-            });
-
-            if (inputUpdates) {
-                hasGraphInputUpdates = true;
-                
-                // Update GraphInput Node
-                nodes[index] = {
-                    ...node,
-                    data: { ...node.data, inputs: newInputs }
-                };
-                nodeMap.set(node.id, nodes[index]);
-
-                // Update Group Node (if exists)
-                if (groupNode) {
-                    const groupIndex = nodes.findIndex(n => n.id === groupNode.id);
-                    if (groupIndex !== -1) {
-                        const nextUniforms = { ...groupNode.data.uniforms };
-                        newInputs.forEach(inp => {
-                            const oldInp = groupNode.data.inputs.find(i => i.id === inp.id);
-                            if (oldInp && oldInp.type !== inp.type) {
-                                const u = nextUniforms[inp.id];
-                                nextUniforms[inp.id] = migrateUniformValue(u, inp.type);
-                            }
-                        });
-
-                        nodes[groupIndex] = {
-                            ...groupNode,
-                            data: { 
-                                ...groupNode.data, 
-                                inputs: newInputs,
-                                uniforms: nextUniforms
-                            }
-                        };
-                        nodeMap.set(groupNode.id, nodes[groupIndex]);
-                    }
-                }
-            }
-        });
+        // --- STEP 1: GraphInput Inference (Reverse) ---
+        const hasInputUpdates = inferGraphInputNodes(nodes, nodeMap, currentEdges);
 
         // --- STEP 2: Standard Forward Inference ---
         let hasStandardUpdates = false;
         
+        // We use 'nodes' which might have been updated by Step 1
         const updatedNodes = nodes.map(node => {
             // Only process nodes flagged with autoType
             if (!node.data.autoType) return node;
@@ -271,7 +206,8 @@ export function useTypeInference() {
                     nextUniforms[input.id] = migrateUniformValue(u, input.type);
                 });
 
-                return {
+                // Update nodeMap for subsequent steps
+                const newNode = {
                     ...node,
                     data: {
                         ...node.data,
@@ -281,12 +217,18 @@ export function useTypeInference() {
                         uniforms: nextUniforms
                     }
                 };
+                nodeMap.set(node.id, newNode);
+                return newNode;
             }
 
             return node;
         });
 
-        if (hasGraphInputUpdates || hasStandardUpdates) {
+        // --- STEP 3: GraphOutput Inference (Forward) ---
+        // We use updatedNodes from Step 2
+        const hasOutputUpdates = inferGraphOutputNodes(updatedNodes, nodeMap, currentEdges);
+
+        if (hasInputUpdates || hasStandardUpdates || hasOutputUpdates) {
             return updatedNodes;
         }
         return null;
