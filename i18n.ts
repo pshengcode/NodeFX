@@ -32,7 +32,6 @@ const resources = {
       "Undo (Ctrl+Z)": "Undo (Ctrl+Z)",
       "Redo (Ctrl+Y)": "Redo (Ctrl+Y)",
       "Resolution Presets": "Resolution Presets",
-      "Presets": "Presets",
       "(Click to add)": "(Click to add)",
       "Import": "Import",
       "Edit Node Metadata": "Edit Node Metadata",
