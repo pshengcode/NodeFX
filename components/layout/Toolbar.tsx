@@ -104,9 +104,12 @@ export const Toolbar: React.FC = () => {
 
                 <button 
                     onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'zh' : 'en')}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 rounded-full border border-zinc-700 transition-colors"
+                    className="flex items-center justify-center w-16 h-8 text-xs font-bold bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors"
+                    title={i18n.language === 'en' ? "Switch to Chinese" : "Switch to English"}
                 >
-                    {i18n.language === 'en' ? 'ZH' : 'EN'}
+                    <span className={i18n.language === 'en' ? 'text-white' : 'text-zinc-500'}>EN</span>
+                    <span className="mx-1 text-zinc-600">/</span>
+                    <span className={i18n.language === 'zh' ? 'text-white' : 'text-zinc-500'}>ZH</span>
                 </button>
 
                 <button onClick={resetCanvas} className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-red-900/50 text-zinc-300 hover:text-red-200 rounded-full border border-zinc-700 hover:border-red-800/50 transition-colors" title={t("Reset")}>

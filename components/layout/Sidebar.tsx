@@ -102,18 +102,16 @@ export const Sidebar: React.FC = () => {
 
     return (
         <div className="w-64 flex flex-col py-4 bg-zinc-900 border-r border-zinc-800 z-20 shadow-lg h-full">
-            <div className="px-4 mb-6 flex items-center gap-3 shrink-0">
+            <div className="px-4 mb-6 flex items-center justify-center gap-3 shrink-0">
                 <div className="w-10 h-10 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center relative shadow-xl group overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-50" />
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-10 transform group-hover:scale-110 transition-transform duration-500">
-                        <path d="M7 17L17 7" stroke="#52525b" strokeWidth="2" strokeLinecap="round"/>
-                        <circle cx="7" cy="17" r="3" fill="#e4e4e7"/>
-                        <circle cx="17" cy="7" r="3" fill="#22d3ee" className="drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"/>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-10 transform group-hover:scale-110 transition-transform duration-500">
+                        <path d="M5 16.5C11 18.5 13 4.5 19 2.5L19 7.5C13 5.5 11 19.5 5 21.5Z" fill="#52525b"/>
+                        <circle cx="5" cy="19" r="3.5" fill="#e4e4e7"/>
+                        <circle cx="19" cy="5" r="3.5" fill="#22d3ee" className="drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"/>
                     </svg>
                 </div>
-                <div>
-                    <h2 className="font-bold text-zinc-100 leading-none text-xl tracking-wide">NodeFX</h2>
-                </div>
+                <h2 className="font-bold text-zinc-100 leading-none text-xl tracking-wide">NodeFX</h2>
             </div>
 
             <div className="px-2 mb-4 flex gap-1 shrink-0">
