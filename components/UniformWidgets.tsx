@@ -70,17 +70,80 @@ export const SmartNumberInput = ({ value, onChange, step = 0.01, className }: { 
 
 export const SliderWidget = ({ value, onChange, min = 0, max = 1, step = 0.001 }: any) => {
     const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const range = max - min;
+    const toPercent = (v: number) => {
+        const pct = ((v - min) / range) * 100;
+        return Math.max(0, Math.min(100, pct));
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        // We don't need startX for delta, we calculate absolute position
+        
+        const update = (clientX: number) => {
+            if (!containerRef.current) return;
+            const rect = containerRef.current.getBoundingClientRect();
+            const rawPct = (clientX - rect.left) / rect.width;
+            let newVal = min + rawPct * range;
+
+            // Snap to step
+            if (step > 0) {
+                newVal = Math.round(newVal / step) * step;
+            }
+            
+            // Clamp
+            newVal = Math.max(min, Math.min(max, newVal));
+            
+            // Round to avoid float precision issues
+            // Determine precision based on step (rough heuristic)
+            const precision = step < 1 ? step.toString().split('.')[1]?.length || 3 : 0;
+            const factor = Math.pow(10, precision);
+            newVal = Math.round(newVal * factor) / factor;
+
+            onChange(newVal);
+        };
+
+        // Initial update on click
+        update(e.clientX);
+
+        const onMove = (ev: MouseEvent) => {
+            update(ev.clientX);
+        };
+
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
     return (
-        <div className="flex items-center gap-2 h-5">
-            <input 
-                type="range" min={min} max={max} step={step}
-                value={safeValue}
-                onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v)) onChange(v);
-                }}
-                className="nodrag flex-1 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-            />
+        <div className="flex items-center gap-2 h-5 w-full">
+            <div 
+                ref={containerRef}
+                className="nodrag relative flex-1 h-4 flex items-center cursor-pointer group select-none"
+                onMouseDown={handleMouseDown}
+            >
+                {/* Track */}
+                <div className="absolute left-0 right-0 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                     {/* Fill */}
+                     <div 
+                        className="h-full bg-blue-500" 
+                        style={{ width: `${toPercent(safeValue)}%` }}
+                     />
+                </div>
+
+                {/* Handle */}
+                <div 
+                    className="absolute w-3 h-3 bg-zinc-300 rounded-full shadow border border-zinc-900 group-hover:scale-110 transition-transform"
+                    style={{ left: `calc(${toPercent(safeValue)}% - 6px)` }}
+                />
+            </div>
+            
             <SmartNumberInput 
                 className="nodrag w-16 h-full bg-zinc-800 text-[10px] px-2 rounded border border-zinc-700 text-right outline-none focus-within:border-blue-500 font-mono leading-normal"
                 value={Math.round(safeValue * 10000) / 10000}
