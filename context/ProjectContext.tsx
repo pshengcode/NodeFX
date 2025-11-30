@@ -89,6 +89,7 @@ interface ProjectContextType {
   refreshExternalNodes: () => Promise<void>;
   nodesByCategory: Record<string, any[]>;
   fullRegistry: Record<string, ShaderNodeDefinition>;
+  nodeRegistryList: ShaderNodeDefinition[];
 
   // Refs for file inputs
   projectFileInputRef: React.RefObject<HTMLInputElement>;
@@ -321,12 +322,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [nodesByCategory, userNodes]);
 
   const allFullRegistry = useMemo(() => {
-      const merged = { ...fullRegistry };
+      const merged: Record<string, ShaderNodeDefinition> = {};
+      
+      // Convert array to record keyed by ID
+      if (Array.isArray(fullRegistry)) {
+          fullRegistry.forEach(n => {
+              merged[n.id] = n;
+          });
+      }
+
       userNodes.forEach(n => {
           merged[n.id] = n;
       });
       return merged;
   }, [fullRegistry, userNodes]);
+
+  const nodeRegistryList = useMemo(() => {
+      return Object.values(allFullRegistry);
+  }, [allFullRegistry]);
 
   const { 
       onNodesChange: onNodesChangeAction, 
@@ -489,7 +502,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     copyShareLink,
     saveProject, loadProject, importNodeFromJson, resetCanvas,
     userNodes, addToLibrary, removeFromLibrary, importLibrary, exportLibrary,
-    nodesByCategory: allNodesByCategory, fullRegistry: allFullRegistry,
+    nodesByCategory: allNodesByCategory, fullRegistry: allFullRegistry, nodeRegistryList,
     currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs
   };
 

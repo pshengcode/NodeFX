@@ -33,7 +33,7 @@ export const Canvas: React.FC = () => {
         nodes, edges, onNodesChange, onEdgesChange, onConnect, 
         onNodeClick, onNodeDragStop, onNodesDelete, 
         setReactFlowInstance, onDrop, onDragOver, 
-        reactFlowWrapper, addNode, fullRegistry,
+        reactFlowWrapper, addNode, fullRegistry, nodeRegistryList,
         compiledData, resolution, previewNodeId, setNodes, setPreviewNodeId,
         reactFlowInstance, getBreadcrumbs, navigateToScope, currentScope
     } = useProject();
@@ -142,7 +142,7 @@ export const Canvas: React.FC = () => {
                                     addNode(def, menuState.flowPosition);
                                 }
                             }}
-                            registry={fullRegistry} 
+                            registry={nodeRegistryList} 
                         />
                     )}
                 </ReactFlow>
