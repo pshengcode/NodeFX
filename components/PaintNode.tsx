@@ -6,8 +6,10 @@ import { Eraser, Trash2, PenTool, Layers, Settings, X } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { assetManager } from '../utils/assetManager';
+import { useTranslation } from 'react-i18next';
 
 const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
+  const { t } = useTranslation();
   const { setNodes } = useReactFlow();
   const edges = useEdges();
 
@@ -217,7 +219,7 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         <div className="flex items-center justify-between p-2 border-b border-zinc-800 bg-zinc-800/50 rounded-t-lg">
             <div className="flex items-center gap-2">
                 <PenTool size={14} className="text-pink-500" />
-                <span className="font-semibold text-sm text-zinc-200">Paint</span>
+                <span className="font-semibold text-sm text-zinc-200">{t("Paint")}</span>
             </div>
             <div className="flex items-center gap-1">
                 <button onClick={() => setMode('paint')} className={`p-1.5 rounded ${mode === 'paint' ? 'bg-pink-500/20 text-pink-400' : 'text-zinc-500'}`}><PenTool size={12}/></button>

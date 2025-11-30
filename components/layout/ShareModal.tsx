@@ -1,8 +1,10 @@
 import React from 'react';
 import { Share2, PlusCircle, RefreshCw } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
+import { useTranslation } from 'react-i18next';
 
 export const ShareModal: React.FC = () => {
+    const { t } = useTranslation();
     const { pendingShareData, handleShareAction } = useProject();
 
     if (!pendingShareData) return null;
@@ -15,8 +17,8 @@ export const ShareModal: React.FC = () => {
                         <Share2 size={20} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-zinc-100">Shared Project Detected</h3>
-                        <p className="text-xs text-zinc-400">You have unsaved local work. How would you like to proceed?</p>
+                        <h3 className="text-lg font-bold text-zinc-100">{t("Shared Project Detected")}</h3>
+                        <p className="text-xs text-zinc-400">{t("You have unsaved local work. How would you like to proceed?")}</p>
                     </div>
                 </div>
                 
@@ -26,8 +28,8 @@ export const ShareModal: React.FC = () => {
                         className="flex items-center justify-between px-4 py-3 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-all group text-left"
                     >
                         <div>
-                            <div className="text-sm font-medium text-zinc-200 group-hover:text-white">Merge into Current Project</div>
-                            <div className="text-[10px] text-zinc-500">Add shared nodes to your current canvas (Recommended)</div>
+                            <div className="text-sm font-medium text-zinc-200 group-hover:text-white">{t("Merge into Current Project")}</div>
+                            <div className="text-[10px] text-zinc-500">{t("Add shared nodes to your current canvas (Recommended)")}</div>
                         </div>
                         <PlusCircle size={16} className="text-zinc-500 group-hover:text-blue-400"/>
                     </button>
@@ -37,8 +39,8 @@ export const ShareModal: React.FC = () => {
                         className="flex items-center justify-between px-4 py-3 bg-zinc-800 hover:bg-red-900/20 border border-zinc-700 hover:border-red-800/50 rounded-lg transition-all group text-left"
                     >
                         <div>
-                            <div className="text-sm font-medium text-zinc-200 group-hover:text-red-200">Overwrite Local Project</div>
-                            <div className="text-[10px] text-zinc-500 group-hover:text-red-400/70">Discard local changes and load shared project</div>
+                            <div className="text-sm font-medium text-zinc-200 group-hover:text-red-200">{t("Overwrite Local Project")}</div>
+                            <div className="text-[10px] text-zinc-500 group-hover:text-red-400/70">{t("Discard local changes and load shared project")}</div>
                         </div>
                         <RefreshCw size={16} className="text-zinc-500 group-hover:text-red-400"/>
                     </button>
@@ -47,7 +49,7 @@ export const ShareModal: React.FC = () => {
                         onClick={() => handleShareAction('cancel')}
                         className="mt-2 px-4 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors text-center"
                     >
-                        Cancel (Ignore Share Link)
+                        {t("Cancel (Ignore Share Link)")}
                     </button>
                 </div>
             </div>

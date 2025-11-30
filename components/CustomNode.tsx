@@ -9,12 +9,14 @@ import CodeEditor from './CodeEditor';
 import { assetManager } from '../utils/assetManager';
 import { Upload, Scan } from 'lucide-react';
 import { extractShaderIO } from '../utils/glslParser';
+import { useTranslation } from 'react-i18next';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { getNodeDefinition } from '../nodes/registry';
 import { useProject } from '../context/ProjectContext';
 
 // --- NODE EDITOR MODAL ---
 const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (newData: Partial<NodeData>) => void, onClose: () => void }) => {
+    const { t } = useTranslation();
     const [localData, setLocalData] = useState(data);
     const [activeTab, setActiveTab] = useState<'general' | 'io' | 'locales'>('general');
     
@@ -72,7 +74,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
     };
 
     const handleRemoveLang = (lang: string) => {
-        if (!confirm(`Delete locale '${lang}'?`)) return;
+        if (!confirm(t("Delete locale '{{lang}}'?", { lang }))) return;
         const next = { ...localData.locales };
         delete next[lang];
         setLocalData({ ...localData, locales: next });
@@ -98,7 +100,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                 <div className="h-12 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950 select-none">
                     <div className="flex items-center gap-2">
                         <Settings2 size={18} className="text-blue-400" />
-                        <span className="font-bold text-zinc-200">Edit Node Metadata</span>
+                        <span className="font-bold text-zinc-200">{t("Edit Node Metadata")}</span>
                     </div>
                     <button onClick={onClose} className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded"><X size={18} /></button>
                 </div>
@@ -110,7 +112,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                             onClick={() => setActiveTab(tab)}
                             className={`px-4 py-2 text-xs font-bold uppercase tracking-wide border-b-2 transition-colors ${activeTab === tab ? 'border-blue-500 text-blue-400 bg-zinc-800/50' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
                         >
-                            {tab === 'io' ? 'Inputs / Outputs' : tab}
+                            {tab === 'io' ? t('Inputs / Outputs') : t(tab.charAt(0).toUpperCase() + tab.slice(1))}
                         </button>
                     ))}
                 </div>
@@ -119,7 +121,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                     {activeTab === 'general' && (
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col gap-1">
-                                <label className="text-xs font-bold text-zinc-500 uppercase">Label</label>
+                                <label className="text-xs font-bold text-zinc-500 uppercase">{t("Label")}</label>
                                 <input 
                                     className="bg-zinc-950 border border-zinc-700 rounded p-2 text-sm text-zinc-200 outline-none focus:border-blue-500"
                                     value={localData.label}
@@ -127,19 +129,19 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                 />
                             </div>
                             <div className="flex flex-col gap-1">
-                                <label className="text-xs font-bold text-zinc-500 uppercase">Category</label>
+                                <label className="text-xs font-bold text-zinc-500 uppercase">{t("Category")}</label>
                                 <select 
                                     className="bg-zinc-950 border border-zinc-700 rounded p-2 text-sm text-zinc-200 outline-none focus:border-blue-500"
                                     value={localData.category || 'Custom'}
                                     onChange={e => setLocalData({ ...localData, category: e.target.value as NodeCategory })}
                                 >
                                     {['Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'].map(c => (
-                                        <option key={c} value={c}>{c}</option>
+                                        <option key={c} value={c}>{t(c)}</option>
                                     ))}
                                 </select>
                             </div>
                             <div className="flex flex-col gap-1">
-                                <label className="text-xs font-bold text-zinc-500 uppercase">Description</label>
+                                <label className="text-xs font-bold text-zinc-500 uppercase">{t("Description")}</label>
                                 <textarea 
                                     className="bg-zinc-950 border border-zinc-700 rounded p-2 text-sm text-zinc-200 outline-none focus:border-blue-500 min-h-[100px]"
                                     value={localData.description || ''}
@@ -152,7 +154,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                     {activeTab === 'io' && (
                         <div className="flex flex-col gap-6">
                             <div className="flex flex-col gap-2">
-                                <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">Inputs</h3>
+                                <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">{t("Inputs")}</h3>
                                 {localData.inputs.map((inp, idx) => (
                                     <div key={idx} className="flex items-center gap-2">
                                         <span className="text-[10px] font-mono text-zinc-500 w-8">{inp.type}</span>
@@ -164,11 +166,11 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                         <span className="text-[10px] font-mono text-zinc-600">{inp.id}</span>
                                     </div>
                                 ))}
-                                {localData.inputs.length === 0 && <span className="text-xs text-zinc-600 italic">No inputs</span>}
+                                {localData.inputs.length === 0 && <span className="text-xs text-zinc-600 italic">{t("No inputs")}</span>}
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">Outputs</h3>
+                                <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">{t("Outputs")}</h3>
                                 {localData.outputs.map((out, idx) => (
                                     <div key={idx} className="flex items-center gap-2">
                                         <span className="text-[10px] font-mono text-zinc-500 w-8">{out.type}</span>
@@ -180,7 +182,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                         <span className="text-[10px] font-mono text-zinc-600">{out.id}</span>
                                     </div>
                                 ))}
-                                {localData.outputs.length === 0 && <span className="text-xs text-zinc-600 italic">No outputs</span>}
+                                {localData.outputs.length === 0 && <span className="text-xs text-zinc-600 italic">{t("No outputs")}</span>}
                             </div>
                         </div>
                     )}
@@ -190,19 +192,19 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                             {/* Language Management Header */}
                             <div className="flex items-center gap-2 p-2 bg-zinc-950 rounded border border-zinc-800">
                                 <div className="flex items-center gap-2 flex-1">
-                                    <span className="text-xs font-bold text-zinc-500 uppercase">Language:</span>
+                                    <span className="text-xs font-bold text-zinc-500 uppercase">{t("Language")}:</span>
                                     <select 
                                         className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500 min-w-[100px]"
                                         value={selectedLang || ''}
                                         onChange={e => setSelectedLang(e.target.value)}
                                     >
-                                        <option value="" disabled>Select...</option>
+                                        <option value="" disabled>{t("Select...")}</option>
                                         {Object.keys(localData.locales || {}).map(lang => (
                                             <option key={lang} value={lang}>{lang}</option>
                                         ))}
                                     </select>
                                     {selectedLang && (
-                                        <button onClick={() => handleRemoveLang(selectedLang)} className="p-1 hover:bg-red-900/50 text-zinc-500 hover:text-red-400 rounded" title="Delete Language">
+                                        <button onClick={() => handleRemoveLang(selectedLang)} className="p-1 hover:bg-red-900/50 text-zinc-500 hover:text-red-400 rounded" title={t("Delete Language")}>
                                             <Trash2 size={14} />
                                         </button>
                                     )}
@@ -210,7 +212,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                 <div className="w-px h-4 bg-zinc-800 mx-2"></div>
                                 <div className="flex items-center gap-2">
                                     <input 
-                                        placeholder="New (e.g. zh, ja)" 
+                                        placeholder={t("New (e.g. zh, ja)")} 
                                         className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
                                         value={newLangCode}
                                         onChange={e => setNewLangCode(e.target.value)}
@@ -226,13 +228,13 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                             <div className="flex-1 border border-zinc-800 rounded bg-zinc-950/50 overflow-y-auto custom-scrollbar p-2">
                                 {!selectedLang ? (
                                     <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-2">
-                                        <span className="text-sm">Select or add a language to start translating</span>
+                                        <span className="text-sm">{t("Select or add a language to start translating")}</span>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-2">
                                         <div className="grid grid-cols-2 gap-4 px-2 py-1 border-b border-zinc-800 text-[10px] font-bold text-zinc-500 uppercase">
-                                            <div>Original Text</div>
-                                            <div>Translation ({selectedLang})</div>
+                                            <div>{t("Original Text")}</div>
+                                            <div>{t("Translation")} ({selectedLang})</div>
                                         </div>
                                         {translatableKeys.map((key, idx) => (
                                             <div key={idx} className="grid grid-cols-2 gap-4 items-center px-2 py-1 hover:bg-zinc-900/50 rounded">
@@ -246,7 +248,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                             </div>
                                         ))}
                                         {translatableKeys.length === 0 && (
-                                            <div className="text-center text-zinc-600 text-xs py-4">No translatable text found</div>
+                                            <div className="text-center text-zinc-600 text-xs py-4">{t("No translatable text found")}</div>
                                         )}
                                     </div>
                                 )}
@@ -256,9 +258,9 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                 </div>
 
                 <div className="p-4 border-t border-zinc-800 bg-zinc-950 flex justify-end gap-2">
-                    <button onClick={onClose} className="px-4 py-2 rounded text-xs font-bold text-zinc-400 hover:bg-zinc-800 transition-colors">Cancel</button>
+                    <button onClick={onClose} className="px-4 py-2 rounded text-xs font-bold text-zinc-400 hover:bg-zinc-800 transition-colors">{t("Cancel")}</button>
                     <button onClick={handleSave} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors flex items-center gap-2">
-                        <Save size={14} /> Save Changes
+                        <Save size={14} /> {t("Save Changes")}
                     </button>
                 </div>
             </div>
@@ -269,6 +271,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
 
 // --- UPDATED IMAGE WIDGET ---
 export const ImageUploadWidget = ({ value, onChange }: any) => {
+    const { t } = useTranslation();
     const [dimensions, setDimensions] = useState<{w: number, h: number} | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -330,7 +333,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
                              <button 
                                 onClick={applySize}
                                 className="bg-black/60 hover:bg-blue-600 text-white p-1 rounded border border-white/20 shadow-sm backdrop-blur-sm flex items-center gap-1 text-[8px]"
-                                title={`Set Canvas to ${dimensions.w}x${dimensions.h}`}
+                                title={t("Set Canvas to {{w}}x{{h}}", { w: dimensions.w, h: dimensions.h })}
                              >
                                 <Scan size={10} />
                                 <span>{dimensions.w}x{dimensions.h}</span>
@@ -342,7 +345,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
             <label className="nodrag flex items-center justify-center w-full h-5 px-2 bg-zinc-800 border border-zinc-700 border-dashed rounded cursor-pointer hover:border-zinc-500 hover:bg-zinc-700 transition-colors">
                 <span className="flex items-center gap-1">
                     <Upload size={10} className="text-zinc-400" />
-                    <span className="text-[9px] text-zinc-400">Load Image</span>
+                    <span className="text-[9px] text-zinc-400">{t("Load Image")}</span>
                 </span>
                 <input type="file" className="nodrag hidden" accept="image/*" onChange={handleFileChange} />
             </label>
@@ -522,7 +525,7 @@ const UniformControlWrapper = ({
                 </div>
              );
         }
-        return <div className="text-[9px] text-red-500">Unknown Type</div>;
+        return <div className="text-[9px] text-red-500">{t("Unknown Type")}</div>;
     };
 
     const supportedModes = SUPPORTED_WIDGETS[input.type];
@@ -551,14 +554,14 @@ const UniformControlWrapper = ({
                                     <div className="nodrag absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl z-50 flex flex-col p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100 max-h-[300px] overflow-y-auto custom-scrollbar" onMouseDown={e => e.stopPropagation()}>
                                         {supportedModes && supportedModes.length > 1 && (
                                             <div className="flex flex-col mb-2">
-                                                <span className="text-[8px] font-bold text-zinc-500 uppercase px-2 py-1">Widget Type</span>
+                                                <span className="text-[8px] font-bold text-zinc-500 uppercase px-2 py-1">{t("Widget Type")}</span>
                                                 {supportedModes.map(m => (
                                                     <button 
                                                         key={m}
                                                         onClick={() => setMode(m)}
                                                         className={`text-[10px] px-2 py-1 text-left rounded hover:bg-zinc-800 flex items-center justify-between ${mode === m ? 'text-blue-400 font-bold bg-zinc-800' : 'text-zinc-300'}`}
                                                     >
-                                                        <span>{m.charAt(0).toUpperCase() + m.slice(1)}</span>
+                                                        <span>{t(m.charAt(0).toUpperCase() + m.slice(1))}</span>
                                                         {m === 'hidden' && <EyeOff size={10} className="text-zinc-500"/>}
                                                     </button>
                                                 ))}
@@ -567,18 +570,18 @@ const UniformControlWrapper = ({
                                         {/* Remaining Settings (Sliders, Enums) logic is identical to previous version, condensed here */}
                                         {((mode === 'slider' || mode === 'default') && (input.type === 'float' || input.type === 'int')) || (mode === 'range' && input.type === 'vec2') ? (
                                             <div className="flex flex-col border-t border-zinc-800 pt-2 gap-1.5 px-1 pb-1">
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Min</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.min ?? 0} onChange={(val) => updateConfig('min', val)} step={input.type === 'int' ? 1 : 0.1} /></div>
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Max</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.max ?? (mode === 'range' ? 100 : 1)} onChange={(val) => updateConfig('max', val)} step={input.type === 'int' ? 1 : 0.1} /></div>
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Step</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.step ?? (input.type === 'int' ? 1 : 0.01)} onChange={(val) => updateConfig('step', val)} step={0.001} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Min")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.min ?? 0} onChange={(val) => updateConfig('min', val)} step={input.type === 'int' ? 1 : 0.1} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Max")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.max ?? (mode === 'range' ? 100 : 1)} onChange={(val) => updateConfig('max', val)} step={input.type === 'int' ? 1 : 0.1} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Step")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.step ?? (input.type === 'int' ? 1 : 0.01)} onChange={(val) => updateConfig('step', val)} step={0.001} /></div>
                                             </div>
                                         ) : null}
 
                                         {mode === 'pad' && input.type === 'vec2' ? (
                                             <div className="flex flex-col border-t border-zinc-800 pt-2 gap-1.5 px-1 pb-1">
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Min X</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.minX ?? 0} onChange={(val) => updateConfig('minX', val)} step={0.1} /></div>
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Max X</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.maxX ?? 1} onChange={(val) => updateConfig('maxX', val)} step={0.1} /></div>
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Min Y</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.minY ?? 0} onChange={(val) => updateConfig('minY', val)} step={0.1} /></div>
-                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">Max Y</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.maxY ?? 1} onChange={(val) => updateConfig('maxY', val)} step={0.1} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Min X")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.minX ?? 0} onChange={(val) => updateConfig('minX', val)} step={0.1} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Max X")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.maxX ?? 1} onChange={(val) => updateConfig('maxX', val)} step={0.1} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Min Y")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.minY ?? 0} onChange={(val) => updateConfig('minY', val)} step={0.1} /></div>
+                                                <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Max Y")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.maxY ?? 1} onChange={(val) => updateConfig('maxY', val)} step={0.1} /></div>
                                             </div>
                                         ) : null}
                                     </div>
@@ -587,7 +590,7 @@ const UniformControlWrapper = ({
                         </div>
                     )}
                 </div>
-                {isConnected && <span className="text-[9px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1 rounded">LINKED</span>}
+                {isConnected && <span className="text-[9px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1 rounded">{t("LINKED")}</span>}
              </div>
              {mode !== 'hidden' && (
                  <div className={`mt-1 ${isConnected ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
@@ -603,6 +606,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { setNodes, deleteElements, setEdges, getNodes, getEdges } = useReactFlow();
   const { enterGroup } = useProject();
   const edges = useEdges(); 
+  const { t: tGlobal } = useTranslation();
   
   const nodeDef = useMemo(() => data.definitionId ? getNodeDefinition(data.definitionId) : undefined, [data.definitionId]);
   const t = useNodeTranslation(nodeDef, data.locales);
@@ -810,7 +814,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     <div className={`font-semibold text-sm truncate max-w-[140px] cursor-text select-none group/label flex items-center gap-1 ${data.preview ? 'text-green-400' : 'text-zinc-100'}`} onDoubleClick={handleDoubleClick}>
                         {t(data.label)} 
                         {data.isCompound ? (
-                            <span className="text-[9px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-700/50">GROUP</span>
+                            <span className="text-[9px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-700/50">{tGlobal("GROUP")}</span>
                         ) : (
                             <Edit2 size={8} className="opacity-0 group-hover/label:opacity-50" />
                         )}
@@ -820,7 +824,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             </div>
             <div className="flex items-center gap-1 shrink-0">
                 {data.isCompound && (
-                    <button onClick={() => enterGroup(id)} className="p-1 rounded hover:bg-cyan-900/50 text-cyan-500 hover:text-cyan-300 transition-colors mr-1" title="Enter Group">
+                    <button onClick={() => enterGroup(id)} className="p-1 rounded hover:bg-cyan-900/50 text-cyan-500 hover:text-cyan-300 transition-colors mr-1" title={tGlobal("Enter Group")}>
                         <LogIn size={14} />
                     </button>
                 )}
@@ -845,7 +849,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                                         onUpdateConfig={(widget, config) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next[input.id] = { ...next[input.id], widget, widgetConfig: config || next[input.id].widgetConfig }; return { uniforms: next }; })}
                                     />
                                 ) : (
-                                    <div className="flex items-center justify-between min-h-[16px]"><span className="text-xs font-medium" style={{ color: isConnected ? typeColor : '#a1a1aa' }}>{t(input.name)}</span>{isConnected && <span className="text-[9px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1 rounded">LINKED</span>}</div>
+                                    <div className="flex items-center justify-between min-h-[16px]"><span className="text-xs font-medium" style={{ color: isConnected ? typeColor : '#a1a1aa' }}>{t(input.name)}</span>{isConnected && <span className="text-[9px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1 rounded">{tGlobal("LINKED")}</span>}</div>
                                 )}
                             </div>
                         </div>
@@ -867,11 +871,11 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         </div>
         {showCode && !isFloatingCode && (
             <div className="p-2 border-t border-zinc-800 bg-zinc-950 flex flex-col gap-2 animate-in slide-in-from-top-2">
-                <div className="flex items-center justify-between text-zinc-500 px-1"><span className="text-[10px] uppercase font-bold tracking-wider">GLSL Source</span><button onClick={() => setIsFloatingCode(true)} className="p-1 hover:text-blue-400 hover:bg-zinc-800 rounded"><Maximize2 size={12}/></button></div>
+                <div className="flex items-center justify-between text-zinc-500 px-1"><span className="text-[10px] uppercase font-bold tracking-wider">{tGlobal("GLSL Source")}</span><button onClick={() => setIsFloatingCode(true)} className="p-1 hover:text-blue-400 hover:bg-zinc-800 rounded"><Maximize2 size={12}/></button></div>
                 <div className="nodrag">
                     <CodeEditor value={localCode} onChange={(val) => setLocalCode(val || '')} onSave={handleCodeCompile} onBlur={handleCodeCompile} height="250px" lineNumbers="off" readOnly={data.isCompound}/>
                 </div>
-                <div className="text-[9px] text-zinc-600 flex justify-between px-1"><span>Ctrl+S to save</span><span>Standard GLSL syntax</span></div>
+                <div className="text-[9px] text-zinc-600 flex justify-between px-1"><span>{tGlobal("Ctrl+S to save")}</span><span>{tGlobal("Standard GLSL syntax")}</span></div>
             </div>
         )}
         </div>
@@ -879,9 +883,9 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-8" onClick={() => setIsFloatingCode(false)}>
                 <div className="w-full max-w-5xl h-[85vh] bg-zinc-950 border border-zinc-700 rounded-lg shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                     <div className="h-10 border-b border-zinc-800 flex items-center justify-between px-3 bg-zinc-900 select-none">
-                        <div className="flex items-center gap-2"><div className="p-1 bg-blue-600/20 rounded text-blue-400"><Code size={16} /></div><span className="font-bold text-zinc-200 text-xs">Editing: {data.label}</span></div>
+                        <div className="flex items-center gap-2"><div className="p-1 bg-blue-600/20 rounded text-blue-400"><Code size={16} /></div><span className="font-bold text-zinc-200 text-xs">{tGlobal("Editing:")} {data.label}</span></div>
                         <div className="flex items-center gap-2">
-                             <button onClick={handleCodeCompile} className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wide"><Save size={12} /> Compile</button>
+                             <button onClick={handleCodeCompile} className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wide"><Save size={12} /> {tGlobal("Compile")}</button>
                             <button onClick={() => setIsFloatingCode(false)} className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded"><Minimize2 size={16} /></button>
                         </div>
                     </div>
@@ -897,14 +901,14 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 onClick={e => e.stopPropagation()}
             >
                 <button onClick={() => { setShowEditor(true); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
-                    <Settings2 size={14} /> Edit Node
+                    <Settings2 size={14} /> {tGlobal("Edit Node")}
                 </button>
                 <button onClick={() => { handleDownloadNode(); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
-                    <Download size={14} /> Download JSON
+                    <Download size={14} /> {tGlobal("Download JSON")}
                 </button>
                 <div className="h-px bg-zinc-800 my-1" />
                 <button onClick={(e) => { handleDeleteNode(e); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-zinc-800 flex items-center gap-2">
-                    <Trash2 size={14} /> Delete
+                    <Trash2 size={14} /> {tGlobal("Delete")}
                 </button>
             </div>,
             document.body

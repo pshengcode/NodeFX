@@ -22,9 +22,9 @@ export const Toolbar: React.FC = () => {
         <div className="absolute top-0 left-0 right-0 h-14 bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-800 z-10 flex items-center px-6 justify-between pointer-events-none">
              <div className="pointer-events-auto flex items-center gap-4">
                  <div className="text-[10px] text-zinc-500 flex gap-4">
-                     <span className="flex items-center gap-1"><MousePointer2 size={10}/> Left Drag to Select</span>
-                     <span className="flex items-center gap-1"><span className="border border-zinc-700 px-1 rounded">Middle Mouse</span> to Pan</span>
-                     <span className="flex items-center gap-1"><span className="border border-zinc-700 px-1 rounded">Wheel</span> to Zoom</span>
+                     <span className="flex items-center gap-1"><MousePointer2 size={10}/> {t('Left Drag to Select')}</span>
+                     <span className="flex items-center gap-1"><span className="border border-zinc-700 px-1 rounded">{t('Middle Mouse')}</span> {t('to Pan')}</span>
+                     <span className="flex items-center gap-1"><span className="border border-zinc-700 px-1 rounded">{t('Wheel')}</span> {t('to Zoom')}</span>
                  </div>
              </div>
             
@@ -36,7 +36,7 @@ export const Toolbar: React.FC = () => {
                         onClick={undo} 
                         disabled={!canUndo}
                         className={`p-1.5 rounded-full border border-zinc-700 transition-colors ${canUndo ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-900 text-zinc-600 cursor-not-allowed'}`}
-                        title="Undo (Ctrl+Z)"
+                        title={t("Undo (Ctrl+Z)")}
                     >
                         <Undo size={14} />
                     </button>
@@ -44,7 +44,7 @@ export const Toolbar: React.FC = () => {
                         onClick={redo} 
                         disabled={!canRedo}
                         className={`p-1.5 rounded-full border border-zinc-700 transition-colors ${canRedo ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-900 text-zinc-600 cursor-not-allowed'}`}
-                        title="Redo (Ctrl+Y)"
+                        title={t("Redo (Ctrl+Y)")}
                     >
                         <Redo size={14} />
                     </button>
@@ -56,7 +56,7 @@ export const Toolbar: React.FC = () => {
                         <button 
                             onClick={() => setShowResDropdown(!showResDropdown)}
                             className="p-1 -ml-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors"
-                            title="Resolution Presets"
+                            title={t("Resolution Presets")}
                         >
                             <Settings size={14} />
                         </button>
@@ -81,7 +81,7 @@ export const Toolbar: React.FC = () => {
                         <>
                             <div className="fixed inset-0 z-30" onClick={() => setShowResDropdown(false)}></div>
                             <div className="absolute top-full left-0 mt-2 w-32 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden z-40 flex flex-col py-1 animate-in fade-in zoom-in-95 duration-100">
-                                <div className="px-3 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/50 mb-1">Presets</div>
+                                <div className="px-3 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/50 mb-1">{t("Presets")}</div>
                                 {[64, 128, 256, 512, 1024, 2048].map(size => (
                                     <button
                                         key={size}

@@ -3,6 +3,7 @@ import { Handle, Position, NodeProps, useReactFlow } from 'reactflow';
 import { NodeData, GLSLType } from '../types';
 import { TYPE_COLORS } from '../constants';
 import { ArrowRight, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const handleStyle = { width: 10, height: 10 };
 
@@ -29,6 +30,7 @@ const EditableLabel = ({ value, onChange, align = 'left' }: { value: string, onC
 };
 
 export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
+  const { t } = useTranslation();
   const { setNodes, setEdges } = useReactFlow();
 
   const handleNameChange = (inputId: string, newName: string) => {
@@ -70,7 +72,7 @@ export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
   return (
     <div className="bg-zinc-900 border-2 border-emerald-600/50 rounded-lg shadow-xl min-w-[150px]">
       <div className="bg-emerald-950/80 px-3 py-2 rounded-t-lg border-b border-emerald-800 flex items-center justify-between">
-        <span className="text-sm font-bold text-emerald-100">Graph Inputs</span>
+        <span className="text-sm font-bold text-emerald-100">{t("Graph Inputs")}</span>
         <ArrowRight size={14} className="text-emerald-400" />
       </div>
       <div className="p-2 flex flex-col gap-2">
@@ -79,7 +81,7 @@ export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
             <button 
                 onClick={() => handleDelete(input.id)}
                 className="absolute left-0 p-1 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Delete Input"
+                title={t("Delete Input")}
             >
                 <Trash2 size={12} />
             </button>
@@ -99,11 +101,11 @@ export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
         ))}
         {data.inputs.length === 0 && (
             <div className="text-[10px] text-zinc-500 italic text-center py-2">
-                Connect inner nodes here to create inputs
+                {t("Connect inner nodes here to create inputs")}
             </div>
         )}
         <div className="relative flex items-center justify-end h-6 pr-2 border-t border-zinc-800 mt-1 pt-1">
-            <span className="text-[10px] text-zinc-500 italic mr-2">New Input</span>
+            <span className="text-[10px] text-zinc-500 italic mr-2">{t("New Input")}</span>
             <Handle
               type="source"
               position={Position.Right}
@@ -121,6 +123,7 @@ export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
 });
 
 export const GraphOutputNode = memo(({ id, data }: NodeProps<NodeData>) => {
+  const { t } = useTranslation();
   const { setNodes, setEdges } = useReactFlow();
 
   const handleNameChange = (outputId: string, newName: string) => {
@@ -163,7 +166,7 @@ export const GraphOutputNode = memo(({ id, data }: NodeProps<NodeData>) => {
     <div className="bg-zinc-900 border-2 border-amber-600/50 rounded-lg shadow-xl min-w-[150px]">
       <div className="bg-amber-950/80 px-3 py-2 rounded-t-lg border-b border-amber-800 flex items-center justify-between">
         <ArrowLeft size={14} className="text-amber-400" />
-        <span className="text-sm font-bold text-amber-100">Graph Outputs</span>
+        <span className="text-sm font-bold text-amber-100">{t("Graph Outputs")}</span>
       </div>
       <div className="p-2 flex flex-col gap-2">
         {data.outputs.map((output) => (
@@ -183,7 +186,7 @@ export const GraphOutputNode = memo(({ id, data }: NodeProps<NodeData>) => {
             <button 
                 onClick={() => handleDelete(output.id)}
                 className="absolute right-0 p-1 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Delete Output"
+                title={t("Delete Output")}
             >
                 <Trash2 size={12} />
             </button>
@@ -191,7 +194,7 @@ export const GraphOutputNode = memo(({ id, data }: NodeProps<NodeData>) => {
         ))}
          {data.outputs.length === 0 && (
             <div className="text-[10px] text-zinc-500 italic text-center py-2">
-                Connect inner nodes here to create outputs
+                {t("Connect inner nodes here to create outputs")}
             </div>
         )}
         <div className="relative flex items-center h-6 pl-2 border-t border-zinc-800 mt-1 pt-1">
@@ -205,7 +208,7 @@ export const GraphOutputNode = memo(({ id, data }: NodeProps<NodeData>) => {
                 borderStyle: 'dashed'
               }}
             />
-            <span className="text-[10px] text-zinc-500 italic ml-2">New Output</span>
+            <span className="text-[10px] text-zinc-500 italic ml-2">{t("New Output")}</span>
         </div>
       </div>
     </div>

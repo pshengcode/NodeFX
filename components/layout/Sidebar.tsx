@@ -3,6 +3,7 @@ import { FileJson, ChevronDown, ChevronRight } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarItemProps {
     node: ShaderNodeDefinition;
@@ -11,7 +12,8 @@ interface SidebarItemProps {
 }
 
 const SidebarItem: React.FC<SidebarItemProps> = ({ node, onDragStart, onClick }) => {
-    const t = useNodeTranslation(node);
+    const tNode = useNodeTranslation(node);
+    const { t } = useTranslation();
     
     return (
           <div 
@@ -19,9 +21,9 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ node, onDragStart, onClick })
               onDragStart={(event) => onDragStart(event, node.id)}
               onClick={() => onClick(node)}
               className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-all group w-full text-left border border-transparent hover:border-zinc-700/50 cursor-grab active:cursor-grabbing"
-              title={`${t(node.description || '')} (Click to add)`}
+              title={`${tNode(node.description || '')} ${t('(Click to add)')}`}
           >
-              <span className="text-xs font-medium truncate pointer-events-none">{t(node.label)}</span>
+              <span className="text-xs font-medium truncate pointer-events-none">{tNode(node.label)}</span>
           </div>
     );
 };
@@ -35,6 +37,7 @@ interface SidebarCategoryProps {
 
 const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick }) => {
     const [isOpen, setIsOpen] = useState(true);
+    const { t } = useTranslation();
 
     return (
         <div className="flex flex-col w-full mb-2">
@@ -42,7 +45,7 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDr
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center justify-between w-full px-2 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 hover:bg-zinc-800/50 rounded transition-colors select-none group"
             >
-                <span className="group-hover:text-zinc-200 transition-colors">{category}</span>
+                <span className="group-hover:text-zinc-200 transition-colors">{t(category) || category}</span>
                 {isOpen ? <ChevronDown size={12} className="opacity-50 group-hover:opacity-100"/> : <ChevronRight size={12} className="opacity-50 group-hover:opacity-100"/>}
             </button>
             
@@ -65,6 +68,7 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDr
 const CATEGORY_ORDER: NodeCategory[] = ['Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'];
 
 export const Sidebar: React.FC = () => {
+    const { t } = useTranslation();
     const { 
         nodesByCategory, 
         addNode, 
@@ -111,7 +115,7 @@ export const Sidebar: React.FC = () => {
                     onClick={() => nodeImportInputRef.current?.click()}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
                 >
-                    <FileJson size={14} /> Import
+                    <FileJson size={14} /> {t('Import')}
                 </button>
             </div>
             

@@ -4,6 +4,7 @@ import { CompilationResult } from '../types';
 import { AlertCircle } from 'lucide-react';
 import { webglSystem } from '../utils/webglSystem';
 import { assetManager } from '../utils/assetManager';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   data: CompilationResult | null;
@@ -17,6 +18,7 @@ interface Props {
 type ChannelMode = 0 | 1 | 2 | 3 | 4; // RGBA, R, G, B, A
 
 const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, paused, width, height, onNodeError }, ref) => {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [channelMode, setChannelMode] = useState<ChannelMode>(0);
   const animationFrameRef = useRef<number>(0);
@@ -117,7 +119,7 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       </div>
 
       <button onClick={handleDownload} className="absolute bottom-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity border border-zinc-600 z-20">
-        Save Image
+        {t("Save Image")}
       </button>
     </div>
   );

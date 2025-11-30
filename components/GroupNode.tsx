@@ -2,10 +2,12 @@
 import React, { memo, useState, useCallback } from 'react';
 import { NodeProps, NodeResizer, useReactFlow } from 'reactflow';
 import { NodeData } from '../types';
+import { useTranslation } from 'react-i18next';
 
 const GroupNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
-  const [label, setLabel] = useState(data.label || 'Group');
+  const [label, setLabel] = useState(data.label || t('Group'));
   const { setNodes } = useReactFlow();
 
   const onResizeEnd = useCallback((_event: any, params: { x: number; y: number; width: number; height: number }) => {
@@ -72,7 +74,7 @@ const GroupNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     onChange={(e) => setLabel(e.target.value)}
                     onKeyDown={(e) => { e.stopPropagation(); if(e.key === 'Enter') setIsEditing(false); }}
                     onBlur={() => setIsEditing(false)}
-                    placeholder="Group Name"
+                    placeholder={t("Group Name")}
                     autoFocus
                 />
              ) : (

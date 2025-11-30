@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Node, Edge } from 'reactflow';
 import { NodeData } from '../types';
+import { useTranslation } from 'react-i18next';
 
 export function useKeyboardShortcuts(
     nodes: Node<NodeData>[],
@@ -11,6 +12,8 @@ export function useKeyboardShortcuts(
     undo: () => void,
     redo: () => void
 ) {
+    const { t } = useTranslation();
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
@@ -44,7 +47,7 @@ export function useKeyboardShortcuts(
                         type: 'group',
                         position: { x: minX - padding, y: minY - padding - 30 },
                         style: { width: (maxX - minX) + padding * 2, height: (maxY - minY) + padding * 2 + 30 },
-                        data: { label: 'Group', description: '' },
+                        data: { label: t('Group'), description: '' },
                         selected: true,
                         zIndex: -10, 
                     };

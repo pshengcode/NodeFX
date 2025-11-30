@@ -146,14 +146,14 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         // Smart Error Diagnosis
         if (msg === 'Failed to fetch' || msg.includes('NetworkError')) {
              if (potentialBlock) {
-                 msg = "Security Block: Private Network Access";
-                 details = "Browsers block HTTPS sites from accessing HTTP Localhost. \n\nSolution: Use ngrok to get an HTTPS URL for your server.";
+                 msg = t("Security Block: Private Network Access");
+                 details = t("Browsers block HTTPS sites from accessing HTTP Localhost. \n\nSolution: Use ngrok to get an HTTPS URL for your server.");
              } else if (isHttps && isHttpTarget) {
-                 msg = "Security Block: Mixed Content";
-                 details = "You cannot access insecure HTTP resources from a secure HTTPS page.";
+                 msg = t("Security Block: Mixed Content");
+                 details = t("You cannot access insecure HTTP resources from a secure HTTPS page.");
              } else {
-                 msg = "Connection Failed";
-                 details = "Check if your server is running and CORS headers are set correctly.";
+                 msg = t("Connection Failed");
+                 details = t("Check if your server is running and CORS headers are set correctly.");
              }
         }
         
@@ -248,7 +248,7 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-zinc-500" title={t('Network ID')}>
                 <Hash size={12} />
-                <span className="text-[10px] font-bold uppercase w-3">ID</span>
+                <span className="text-[10px] font-bold uppercase w-3">{t("ID")}</span>
             </div>
             <input 
                 className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-1.5 py-1 text-xs text-zinc-300 font-mono focus:border-blue-500 outline-none placeholder-zinc-700 transition-colors"

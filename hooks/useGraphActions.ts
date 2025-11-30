@@ -12,6 +12,7 @@ import {
 } from 'reactflow';
 import { NodeData, ShaderNodeDefinition } from '../types';
 import { getNodeDefinition, validateNodeDefinition, normalizeNodeDefinition } from '../nodes/registry';
+import { useTranslation } from 'react-i18next';
 
 export function useGraphActions(
     nodes: Node<NodeData>[],
@@ -27,6 +28,7 @@ export function useGraphActions(
     fullRegistry: ShaderNodeDefinition[],
     currentScope: string
 ) {
+    const { t } = useTranslation();
 
     // Custom onNodesChange to handle Group deletion (Ungroup Children)
     const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -141,12 +143,12 @@ export function useGraphActions(
 
                         setNodes(nds => nds.map(n => {
                             if (n.id === currentScope) {
-                                const newInputs = [...n.data.inputs, { id: newId, name: `Input ${n.data.inputs.length + 1}`, type: newType }];
+                                const newInputs = [...n.data.inputs, { id: newId, name: `${t('Input')} ${n.data.inputs.length + 1}`, type: newType }];
                                 const newUniforms = { ...n.data.uniforms, [newId]: { type: newType, value: getDefaultVal(newType) } };
                                 return { ...n, data: { ...n.data, inputs: newInputs, uniforms: newUniforms } };
                             }
                             if (n.id === sourceNode.id) {
-                                return { ...n, data: { ...n.data, inputs: [...n.data.inputs, { id: newId, name: `Input ${n.data.inputs.length + 1}`, type: newType }] } };
+                                return { ...n, data: { ...n.data, inputs: [...n.data.inputs, { id: newId, name: `${t('Input')} ${n.data.inputs.length + 1}`, type: newType }] } };
                             }
                             return n;
                         }));
@@ -168,10 +170,10 @@ export function useGraphActions(
 
                         setNodes(nds => nds.map(n => {
                             if (n.id === currentScope) {
-                                return { ...n, data: { ...n.data, outputs: [...(n.data.outputs || []), { id: newId, name: `Output ${(n.data.outputs?.length || 0) + 1}`, type: newType }] } };
+                                return { ...n, data: { ...n.data, outputs: [...(n.data.outputs || []), { id: newId, name: `${t('Output')} ${(n.data.outputs?.length || 0) + 1}`, type: newType }] } };
                             }
                             if (n.id === targetNode.id) {
-                                return { ...n, data: { ...n.data, outputs: [...(n.data.outputs || []), { id: newId, name: `Output ${(n.data.outputs?.length || 0) + 1}`, type: newType }] } };
+                                return { ...n, data: { ...n.data, outputs: [...(n.data.outputs || []), { id: newId, name: `${t('Output')} ${(n.data.outputs?.length || 0) + 1}`, type: newType }] } };
                             }
                             return n;
                         }));
@@ -393,11 +395,11 @@ export function useGraphActions(
                              if (validateNodeDefinition(normalized)) {
                                  addNode(normalized, position);
                              } else {
-                                 alert("Invalid Node JSON structure.");
+                                 alert(t("Invalid Node JSON structure."));
                              }
                          } catch (err) {
                              console.error("JSON Parse Error:", err);
-                             alert("Failed to parse JSON file.");
+                             alert(t("Failed to parse JSON file."));
                          }
                      };
                      reader.readAsText(file);

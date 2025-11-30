@@ -12,6 +12,7 @@ import SmartEdge from '../SmartEdge';
 import ContextMenu from '../ContextMenu';
 import ShaderPreview from '../ShaderPreview';
 import { GraphInputNode, GraphOutputNode } from '../IOProxyNodes';
+import { useTranslation } from 'react-i18next';
 
 const nodeTypes: NodeTypes = {
   customShader: CustomNode,
@@ -27,6 +28,7 @@ const edgeTypes: EdgeTypes = {
 };
 
 export const Canvas: React.FC = () => {
+    const { t } = useTranslation();
     const { 
         nodes, edges, onNodesChange, onEdgesChange, onConnect, 
         onNodeClick, onNodeDragStop, onNodesDelete, 
@@ -171,10 +173,10 @@ export const Canvas: React.FC = () => {
             <div className="absolute bottom-6 right-6 w-[400px] aspect-square bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl z-[200] flex flex-col pointer-events-auto">
                 <div className="h-8 bg-zinc-800 border-b border-zinc-700 flex items-center px-3 justify-between">
                     <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
-                        <Eye size={12} className="text-green-500"/> Live Preview
+                        <Eye size={12} className="text-green-500"/> {t("Live Preview")}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono">
-                        {previewNodeId ? `${resolution.w}x${resolution.h}` : 'No Selection'}
+                        {previewNodeId ? `${resolution.w}x${resolution.h}` : t('No Selection')}
                     </span>
                 </div>
                 <div className="flex-1 relative bg-black">

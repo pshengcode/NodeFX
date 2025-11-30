@@ -756,7 +756,7 @@ export const GradientWidget = ({ config, onChangeValue, onConfigChange }: {
             
             {!selected && (
                 <div className="text-[9px] text-zinc-600 text-center italic pt-1">
-                    Double-click point to delete
+                    {t("Double-click point to delete")}
                 </div>
             )}
         </div>
@@ -768,6 +768,7 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
     onChangeValue: (dataUrl: string | null) => void,
     onConfigChange: (cfg: WidgetConfig) => void 
 }) => {
+    const { t } = useTranslation();
     const points = config.curvePoints || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -952,13 +953,14 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
         >
              <canvas ref={canvasRef} width={250} height={100} className="w-full h-full block pointer-events-none" />
              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-[8px] bg-black/50 px-1 rounded pointer-events-none text-zinc-400 border border-zinc-800">
-                 Double-click to Del
+                 {t("Double-click to Del")}
              </div>
         </div>
     );
 };
 
 export const ImageUploadWidget = ({ value, onChange }: any) => {
+    const { t } = useTranslation();
     const [dimensions, setDimensions] = useState<{w: number, h: number} | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -996,7 +998,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
                              <button 
                                 onClick={applySize}
                                 className="bg-black/60 hover:bg-blue-600 text-white p-1 rounded border border-white/20 shadow-sm backdrop-blur-sm flex items-center gap-1 text-[8px]"
-                                title={`Set Canvas to ${dimensions.w}x${dimensions.h}`}
+                                title={`${t('Set Canvas to')} ${dimensions.w}x${dimensions.h}`}
                              >
                                 <Scan size={10} />
                                 <span>{dimensions.w}x{dimensions.h}</span>
@@ -1008,7 +1010,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
             <label className="nodrag flex items-center justify-center w-full h-5 px-2 bg-zinc-800 border border-zinc-700 border-dashed rounded cursor-pointer hover:border-zinc-500 hover:bg-zinc-700 transition-colors">
                 <span className="flex items-center gap-1">
                     <Upload size={10} className="text-zinc-400" />
-                    <span className="text-[9px] text-zinc-400">Load Image</span>
+                    <span className="text-[9px] text-zinc-400">{t("Load Image")}</span>
                 </span>
                 <input type="file" className="nodrag hidden" accept="image/*" onChange={handleFileChange} />
             </label>
