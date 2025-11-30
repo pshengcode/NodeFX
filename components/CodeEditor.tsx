@@ -17,6 +17,7 @@ interface CodeEditorProps {
   height?: string;
   readOnly?: boolean;
   lineNumbers?: 'on' | 'off';
+  language?: string;
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
@@ -26,7 +27,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onBlur, 
   height = "200px", 
   readOnly = false,
-  lineNumbers = 'on'
+  lineNumbers = 'on',
+  language = 'glsl'
 }) => {
   const editorRef = useRef<any>(null);
   
@@ -48,7 +50,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     // --- 1. REGISTER GLSL LANGUAGE ---
     // Only register if not already registered
-    if (!monaco.languages.getLanguages().some((l: any) => l.id === 'glsl')) {
+    if (language === 'glsl' && !monaco.languages.getLanguages().some((l: any) => l.id === 'glsl')) {
         monaco.languages.register({ id: 'glsl' });
 
         // Syntax Highlighting
@@ -157,7 +159,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     >
       <Editor
         height={height}
-        defaultLanguage="glsl" // Use our custom language ID
+        defaultLanguage={language} // Use our custom language ID
         theme="vs-dark"
         value={value}
         onChange={onChange}

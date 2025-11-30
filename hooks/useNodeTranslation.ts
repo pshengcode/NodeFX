@@ -1,13 +1,24 @@
 import { useTranslation } from 'react-i18next';
 import { ShaderNodeDefinition } from '../types';
 
-export function useNodeTranslation(nodeDef?: ShaderNodeDefinition) {
+export function useNodeTranslation(nodeDef?: ShaderNodeDefinition, instanceLocales?: Record<string, Record<string, string>>) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
   // Helper to translate any string based on node context
   const translate = (text: string) => {
     if (!text) return text;
+    
+    // 0. Check Instance-specific translations (Highest Priority)
+    if (instanceLocales) {
+        if (instanceLocales[lang] && instanceLocales[lang][text]) {
+            return instanceLocales[lang][text];
+        }
+        const shortLang = lang.split('-')[0];
+        if (instanceLocales[shortLang] && instanceLocales[shortLang][text]) {
+            return instanceLocales[shortLang][text];
+        }
+    }
     
     // 1. Check Node-specific translations
     // We check if the language starts with the key (e.g. 'zh-CN' matches 'zh')

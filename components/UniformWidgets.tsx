@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 // --- WIDGETS ---
 
-export const SmartNumberInput = ({ value, onChange, step = 0.01, className }: { value: number, onChange: (v: number) => void, step?: number, className?: string }) => {
+export const SmartNumberInput: React.FC<{ value: number, onChange: (v: number) => void, step?: number, className?: string }> = ({ value, onChange, step = 0.01, className }) => {
     // Guard against NaN
     const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
     

@@ -86,6 +86,9 @@ export interface NodeData {
   resolution?: { w: number; h: number };
   customId?: string;
   
+  // Internationalization overrides for this instance
+  locales?: Record<string, Record<string, string>>;
+
   // Compound Node Support
   isCompound?: boolean;
   scopeId?: string; // The ID of the parent compound node (or 'root')

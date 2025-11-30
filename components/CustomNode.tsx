@@ -1,8 +1,8 @@
 import React, { useState, useCallback, memo, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps, useReactFlow, useEdges, useStore } from 'reactflow';
-import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig } from '../types';
-import { Code, X, Settings2, Eye, AlertTriangle, ChevronDown, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn } from 'lucide-react';
+import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory } from '../types';
+import { Code, X, Settings2, Eye, AlertTriangle, ChevronDown, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical } from 'lucide-react';
 import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
@@ -12,6 +12,260 @@ import { extractShaderIO } from '../utils/glslParser';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { getNodeDefinition } from '../nodes/registry';
 import { useProject } from '../context/ProjectContext';
+
+// --- NODE EDITOR MODAL ---
+const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (newData: Partial<NodeData>) => void, onClose: () => void }) => {
+    const [localData, setLocalData] = useState(data);
+    const [activeTab, setActiveTab] = useState<'general' | 'io' | 'locales'>('general');
+    
+    // Locales State
+    const [selectedLang, setSelectedLang] = useState<string | null>(null);
+    const [newLangCode, setNewLangCode] = useState('');
+
+    // Extract all translatable keys
+    const translatableKeys = useMemo(() => {
+        const keys = new Set<string>();
+        if (localData.label) keys.add(localData.label);
+        localData.inputs.forEach(i => keys.add(i.name));
+        localData.outputs.forEach(o => keys.add(o.name));
+        return Array.from(keys);
+    }, [localData.label, localData.inputs, localData.outputs]);
+
+    // Initialize selectedLang if locales exist
+    useEffect(() => {
+        if (!selectedLang && localData.locales && Object.keys(localData.locales).length > 0) {
+            setSelectedLang(Object.keys(localData.locales)[0]);
+        }
+    }, []);
+
+    const handleSave = () => {
+        onSave(localData);
+        onClose();
+    };
+
+    const updateInputName = (idx: number, name: string) => {
+        const newInputs = [...localData.inputs];
+        newInputs[idx] = { ...newInputs[idx], name };
+        setLocalData({ ...localData, inputs: newInputs });
+    };
+
+    const updateOutputName = (idx: number, name: string) => {
+        const newOutputs = [...localData.outputs];
+        newOutputs[idx] = { ...newOutputs[idx], name };
+        setLocalData({ ...localData, outputs: newOutputs });
+    };
+
+    const handleAddLang = () => {
+        if (!newLangCode) return;
+        const code = newLangCode.trim();
+        if (!code) return;
+        
+        setLocalData(prev => ({
+            ...prev,
+            locales: {
+                ...prev.locales,
+                [code]: prev.locales?.[code] || {}
+            }
+        }));
+        setSelectedLang(code);
+        setNewLangCode('');
+    };
+
+    const handleRemoveLang = (lang: string) => {
+        if (!confirm(`Delete locale '${lang}'?`)) return;
+        const next = { ...localData.locales };
+        delete next[lang];
+        setLocalData({ ...localData, locales: next });
+        if (selectedLang === lang) setSelectedLang(null);
+    };
+
+    const handleUpdateTranslation = (lang: string, key: string, value: string) => {
+        setLocalData(prev => ({
+            ...prev,
+            locales: {
+                ...prev.locales,
+                [lang]: {
+                    ...prev.locales?.[lang],
+                    [key]: value
+                }
+            }
+        }));
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-8" onClick={onClose}>
+            <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                <div className="h-12 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950 select-none">
+                    <div className="flex items-center gap-2">
+                        <Settings2 size={18} className="text-blue-400" />
+                        <span className="font-bold text-zinc-200">Edit Node Metadata</span>
+                    </div>
+                    <button onClick={onClose} className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded"><X size={18} /></button>
+                </div>
+                
+                <div className="flex border-b border-zinc-800 bg-zinc-900">
+                    {(['general', 'io', 'locales'] as const).map(tab => (
+                        <button 
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`px-4 py-2 text-xs font-bold uppercase tracking-wide border-b-2 transition-colors ${activeTab === tab ? 'border-blue-500 text-blue-400 bg-zinc-800/50' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                            {tab === 'io' ? 'Inputs / Outputs' : tab}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    {activeTab === 'general' && (
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-bold text-zinc-500 uppercase">Label</label>
+                                <input 
+                                    className="bg-zinc-950 border border-zinc-700 rounded p-2 text-sm text-zinc-200 outline-none focus:border-blue-500"
+                                    value={localData.label}
+                                    onChange={e => setLocalData({ ...localData, label: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-bold text-zinc-500 uppercase">Category</label>
+                                <select 
+                                    className="bg-zinc-950 border border-zinc-700 rounded p-2 text-sm text-zinc-200 outline-none focus:border-blue-500"
+                                    value={localData.category || 'Custom'}
+                                    onChange={e => setLocalData({ ...localData, category: e.target.value as NodeCategory })}
+                                >
+                                    {['Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'].map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-xs font-bold text-zinc-500 uppercase">Description</label>
+                                <textarea 
+                                    className="bg-zinc-950 border border-zinc-700 rounded p-2 text-sm text-zinc-200 outline-none focus:border-blue-500 min-h-[100px]"
+                                    value={localData.description || ''}
+                                    onChange={e => setLocalData({ ...localData, description: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'io' && (
+                        <div className="flex flex-col gap-6">
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">Inputs</h3>
+                                {localData.inputs.map((inp, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono text-zinc-500 w-8">{inp.type}</span>
+                                        <input 
+                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                            value={inp.name}
+                                            onChange={e => updateInputName(idx, e.target.value)}
+                                        />
+                                        <span className="text-[10px] font-mono text-zinc-600">{inp.id}</span>
+                                    </div>
+                                ))}
+                                {localData.inputs.length === 0 && <span className="text-xs text-zinc-600 italic">No inputs</span>}
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">Outputs</h3>
+                                {localData.outputs.map((out, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono text-zinc-500 w-8">{out.type}</span>
+                                        <input 
+                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                            value={out.name}
+                                            onChange={e => updateOutputName(idx, e.target.value)}
+                                        />
+                                        <span className="text-[10px] font-mono text-zinc-600">{out.id}</span>
+                                    </div>
+                                ))}
+                                {localData.outputs.length === 0 && <span className="text-xs text-zinc-600 italic">No outputs</span>}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'locales' && (
+                        <div className="flex flex-col gap-4 h-full">
+                            {/* Language Management Header */}
+                            <div className="flex items-center gap-2 p-2 bg-zinc-950 rounded border border-zinc-800">
+                                <div className="flex items-center gap-2 flex-1">
+                                    <span className="text-xs font-bold text-zinc-500 uppercase">Language:</span>
+                                    <select 
+                                        className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500 min-w-[100px]"
+                                        value={selectedLang || ''}
+                                        onChange={e => setSelectedLang(e.target.value)}
+                                    >
+                                        <option value="" disabled>Select...</option>
+                                        {Object.keys(localData.locales || {}).map(lang => (
+                                            <option key={lang} value={lang}>{lang}</option>
+                                        ))}
+                                    </select>
+                                    {selectedLang && (
+                                        <button onClick={() => handleRemoveLang(selectedLang)} className="p-1 hover:bg-red-900/50 text-zinc-500 hover:text-red-400 rounded" title="Delete Language">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="w-px h-4 bg-zinc-800 mx-2"></div>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        placeholder="New (e.g. zh, ja)" 
+                                        className="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                        value={newLangCode}
+                                        onChange={e => setNewLangCode(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleAddLang()}
+                                    />
+                                    <button onClick={handleAddLang} className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700">
+                                        <Plus size={14} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Translation Editor */}
+                            <div className="flex-1 border border-zinc-800 rounded bg-zinc-950/50 overflow-y-auto custom-scrollbar p-2">
+                                {!selectedLang ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-2">
+                                        <span className="text-sm">Select or add a language to start translating</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="grid grid-cols-2 gap-4 px-2 py-1 border-b border-zinc-800 text-[10px] font-bold text-zinc-500 uppercase">
+                                            <div>Original Text</div>
+                                            <div>Translation ({selectedLang})</div>
+                                        </div>
+                                        {translatableKeys.map((key, idx) => (
+                                            <div key={idx} className="grid grid-cols-2 gap-4 items-center px-2 py-1 hover:bg-zinc-900/50 rounded">
+                                                <div className="text-xs text-zinc-400 truncate" title={key}>{key}</div>
+                                                <input 
+                                                    className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500 placeholder-zinc-700"
+                                                    placeholder={key}
+                                                    value={localData.locales?.[selectedLang]?.[key] || ''}
+                                                    onChange={e => handleUpdateTranslation(selectedLang, key, e.target.value)}
+                                                />
+                                            </div>
+                                        ))}
+                                        {translatableKeys.length === 0 && (
+                                            <div className="text-center text-zinc-600 text-xs py-4">No translatable text found</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-zinc-800 bg-zinc-950 flex justify-end gap-2">
+                    <button onClick={onClose} className="px-4 py-2 rounded text-xs font-bold text-zinc-400 hover:bg-zinc-800 transition-colors">Cancel</button>
+                    <button onClick={handleSave} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors flex items-center gap-2">
+                        <Save size={14} /> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
 
 // --- UPDATED IMAGE WIDGET ---
 export const ImageUploadWidget = ({ value, onChange }: any) => {
@@ -351,13 +605,29 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const edges = useEdges(); 
   
   const nodeDef = useMemo(() => data.definitionId ? getNodeDefinition(data.definitionId) : undefined, [data.definitionId]);
-  const t = useNodeTranslation(nodeDef);
+  const t = useNodeTranslation(nodeDef, data.locales);
   
   const [showCode, setShowCode] = useState(false);
   const [isFloatingCode, setIsFloatingCode] = useState(false);
   const [localCode, setLocalCode] = useState(data.glsl);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [tempLabel, setTempLabel] = useState(data.label);
+  
+  const [showEditor, setShowEditor] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  // Close context menu on click elsewhere
+  useEffect(() => {
+      const closeMenu = () => setContextMenu(null);
+      window.addEventListener('click', closeMenu);
+      return () => window.removeEventListener('click', closeMenu);
+  }, []);
 
   // Helper to check visibility
   const isInputVisible = useCallback((inputId: string) => {
@@ -441,6 +711,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
               outputs: data.outputs,
               uniforms: data.uniforms,
               outputType: data.outputType,
+              locales: data.locales,
               isCompound: data.isCompound,
               internalNodes: data.isCompound ? internalNodes : undefined,
               internalEdges: data.isCompound ? internalEdges : undefined
@@ -531,7 +802,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 <span className="break-all">{data.executionError}</span>
             </div>
         )}
-        <div className={`flex items-center justify-between p-2 border-b ${data.executionError ? 'rounded-none' : 'rounded-t-lg'} ${headerBgClass}`}>
+        <div className={`flex items-center justify-between p-2 border-b ${data.executionError ? 'rounded-none' : 'rounded-t-lg'} ${headerBgClass}`} onContextMenu={handleContextMenu}>
             <div className="flex items-center gap-2 flex-1 min-w-0 ml-3">
                 {isEditingLabel ? (
                     <input autoFocus value={tempLabel} onChange={(e) => setTempLabel(e.target.value)} onBlur={handleLabelSubmit} onKeyDown={(e) => { if(e.key === 'Enter') handleLabelSubmit(); }} className="nodrag bg-zinc-950 text-white text-sm px-1 py-0.5 rounded border border-blue-500 outline-none w-full max-w-[140px]" />
@@ -553,7 +824,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                         <LogIn size={14} />
                     </button>
                 )}
-                <button onClick={handleDownloadNode} className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200" title="Download Node JSON"><Download size={14} /></button>
+                <button onClick={handleContextMenu} className="p-1 rounded hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200"><MoreVertical size={14} /></button>
                 <button onClick={() => setShowCode(!showCode)} className={`p-1 rounded hover:bg-zinc-700 ${showCode ? 'text-blue-400' : 'text-zinc-400'}`}><Code size={14} /></button>
                 <button onClick={handleDeleteNode} className="p-1 rounded hover:bg-red-900/30 text-zinc-500 hover:text-red-400 transition-colors ml-1"><X size={14} /></button>
             </div>
@@ -618,6 +889,33 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 </div>
             </div>,
             document.body
+        )}
+        {contextMenu && createPortal(
+            <div 
+                className="fixed z-[100] bg-zinc-900 border border-zinc-700 rounded shadow-xl py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+                style={{ left: contextMenu.x, top: contextMenu.y }}
+                onClick={e => e.stopPropagation()}
+            >
+                <button onClick={() => { setShowEditor(true); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
+                    <Settings2 size={14} /> Edit Node
+                </button>
+                <button onClick={() => { handleDownloadNode(); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
+                    <Download size={14} /> Download JSON
+                </button>
+                <div className="h-px bg-zinc-800 my-1" />
+                <button onClick={(e) => { handleDeleteNode(e); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-zinc-800 flex items-center gap-2">
+                    <Trash2 size={14} /> Delete
+                </button>
+            </div>,
+            document.body
+        )}
+
+        {showEditor && (
+            <NodeEditorModal 
+                data={data} 
+                onSave={updateNodeData} 
+                onClose={() => setShowEditor(false)} 
+            />
         )}
     </>
   );
