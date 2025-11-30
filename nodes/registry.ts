@@ -1,17 +1,15 @@
 
 import { ShaderNodeDefinition } from '../types';
+import { ShaderNodeDefinitionSchema } from '../utils/schemas';
 
 // Helper to validate if an object is a valid node definition (for JSON import)
 export const validateNodeDefinition = (obj: any): obj is ShaderNodeDefinition => {
-    return (
-        typeof obj === 'object' &&
-        obj !== null &&
-        typeof obj.id === 'string' &&
-        typeof obj.label === 'string' &&
-        typeof obj.category === 'string' &&
-        obj.data &&
-        typeof obj.data.glsl === 'string'
-    );
+    const result = ShaderNodeDefinitionSchema.safeParse(obj);
+    if (!result.success) {
+        console.warn("Node Validation Failed:", result.error.format());
+        return false;
+    }
+    return true;
 }
 
 // Helper to normalize a raw JSON object
@@ -42,6 +40,13 @@ const modules = import.meta.glob('./library/*.json', { eager: true });
 export const NODE_REGISTRY: ShaderNodeDefinition[] = Object.values(modules).map((mod: any) => {
     // The default export or the module itself is the JSON content
     const json = mod.default || mod;
+    
+    // Optional: Validate library nodes during load
+    const validation = ShaderNodeDefinitionSchema.safeParse(json);
+    if (!validation.success) {
+        console.error(`Invalid Node Definition in library (${json.id || 'unknown'}):`, validation.error.format());
+    }
+
     return normalizeNodeDefinition(json);
 });
 
