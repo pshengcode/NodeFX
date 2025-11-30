@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { FileJson } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { FileJson, ChevronDown, ChevronRight } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
@@ -23,6 +23,42 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ node, onDragStart, onClick })
           >
               <span className="text-xs font-medium truncate pointer-events-none">{t(node.label)}</span>
           </div>
+    );
+};
+
+interface SidebarCategoryProps {
+    category: string;
+    nodes: ShaderNodeDefinition[];
+    onDragStart: (e: React.DragEvent, id: string) => void;
+    onClick: (node: ShaderNodeDefinition) => void;
+}
+
+const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick }) => {
+    const [isOpen, setIsOpen] = useState(true);
+
+    return (
+        <div className="flex flex-col w-full mb-2">
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center justify-between w-full px-2 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 hover:bg-zinc-800/50 rounded transition-colors select-none group"
+            >
+                <span className="group-hover:text-zinc-200 transition-colors">{category}</span>
+                {isOpen ? <ChevronDown size={12} className="opacity-50 group-hover:opacity-100"/> : <ChevronRight size={12} className="opacity-50 group-hover:opacity-100"/>}
+            </button>
+            
+            {isOpen && (
+                <div className="flex flex-col gap-0.5 mt-0.5 pl-1">
+                    {nodes.map(node => (
+                        <SidebarItem 
+                            key={node.id} 
+                            node={node} 
+                            onDragStart={onDragStart} 
+                            onClick={onClick} 
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
     );
 };
 
@@ -86,19 +122,13 @@ export const Sidebar: React.FC = () => {
                     const groupNodes = nodesByCategory[cat];
                     if (!groupNodes) return null;
                     return (
-                        <div key={cat} className="flex flex-col w-full mb-3">
-                            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1 px-2 opacity-80">{cat}</div>
-                            <div className="flex flex-col gap-0.5">
-                                {groupNodes.map(node => (
-                                    <SidebarItem 
-                                        key={node.id} 
-                                        node={node} 
-                                        onDragStart={onDragStart} 
-                                        onClick={handleSidebarClick} 
-                                    />
-                                ))}
-                            </div>
-                        </div>
+                        <SidebarCategory 
+                            key={cat}
+                            category={cat}
+                            nodes={groupNodes}
+                            onDragStart={onDragStart}
+                            onClick={handleSidebarClick}
+                        />
                     );
                 })}
             </div>
