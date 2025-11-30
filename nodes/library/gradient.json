@@ -55,6 +55,7 @@
     "}"
   ],
   "inputs": [
+      { "id": "type", "name": "type", "type": "int" },
       { "id": "angle", "name": "angle", "type": "float" },
       { "id": "scale", "name": "scale", "type": "float" },
       { "id": "offset", "name": "offset", "type": "float" },
