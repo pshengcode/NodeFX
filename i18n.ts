@@ -90,7 +90,11 @@ const resources = {
       "Export Library": "Export Library",
       "Import Library": "Import Library",
       "Library imported successfully!": "Library imported successfully!",
-      "Failed to import library. Invalid format.": "Failed to import library. Invalid format."
+      "Failed to import library. Invalid format.": "Failed to import library. Invalid format.",
+      "Toggle Tiling (3x3)": "Toggle Tiling (3x3)",
+      "Toggle Background Color": "Toggle Background Color",
+      "Reset View": "Reset View",
+      "Save Image": "Save Image"
     }
   },
   zh: {
@@ -197,7 +201,11 @@ const resources = {
       "Export Library": "导出库",
       "Import Library": "导入库",
       "Library imported successfully!": "库导入成功！",
-      "Failed to import library. Invalid format.": "导入库失败。格式无效。"
+      "Failed to import library. Invalid format.": "导入库失败。格式无效。",
+      "Toggle Tiling (3x3)": "切换平铺模式 (3x3)",
+      "Toggle Background Color": "切换背景颜色",
+      "Reset View": "重置视图",
+      "Save Image": "保存图片"
     }
   }
 };

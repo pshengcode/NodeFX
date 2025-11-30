@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 import { CompilationResult } from '../types';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Grid, Maximize, RotateCcw } from 'lucide-react';
 import { webglSystem } from '../utils/webglSystem';
 import { assetManager } from '../utils/assetManager';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,14 @@ type ChannelMode = 0 | 1 | 2 | 3 | 4; // RGBA, R, G, B, A
 const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, paused, width, height, onNodeError }, ref) => {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [channelMode, setChannelMode] = useState<ChannelMode>(0);
+  const [tiling, setTiling] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+  const [isDarkBg, setIsDarkBg] = useState(true);
   const animationFrameRef = useRef<number>(0);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -62,7 +69,10 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
                          setLastError(err);
                          if (onNodeError) onNodeError(passId, err);
                      }
-                 }
+                 },
+                 tiling,
+                 zoom,
+                 pan
              );
              
              // LOOP FIX: Only clear the error if the current frame rendered SUCCESSFULLY.
@@ -78,7 +88,7 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       
       render();
       return () => cancelAnimationFrame(animationFrameRef.current);
-  }, [data, paused, width, height, channelMode, onNodeError, lastError]);
+  }, [data, paused, width, height, channelMode, onNodeError, lastError, tiling, zoom, pan]);
 
   const handleDownload = () => {
     if (canvasRef.current) {
@@ -89,8 +99,56 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
     }
   };
 
+  useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const handleWheel = (e: WheelEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const delta = e.deltaY > 0 ? 0.9 : 1.1;
+          setZoom(z => Math.min(Math.max(z * delta, 0.1), 10));
+      };
+
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+      if (e.button === 0 || e.button === 1) { // Left or Middle click
+          setIsDragging(true);
+          setLastMousePos({ x: e.clientX, y: e.clientY });
+          e.preventDefault();
+      }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+      if (isDragging) {
+          const dx = e.clientX - lastMousePos.x;
+          const dy = e.clientY - lastMousePos.y;
+          setPan(p => ({ x: p.x + dx, y: p.y + dy }));
+          setLastMousePos({ x: e.clientX, y: e.clientY });
+      }
+  };
+
+  const handleMouseUp = () => {
+      setIsDragging(false);
+  };
+
+  const resetView = () => {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+  };
+
   return (
-    <div className={`relative group ${className}`}>
+    <div 
+        ref={containerRef}
+        className={`relative group overflow-hidden ${className} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`} 
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+    >
       {data?.error && (
           <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center p-4 z-20 pointer-events-none">
               <div className="text-red-200 font-mono text-sm whitespace-pre-wrap">{data.error}</div>
@@ -98,14 +156,33 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       )}
 
       {/* 2D Canvas that receives the copied frame */}
-      <canvas 
-        ref={canvasRef} 
-        className="w-full h-full object-contain bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] bg-zinc-950" 
-      />
+      <div className="w-full h-full flex items-center justify-center overflow-hidden bg-zinc-950 relative">
+          {/* Checkerboard Background */}
+          <div 
+            className={`absolute inset-0 pointer-events-none ${isDarkBg ? 'opacity-20' : 'opacity-80'}`}
+            style={{
+                backgroundImage: `
+                    linear-gradient(45deg, #808080 25%, transparent 25%), 
+                    linear-gradient(-45deg, #808080 25%, transparent 25%), 
+                    linear-gradient(45deg, transparent 75%, #808080 75%), 
+                    linear-gradient(-45deg, transparent 75%, #808080 75%)
+                `,
+                backgroundSize: '20px 20px',
+                backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+                backgroundColor: isDarkBg ? '#18181b' : '#ffffff'
+            }}
+          />
+          
+          <canvas 
+            ref={canvasRef} 
+            className="w-full h-full block relative z-10 pointer-events-none"
+          />
+      </div>
 
       {/* OVERLAY CONTROLS */}
-      <div className="absolute top-2 right-2 flex gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="flex bg-zinc-800/90 rounded border border-zinc-700 p-0.5 backdrop-blur-sm">
+      <div className="absolute top-2 right-2 flex flex-col gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity items-end">
+          {/* Channel Selector */}
+          <div className="flex bg-zinc-800/90 rounded border border-zinc-700 p-0.5 backdrop-blur-sm shadow-lg">
              {[0,1,2,3,4].map(m => (
                  <button 
                     key={m}
@@ -116,9 +193,35 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
                  </button>
              ))}
           </div>
+
+          {/* Tools */}
+          <div className="flex bg-zinc-800/90 rounded border border-zinc-700 p-0.5 backdrop-blur-sm shadow-lg gap-0.5">
+             <button 
+                onClick={() => setTiling(!tiling)}
+                className={`p-1 rounded ${tiling ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'}`}
+                title={t("Toggle Tiling (3x3)")}
+             >
+                 <Grid size={12} />
+             </button>
+             <button 
+                onClick={() => setIsDarkBg(!isDarkBg)}
+                className={`p-1 rounded ${!isDarkBg ? 'bg-zinc-200 text-black' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'}`}
+                title={t("Toggle Background Color")}
+             >
+                 <div className="w-3 h-3 border border-current bg-gradient-to-br from-gray-400 to-transparent" />
+             </button>
+             <div className="w-px bg-zinc-700 mx-0.5" />
+             <button 
+                onClick={resetView}
+                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+                title={t("Reset View")}
+             >
+                 <RotateCcw size={12} />
+             </button>
+          </div>
       </div>
 
-      <button onClick={handleDownload} className="absolute bottom-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity border border-zinc-600 z-20">
+      <button onClick={handleDownload} className="absolute bottom-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity border border-zinc-600 z-20 shadow-lg">
         {t("Save Image")}
       </button>
     </div>

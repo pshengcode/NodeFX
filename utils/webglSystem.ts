@@ -5,9 +5,12 @@ import { assetManager } from './assetManager';
 // Shared Shaders
 const DISPLAY_VERT = `#version 300 es
 in vec2 position;
+uniform vec2 uOffset;
+uniform float uZoom;
 out vec2 vUv;
 void main() {
-    vUv = position * 0.5 + 0.5;
+    vec2 baseUv = position * 0.5 + 0.5;
+    vUv = (baseUv - 0.5) / uZoom + 0.5 - uOffset;
     gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
@@ -15,9 +18,14 @@ const DISPLAY_FRAG = `#version 300 es
 precision mediump float;
 uniform sampler2D tDiffuse;
 uniform int uChannel;
+uniform bool uTiling;
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
+    if (!uTiling && (vUv.x < 0.0 || vUv.x > 1.0 || vUv.y < 0.0 || vUv.y > 1.0)) {
+        fragColor = vec4(0.0);
+        return;
+    }
     vec4 tex = texture(tDiffuse, vUv);
     if (uChannel == 0) fragColor = tex;
     else if (uChannel == 1) fragColor = vec4(tex.rrr, 1.0);
@@ -240,7 +248,10 @@ class WebGLSystem {
         width: number, 
         height: number, 
         channelMode: number = 0,
-        onError?: (passId: string, err: string) => void
+        onError?: (passId: string, err: string) => void,
+        tiling: boolean = false,
+        zoom: number = 1.0,
+        pan: { x: number, y: number } = { x: 0, y: 0 }
     ) {
         if (!data || data.error || !this.displayProgram) return;
 
@@ -422,11 +433,23 @@ class WebGLSystem {
 
             const texLoc = gl.getUniformLocation(this.displayProgram, "tDiffuse");
             const modeLoc = gl.getUniformLocation(this.displayProgram, "uChannel");
+            const offsetLoc = gl.getUniformLocation(this.displayProgram, "uOffset");
+            const zoomLoc = gl.getUniformLocation(this.displayProgram, "uZoom");
+            const tilingLoc = gl.getUniformLocation(this.displayProgram, "uTiling");
             
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, lastTex);
+            
+            // Update Wrap Mode based on tiling
+            const wrap = tiling ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+
             gl.uniform1i(texLoc, 0);
             gl.uniform1i(modeLoc, channelMode);
+            gl.uniform2f(offsetLoc, pan.x / width, -pan.y / height);
+            gl.uniform1f(zoomLoc, zoom);
+            gl.uniform1i(tilingLoc, tiling ? 1 : 0);
 
             // Draw to the Global Canvas's Backbuffer
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
