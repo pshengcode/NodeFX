@@ -27,7 +27,7 @@ export const stripComments = (code: string): string => {
             // Line comment: skip until newline
             i += 2;
             while (i < len && code[i] !== '\n') i++;
-            out += '\n'; // Preserve line count roughly
+            // Newline will be handled by the next iteration if present
         } else if (char === '/' && next === '*') {
             // Block comment: skip until */
             i += 2;
