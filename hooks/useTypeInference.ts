@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Node, Edge } from 'reactflow';
-import { NodeData, GLSLType } from '../types';
+import { NodeData, GLSLType, UniformVal, UniformValueType } from '../types';
 import { extractAllSignatures } from '../utils/glslParser';
 
 // Helper to sanitize types (Duplicate from shaderCompiler to avoid circular deps if any, or just for safety)
@@ -35,27 +35,33 @@ const getRankType = (rank: number): GLSLType => {
 };
 
 // Helper to migrate uniform values between types
-const migrateUniformValue = (u: any, newType: GLSLType) => {
-    let newVal: any = 0;
-    if (u) {
+const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType): UniformVal => {
+    let newVal: UniformValueType = 0;
+    
+    // Check if u exists and value is numeric (number or array of numbers)
+    // We skip complex types like textures or strings for auto-migration logic
+    const isNumeric = u && u.value !== null && typeof u.value !== 'string' && !('isRaw' in (u.value as any));
+
+    if (isNumeric && u) {
         // Perform conversion
-        newVal = u.value;
-        const isArray = Array.isArray(u.value);
+        const val = u.value as number | number[];
+        const isArray = Array.isArray(val);
         const isTargetScalar = newType === 'float' || newType === 'int';
 
         if (isTargetScalar) {
              // Vector -> Scalar
-             if (isArray && u.value.length > 0) newVal = u.value[0];
+             if (isArray && (val as number[]).length > 0) newVal = (val as number[])[0];
              else if (isArray) newVal = 0;
+             else newVal = val as number;
         } else {
              // Scalar/Vector -> Vector
              const targetLen = parseInt(newType.slice(3)); // vec2->2, vec3->3, vec4->4
              if (!isArray) {
                  // Scalar -> Vector
-                 newVal = Array(targetLen).fill(u.value);
+                 newVal = Array(targetLen).fill(val);
              } else {
                  // Vector -> Vector
-                 const current = [...u.value];
+                 const current = [...(val as number[])];
                  while(current.length < targetLen) current.push(0);
                  newVal = current.slice(0, targetLen);
              }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import Editor, { loader } from '@monaco-editor/react';
+import Editor, { loader, OnMount } from '@monaco-editor/react';
 
 // Configure Monaco loader securely
 // Using unpkg for 'vs' path ensures access to standard raw worker files
@@ -45,12 +45,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     onBlurRef.current = onBlur;
   }, [onBlur]);
 
-  const handleEditorDidMount = (editor: any, monaco: any) => {
+  const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
 
     // --- 1. REGISTER GLSL LANGUAGE ---
     // Only register if not already registered
-    if (language === 'glsl' && !monaco.languages.getLanguages().some((l: any) => l.id === 'glsl')) {
+    if (language === 'glsl' && !monaco.languages.getLanguages().some((l) => l.id === 'glsl')) {
         monaco.languages.register({ id: 'glsl' });
 
         // Syntax Highlighting

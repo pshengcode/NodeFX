@@ -1,6 +1,6 @@
 
 import { Edge, Node } from 'reactflow';
-import { NodeData, CompilationResult, GLSLType, RenderPass, UniformVal, NodeOutput } from '../types';
+import { NodeData, CompilationResult, GLSLType, RenderPass, UniformVal, NodeOutput, UniformValueType } from '../types';
 import { DEFAULT_VERTEX_SHADER, GLSL_BUILTINS } from '../constants';
 import { generateGradientTexture, generateCurveTexture } from './textureGen';
 import { stripComments } from './glslParser';
@@ -26,7 +26,7 @@ const getDefaultGLSLValue = (type: GLSLType): string => {
   }
 };
 
-const getUniformValue = (type: GLSLType, val: any) => {
+const getUniformValue = (type: GLSLType, val: UniformValueType) => {
   if (type === 'vec3' && Array.isArray(val)) return new Float32Array(val);
   if (type === 'vec4' && Array.isArray(val)) return new Float32Array(val);
   if (type === 'vec2' && Array.isArray(val)) return new Float32Array(val);
@@ -375,7 +375,7 @@ uniform sampler2D u_empty_tex;
           return 0;
       };
 
-      const globalUniforms: Record<string, { type: GLSLType; value: any }> = {};
+      const globalUniforms: Record<string, { type: GLSLType; value: UniformValueType }> = {};
 
       Object.values(inputTextureUniforms).forEach(uName => {
           header += `uniform sampler2D ${uName};\n`;

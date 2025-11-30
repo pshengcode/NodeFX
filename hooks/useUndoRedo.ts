@@ -23,12 +23,12 @@ export function useUndoRedo(
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helper to clean nodes for comparison (ignore UI states like selection)
-  const cleanNode = (node: Node): any => {
+  const cleanNode = (node: Node): Omit<Node, 'selected' | 'dragging' | 'positionAbsolute'> => {
     const { selected, dragging, positionAbsolute, ...rest } = node;
     return rest;
   };
 
-  const cleanEdge = (edge: Edge): any => {
+  const cleanEdge = (edge: Edge): Omit<Edge, 'selected'> => {
     const { selected, ...rest } = edge;
     return rest;
   };

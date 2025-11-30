@@ -46,9 +46,11 @@ export interface RawTextureData {
   id: string; // Unique hash for caching
 }
 
+export type UniformValueType = number | number[] | Float32Array | string | RawTextureData | null;
+
 export interface UniformVal {
   type: GLSLType;
-  value: any;
+  value: UniformValueType;
   
   // New Architecture
   widget?: WidgetMode;
@@ -65,6 +67,28 @@ export interface NodeOutput {
   id: string;   
   name: string; 
   type: GLSLType;
+}
+
+export interface SerializedEdge {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+    type?: string;
+    animated?: boolean;
+    data?: any;
+}
+
+export interface SerializedNode {
+    id: string;
+    type: string;
+    position: { x: number; y: number };
+    data: NodeData;
+    parentId?: string;
+    extent?: 'parent' | undefined;
+    width?: number | null;
+    height?: number | null;
 }
 
 export interface NodeData {
@@ -92,15 +116,15 @@ export interface NodeData {
   // Compound Node Support
   isCompound?: boolean;
   scopeId?: string; // The ID of the parent compound node (or 'root')
-  internalNodes?: any[];
-  internalEdges?: any[];
+  internalNodes?: SerializedNode[];
+  internalEdges?: SerializedEdge[];
 }
 
 export interface RenderPass {
   id: string;                 
   vertexShader: string;
   fragmentShader: string;
-  uniforms: Record<string, { type: GLSLType; value: any }>;
+  uniforms: Record<string, { type: GLSLType; value: UniformValueType }>;
   outputTo: 'SCREEN' | 'FBO'; 
   inputTextureUniforms: Record<string, string>; 
 }
@@ -134,7 +158,7 @@ export interface ShaderNodeDefinition {
     autoType?: boolean;
     serverUrl?: string;
     isCompound?: boolean;
-    internalNodes?: any[];
-    internalEdges?: any[];
+    internalNodes?: SerializedNode[];
+    internalEdges?: SerializedEdge[];
   };
 }

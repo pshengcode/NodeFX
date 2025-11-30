@@ -10,7 +10,7 @@ import {
     NodeRemoveChange,
     ReactFlowInstance
 } from 'reactflow';
-import { NodeData, ShaderNodeDefinition } from '../types';
+import { NodeData, ShaderNodeDefinition, UniformVal, CompilationResult, SerializedNode, SerializedEdge } from '../types';
 import { getNodeDefinition, validateNodeDefinition, normalizeNodeDefinition } from '../nodes/registry';
 import { useTranslation } from 'react-i18next';
 
@@ -21,7 +21,7 @@ export function useGraphActions(
     setEdges: React.Dispatch<React.SetStateAction<Edge[]>>,
     previewNodeId: string | null,
     setPreviewNodeId: (id: string | null) => void,
-    setCompiledData: (data: any) => void,
+    setCompiledData: (data: CompilationResult | null) => void,
     resolution: { w: number, h: number },
     reactFlowWrapper: React.RefObject<HTMLDivElement>,
     reactFlowInstance: ReactFlowInstance | null,
@@ -195,7 +195,7 @@ export function useGraphActions(
         [nodes, setEdges, currentScope, setNodes]
     );
 
-    const addNode = useCallback((def: ShaderNodeDefinition, position?: { x: number, y: number }, initialValues?: any) => {
+    const addNode = useCallback((def: ShaderNodeDefinition, position?: { x: number, y: number }, initialValues?: Record<string, UniformVal>) => {
         // Use a more robust ID generation to avoid collisions during rapid creation or merges
         const id = `${def.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         let type = 'customShader';
@@ -230,7 +230,7 @@ export function useGraphActions(
             const idMap: Record<string, string> = {};
             
             // 1. Map IDs and Create Nodes
-            def.data.internalNodes.forEach((n: any) => {
+            def.data.internalNodes.forEach((n: SerializedNode) => {
                 const newId = `${n.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
                 idMap[n.id] = newId;
                 
@@ -247,7 +247,7 @@ export function useGraphActions(
 
             // 2. Create Edges
             if (def.data.internalEdges && Array.isArray(def.data.internalEdges)) {
-                def.data.internalEdges.forEach((e: any) => {
+                def.data.internalEdges.forEach((e: SerializedEdge) => {
                     const source = idMap[e.source];
                     const target = idMap[e.target];
                     

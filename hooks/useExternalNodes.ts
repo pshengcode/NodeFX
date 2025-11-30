@@ -18,7 +18,7 @@ export function useExternalNodes() {
   }, [fullRegistry]);
 
   return {
-    externalNodes: [], // No longer used separately
+    externalNodes: [] as ShaderNodeDefinition[], // No longer used separately
     isRefreshingNodes: false,
     refreshExternalNodes: async () => {}, // No-op
     fullRegistry,

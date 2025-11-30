@@ -84,10 +84,10 @@ interface ProjectContextType {
   importNodeFromJson: (event: React.ChangeEvent<HTMLInputElement>) => void;
   resetCanvas: () => void;
   
-  externalNodes: any[];
+  externalNodes: ShaderNodeDefinition[];
   isRefreshingNodes: boolean;
   refreshExternalNodes: () => Promise<void>;
-  nodesByCategory: Record<string, any[]>;
+  nodesByCategory: Record<string, ShaderNodeDefinition[]>;
   fullRegistry: Record<string, ShaderNodeDefinition>;
   nodeRegistryList: ShaderNodeDefinition[];
 
@@ -96,7 +96,7 @@ interface ProjectContextType {
   nodeImportInputRef: React.RefObject<HTMLInputElement>;
   
   // Share handling
-  pendingShareData: any;
+  pendingShareData: { nodes: Node<NodeData>[], edges: Edge[], previewNodeId?: string | null } | null;
   handleShareAction: (action: 'overwrite' | 'merge' | 'cancel') => void;
 
   // Scope Management
@@ -377,7 +377,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
   // Share Logic
-  const [pendingShareData, setPendingShareData] = useState<any>(null);
+  const [pendingShareData, setPendingShareData] = useState<{ nodes: Node<NodeData>[], edges: Edge[], previewNodeId?: string | null } | null>(null);
 
   useEffect(() => {
     const checkUrl = () => {
