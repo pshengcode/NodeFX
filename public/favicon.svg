@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" rx="16" fill="#09090b" />
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#27272a" stroke-width="4"/>
+  
+  <g transform="translate(8, 8) scale(2)">
+    <path d="M7 17L17 7" stroke="#52525b" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="7" cy="17" r="3" fill="#e4e4e7"/>
+    <circle cx="17" cy="7" r="3" fill="#22d3ee" style="filter: drop-shadow(0 0 4px rgba(34,211,238,0.8));"/>
+  </g>
+</svg>
