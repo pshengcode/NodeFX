@@ -92,6 +92,8 @@ export interface NodeData {
   // Compound Node Support
   isCompound?: boolean;
   scopeId?: string; // The ID of the parent compound node (or 'root')
+  internalNodes?: any[];
+  internalEdges?: any[];
 }
 
 export interface RenderPass {
@@ -108,7 +110,7 @@ export interface CompilationResult {
   error?: string;
 }
 
-export type NodeCategory = 'Source' | 'Filter' | 'Math' | 'Output' | 'Network' | 'Custom';
+export type NodeCategory = 'Source' | 'Filter' | 'Math' | 'Output' | 'Network' | 'Custom' | 'User';
 
 export interface ShaderNodeDefinition {
   id: string;         

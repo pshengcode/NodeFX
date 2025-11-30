@@ -25,6 +25,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useFileOperations } from '../hooks/useFileOperations';
 import { useShaderCompiler } from '../hooks/useShaderCompiler';
 import { compileCompoundNode } from '../utils/shaderCompiler';
+import { useUserLibrary } from '../hooks/useUserLibrary';
 
 // Initial state helpers
 const initialDef = getNodeDefinition('IMAGE');
@@ -103,6 +104,13 @@ interface ProjectContextType {
   exitGroup: () => void;
   navigateToScope: (scopeId: string) => void;
   getBreadcrumbs: () => Array<{ id: string; label: string }>;
+
+  // User Library
+  userNodes: ShaderNodeDefinition[];
+  addToLibrary: (nodeData: NodeData) => void;
+  removeFromLibrary: (id: string) => void;
+  importLibrary: (json: string) => boolean;
+  exportLibrary: () => void;
 }
 
 const ProjectContext = createContext<ProjectContextType | null>(null);
@@ -296,6 +304,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     fullRegistry
   } = useExternalNodes();
 
+  const {
+      userNodes,
+      addToLibrary,
+      removeFromLibrary,
+      importLibrary,
+      exportLibrary
+  } = useUserLibrary();
+
+  // Merge User Nodes into nodesByCategory and fullRegistry
+  const allNodesByCategory = useMemo(() => {
+      const merged = { ...nodesByCategory };
+      // Always include User category so it appears in Sidebar (for Import/Export)
+      merged['User'] = userNodes;
+      return merged;
+  }, [nodesByCategory, userNodes]);
+
+  const allFullRegistry = useMemo(() => {
+      const merged = { ...fullRegistry };
+      userNodes.forEach(n => {
+          merged[n.id] = n;
+      });
+      return merged;
+  }, [fullRegistry, userNodes]);
+
   const { 
       onNodesChange: onNodesChangeAction, 
       onConnect, 
@@ -307,7 +339,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       onDrop
   } = useGraphActions(
       nodes, setNodes, edges, setEdges, previewNodeId, setPreviewNodeId, setCompiledData, resolution,
-      reactFlowWrapper, reactFlowInstance, fullRegistry, currentScope
+      reactFlowWrapper, reactFlowInstance, allFullRegistry, currentScope
   );
 
   const { clearPersistence } = usePersistence(nodes, edges, previewNodeId, setNodes, setEdges, initialNodes, initialEdges);
@@ -456,9 +488,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     undo, redo, canUndo, canRedo, takeSnapshot,
     copyShareLink,
     saveProject, loadProject, importNodeFromJson, resetCanvas,
-    externalNodes, isRefreshingNodes, refreshExternalNodes, nodesByCategory, fullRegistry,
-    projectFileInputRef, nodeImportInputRef,
-    pendingShareData, handleShareAction,
+    userNodes, addToLibrary, removeFromLibrary, importLibrary, exportLibrary,
+    nodesByCategory: allNodesByCategory, fullRegistry: allFullRegistry,
     currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs
   };
 

@@ -604,7 +604,7 @@ const UniformControlWrapper = ({
 // ... CustomNode implementation (Wrapper) ...
 const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { setNodes, deleteElements, setEdges, getNodes, getEdges } = useReactFlow();
-  const { enterGroup } = useProject();
+  const { enterGroup, addToLibrary } = useProject();
   const edges = useEdges(); 
   const { t: tGlobal } = useTranslation();
   
@@ -730,6 +730,27 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       link.click();
       URL.revokeObjectURL(url);
   }, [data, id, getNodes, getEdges]);
+
+  const handleSaveToLibrary = useCallback(() => {
+      const allNodes = getNodes();
+      const allEdges = getEdges();
+
+      const internalNodes = data.isCompound 
+          ? allNodes.filter(n => n.data.scopeId === id) 
+          : [];
+      
+      const internalEdges = data.isCompound
+          ? allEdges.filter(e => internalNodes.some(n => n.id === e.source || n.id === e.target))
+          : [];
+
+      const nodeDataToSave: NodeData = {
+          ...data,
+          internalNodes: data.isCompound ? internalNodes : undefined,
+          internalEdges: data.isCompound ? internalEdges : undefined
+      };
+      
+      addToLibrary(nodeDataToSave);
+  }, [data, id, getNodes, getEdges, addToLibrary]);
 
   const handleCodeCompile = useCallback(() => {
       const code = localCode;
@@ -902,6 +923,9 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             >
                 <button onClick={() => { setShowEditor(true); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
                     <Settings2 size={14} /> {tGlobal("Edit Node")}
+                </button>
+                <button onClick={() => { handleSaveToLibrary(); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
+                    <Save size={14} /> {tGlobal("Save to Library")}
                 </button>
                 <button onClick={() => { handleDownloadNode(); setContextMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
                     <Download size={14} /> {tGlobal("Download JSON")}

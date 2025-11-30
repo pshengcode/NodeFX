@@ -25,7 +25,7 @@ export function useGraphActions(
     resolution: { w: number, h: number },
     reactFlowWrapper: React.RefObject<HTMLDivElement>,
     reactFlowInstance: ReactFlowInstance | null,
-    fullRegistry: ShaderNodeDefinition[],
+    fullRegistry: Record<string, ShaderNodeDefinition>,
     currentScope: string
 ) {
     const { t } = useTranslation();
@@ -363,9 +363,9 @@ export function useGraphActions(
             if (!reactFlowWrapper.current || !reactFlowInstance) return;
 
             const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
-            const position = reactFlowInstance.project({
-                x: event.clientX - reactFlowBounds.left,
-                y: event.clientY - reactFlowBounds.top,
+            const position = reactFlowInstance.screenToFlowPosition({
+                x: event.clientX,
+                y: event.clientY,
             });
 
             // 1. Handle File Drops (Image OR JSON)
@@ -410,7 +410,7 @@ export function useGraphActions(
             // 2. Handle ReactFlow Internal Drag
             const typeId = event.dataTransfer.getData('application/reactflow');
             if (typeId) {
-                const def = fullRegistry.find(n => n.id === typeId);
+                const def = fullRegistry[typeId];
                 if (def) {
                     addNode(def, position);
                 }

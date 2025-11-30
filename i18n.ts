@@ -82,7 +82,15 @@ const resources = {
       "Math": "Math",
       "Custom": "Custom",
       "Network": "Network",
-      "Output": "Output"
+      "Output": "Output",
+      "User": "Local Library",
+      "Save to Library": "Save to Local Library",
+      "Delete from Library": "Delete from Library",
+      "Delete from Library?": "Delete from Library?",
+      "Export Library": "Export Library",
+      "Import Library": "Import Library",
+      "Library imported successfully!": "Library imported successfully!",
+      "Failed to import library. Invalid format.": "Failed to import library. Invalid format."
     }
   },
   zh: {
@@ -181,7 +189,15 @@ const resources = {
       "Math": "数学",
       "Custom": "自定义",
       "Network": "网络",
-      "Output": "输出"
+      "Output": "输出",
+      "User": "本地库",
+      "Save to Library": "添加到本地库",
+      "Delete from Library": "从本地库删除",
+      "Delete from Library?": "确定要从本地库删除吗？",
+      "Export Library": "导出库",
+      "Import Library": "导入库",
+      "Library imported successfully!": "库导入成功！",
+      "Failed to import library. Invalid format.": "导入库失败。格式无效。"
     }
   }
 };

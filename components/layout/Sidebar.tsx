@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { FileJson, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useCallback, useState, useRef } from 'react';
+import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
@@ -14,16 +14,33 @@ interface SidebarItemProps {
 const SidebarItem: React.FC<SidebarItemProps> = ({ node, onDragStart, onClick }) => {
     const tNode = useNodeTranslation(node);
     const { t } = useTranslation();
+    const { removeFromLibrary } = useProject();
+    
+    const isUserNode = node.category === 'User';
     
     return (
           <div 
               draggable
               onDragStart={(event) => onDragStart(event, node.id)}
               onClick={() => onClick(node)}
-              className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-all group w-full text-left border border-transparent hover:border-zinc-700/50 cursor-grab active:cursor-grabbing"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-all group w-full text-left border border-transparent hover:border-zinc-700/50 cursor-grab active:cursor-grabbing relative"
               title={`${tNode(node.description || '')} ${t('(Click to add)')}`}
           >
-              <span className="text-xs font-medium truncate pointer-events-none">{tNode(node.label)}</span>
+              <span className="text-xs font-medium truncate pointer-events-none flex-1">{tNode(node.label)}</span>
+              {isUserNode && (
+                  <button 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if(confirm(t("Delete from Library?"))) {
+                            removeFromLibrary(node.id); 
+                        }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity"
+                    title={t("Delete from Library")}
+                  >
+                      <Trash2 size={12} />
+                  </button>
+              )}
           </div>
     );
 };
@@ -33,21 +50,25 @@ interface SidebarCategoryProps {
     nodes: ShaderNodeDefinition[];
     onDragStart: (e: React.DragEvent, id: string) => void;
     onClick: (node: ShaderNodeDefinition) => void;
+    extraAction?: React.ReactNode;
 }
 
-const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick }) => {
+const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick, extraAction }) => {
     const [isOpen, setIsOpen] = useState(true);
     const { t } = useTranslation();
 
     return (
         <div className="flex flex-col w-full mb-2">
-            <button 
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center justify-between w-full px-2 py-1.5 text-xs font-bold text-zinc-200 uppercase tracking-wider hover:text-white hover:bg-zinc-800/50 rounded transition-colors select-none group"
-            >
-                <span className="group-hover:text-white transition-colors">{t(category) || category}</span>
-                {isOpen ? <ChevronDown size={12} className="opacity-50 group-hover:opacity-100"/> : <ChevronRight size={12} className="opacity-50 group-hover:opacity-100"/>}
-            </button>
+            <div className="flex items-center justify-between w-full px-2 py-1.5 rounded hover:bg-zinc-800/50 transition-colors group">
+                <button 
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="flex items-center gap-2 flex-1 text-xs font-bold text-zinc-200 uppercase tracking-wider hover:text-white select-none text-left"
+                >
+                    {isOpen ? <ChevronDown size={12} className="opacity-50 group-hover:opacity-100"/> : <ChevronRight size={12} className="opacity-50 group-hover:opacity-100"/>}
+                    <span className="group-hover:text-white transition-colors">{t(category) || category}</span>
+                </button>
+                {extraAction}
+            </div>
             
             {isOpen && (
                 <div className="flex flex-col gap-0.5 mt-0.5 pl-1">
@@ -65,7 +86,7 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDr
     );
 };
 
-const CATEGORY_ORDER: NodeCategory[] = ['Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'];
+const CATEGORY_ORDER: NodeCategory[] = ['User', 'Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'];
 
 export const Sidebar: React.FC = () => {
     const { t } = useTranslation();
@@ -75,8 +96,32 @@ export const Sidebar: React.FC = () => {
         reactFlowInstance, 
         reactFlowWrapper, 
         importNodeFromJson, 
-        nodeImportInputRef 
+        nodeImportInputRef,
+        exportLibrary,
+        importLibrary
     } = useProject();
+
+    const libraryImportRef = useRef<HTMLInputElement>(null);
+
+    const handleLibraryImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            if (content) {
+                if (importLibrary(content)) {
+                    alert(t("Library imported successfully!"));
+                } else {
+                    alert(t("Failed to import library. Invalid format."));
+                }
+            }
+        };
+        reader.readAsText(file);
+        // Reset input
+        e.target.value = '';
+    };
 
     const handleSidebarClick = useCallback((def: ShaderNodeDefinition) => {
         if (!reactFlowInstance || !reactFlowWrapper.current) return;
@@ -116,6 +161,7 @@ export const Sidebar: React.FC = () => {
 
             <div className="px-2 mb-4 flex gap-1 shrink-0">
                 <input type="file" ref={nodeImportInputRef} onChange={importNodeFromJson} className="hidden" accept=".json" />
+                <input type="file" ref={libraryImportRef} onChange={handleLibraryImport} className="hidden" accept=".json" />
                 <button 
                     onClick={() => nodeImportInputRef.current?.click()}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
@@ -130,6 +176,29 @@ export const Sidebar: React.FC = () => {
                 {CATEGORY_ORDER.map(cat => {
                     const groupNodes = nodesByCategory[cat];
                     if (!groupNodes) return null;
+                    
+                    let extra = null;
+                    if (cat === 'User') {
+                        extra = (
+                            <div className="flex gap-1 mr-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                <button 
+                                    onClick={() => exportLibrary()} 
+                                    title={t("Export Library")} 
+                                    className="p-1 text-zinc-500 hover:text-blue-400 hover:bg-zinc-700 rounded transition-colors"
+                                >
+                                    <Download size={12}/>
+                                </button>
+                                <button 
+                                    onClick={() => libraryImportRef.current?.click()} 
+                                    title={t("Import Library")} 
+                                    className="p-1 text-zinc-500 hover:text-green-400 hover:bg-zinc-700 rounded transition-colors"
+                                >
+                                    <Upload size={12}/>
+                                </button>
+                            </div>
+                        );
+                    }
+
                     return (
                         <SidebarCategory 
                             key={cat}
@@ -137,6 +206,7 @@ export const Sidebar: React.FC = () => {
                             nodes={groupNodes}
                             onDragStart={onDragStart}
                             onClick={handleSidebarClick}
+                            extraAction={extra}
                         />
                     );
                 })}
