@@ -1,0 +1,22 @@
+{
+  "id": "CROSS",
+  "label": "Cross Product",
+  "category": "Math",
+  "description": "Returns the cross product of two vectors (vec3).",
+  "locales": {
+    "zh": {
+      "Cross Product": "叉积",
+      "Returns the cross product of two vectors (vec3).": "返回两个向量的叉积 (vec3)。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = cross(a, b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec3 res)   { res = cross(a.xyz, b.xyz); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec3" },
+      { "id": "b", "name": "B", "type": "vec3" }
+    ],
+    "outputType": "vec3",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec3" }]
+  }
+}

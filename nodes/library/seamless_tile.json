@@ -1,0 +1,68 @@
+{
+  "id": "seamless_tile",
+  "label": "Seamless Tile",
+  "category": "Filter",
+  "description": "Makes a texture seamless by blending edges.",
+  "locales": {
+    "zh": {
+      "Seamless Tile": "无缝平铺",
+      "Makes a texture seamless by blending edges.": "通过混合边缘使纹理无缝。",
+      "image": "图片",
+      "blend": "混合度",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": [
+      "// Seamless Tile (Noise Edge Blending)",
+      "// Blends the edges of the image with the center to remove seams.",
+      "// Uses a noise mask to make the transition organic and hide the 'cross' artifact.",
+      "",
+      "float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
+      "",
+      "float noise(vec2 p) {",
+      "    vec2 i = floor(p);",
+      "    vec2 f = fract(p);",
+      "    f = f*f*(3.0-2.0*f);",
+      "    return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x),",
+      "               mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y);",
+      "}",
+      "",
+      "void run(vec2 uv, sampler2D image, float edge_size, float noise_scale, out vec4 result) {",
+      "    vec2 uv_offset = fract(uv + 0.5);",
+      "    vec4 c1 = texture(image, uv);",
+      "    vec4 c2 = texture(image, uv_offset);",
+      "",
+      "    // Distance from center (0 at center, 1 at edge)",
+      "    vec2 d = abs(uv - 0.5) * 2.0;",
+      "    float dist = max(d.x, d.y);",
+      "",
+      "    // Noise mask",
+      "    float n = noise(uv * noise_scale);",
+      "    ",
+      "    // Modulate distance with noise to break straight lines",
+      "    // We reduce the effective distance where noise is low, increasing the center area",
+      "    float noisy_dist = dist - (n * 0.2);",
+      "",
+      "    // Calculate blend factor",
+      "    float blend = smoothstep(1.0 - edge_size, 1.0, noisy_dist);",
+      "",
+      "    result = mix(c1, c2, blend);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "image", "name": "image", "type": "sampler2D" },
+      { "id": "edge_size", "name": "edge_size", "type": "float" },
+      { "id": "noise_scale", "name": "noise_scale", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "image": { "type": "sampler2D", "value": null },
+      "edge_size": { "type": "float", "value": 0.4, "widget": "slider", "widgetConfig": { "min": 0.1, "max": 0.8 } },
+      "noise_scale": { "type": "float", "value": 10.0, "widget": "slider", "widgetConfig": { "min": 1.0, "max": 50.0 } }
+    },
+    "outputType": "vec4"
+  }
+}

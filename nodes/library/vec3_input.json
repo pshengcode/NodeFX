@@ -1,0 +1,27 @@
+{
+  "id": "vec3_input",
+  "label": "Vec3 Input",
+  "category": "Source",
+  "description": "Provides a constant vec3 value.",
+  "locales": {
+    "zh": {
+      "Vec3 Input": "Vec3 输入",
+      "Provides a constant vec3 value.": "提供一个常量 Vec3 值。",
+      "value": "值",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec3 value, out vec3 result) {\n    result = value;\n}",
+    "inputs": [
+      { "id": "value", "name": "value", "type": "vec3" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec3" }
+    ],
+    "uniforms": {
+      "value": { "type": "vec3", "value": [0.0, 0.0, 0.0], "widget": "default" }
+    },
+    "outputType": "vec3"
+  }
+}

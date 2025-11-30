@@ -1,0 +1,26 @@
+{
+  "id": "TIME",
+  "label": "Time",
+  "category": "Source",
+  "description": "Outputs the current time scaled by speed.",
+  "locales": {
+    "zh": {
+      "Time": "时间",
+      "Speed": "速度",
+      "Outputs the current time scaled by speed.": "输出按速度缩放的当前时间。"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, float speed, out float time) {\n    time = u_time * speed;\n}",
+    "inputs": [
+      { "id": "speed", "name": "Speed", "type": "float", "default": 1.0 }
+    ],
+    "outputs": [
+      { "id": "time", "name": "Time", "type": "float" }
+    ],
+    "outputType": "float",
+    "uniforms": {
+        "speed": { "type": "float", "value": 1.0 }
+    }
+  }
+}

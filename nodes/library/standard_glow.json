@@ -1,0 +1,29 @@
+{
+  "id": "GLOW",
+  "label": "Standard Glow",
+  "category": "Filter",
+  "description": "Basic bloom effect.",
+  "locales": {
+    "zh": {
+      "Standard Glow": "标准发光",
+      "Basic bloom effect.": "基础泛光效果。",
+      "intensity": "强度",
+      "radius": "半径"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, float intensity, float radius, out vec4 result) {\n    vec4 original = texture(tex, uv);\n    vec3 glowSum = vec3(0.0);\n    float totalWeight = 0.0;\n    \n    // Simple Gaussian-ish blur\n    for (int i = -4; i <= 4; i++) {\n        for (int j = -4; j <= 4; j++) {\n            vec2 offset = vec2(float(i), float(j)) * radius * 0.002;\n            float weight = 1.0 - length(vec2(float(i), float(j))) / 5.0;\n            if (weight > 0.0) {\n                glowSum += texture(tex, uv + offset).rgb * weight;\n                totalWeight += weight;\n            }\n        }\n    }\n    \n    vec3 glow = (glowSum / totalWeight) * intensity;\n    result = vec4(original.rgb + glow, original.a);\n}",
+    "inputs": [
+      { "id": "tex", "name": "tex", "type": "sampler2D" },
+      { "id": "intensity", "name": "intensity", "type": "float" },
+      { "id": "radius", "name": "radius", "type": "float" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "result", "name": "result", "type": "vec4" }],
+    "uniforms": {
+      "tex": { "type": "sampler2D", "value": null },
+      "intensity": { "type": "float", "value": 1.0, "widgetConfig": { "min": 0.0, "max": 5.0 } },
+      "radius": { "type": "float", "value": 2.0, "widgetConfig": { "min": 0.0, "max": 10.0 } }
+    }
+  }
+}

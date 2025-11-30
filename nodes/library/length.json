@@ -1,0 +1,21 @@
+{
+  "id": "LENGTH",
+  "label": "Length",
+  "category": "Math",
+  "description": "Returns the length of a vector.",
+  "locales": {
+    "zh": {
+      "Length": "长度",
+      "Returns the length of a vector.": "返回向量的长度。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = length(a); }\nvoid run(vec2 uv, vec2 a, out float res)   { res = length(a); }\nvoid run(vec2 uv, vec3 a, out float res)   { res = length(a); }\nvoid run(vec2 uv, vec4 a, out float res)   { res = length(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "float",
+    "outputs": [{ "id": "res", "name": "Out", "type": "float" }]
+  }
+}

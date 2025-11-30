@@ -1,0 +1,24 @@
+{
+  "id": "UV",
+  "label": "UV",
+  "category": "Source",
+  "description": "Outputs the normalized UV coordinates (0-1) and individual components.",
+  "locales": {
+    "zh": {
+      "UV": "UV坐标",
+      "Outputs the normalized UV coordinates (0-1) and individual components.": "输出归一化的UV坐标 (0-1) 及其分量。",
+      "U": "U",
+      "V": "V"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, out vec2 out_uv, out float u, out float v) {\n    out_uv = uv;\n    u = uv.x;\n    v = uv.y;\n}",
+    "inputs": [],
+    "outputs": [
+      { "id": "out_uv", "name": "UV", "type": "vec2" },
+      { "id": "u", "name": "U", "type": "float" },
+      { "id": "v", "name": "V", "type": "float" }
+    ],
+    "outputType": "vec2"
+  }
+}

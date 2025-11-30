@@ -1,0 +1,22 @@
+{
+  "id": "POWER",
+  "label": "Power",
+  "category": "Math",
+  "description": "Returns A raised to the power of B (A^B).",
+  "locales": {
+    "zh": {
+      "Power": "幂运算",
+      "Returns A raised to the power of B (A^B).": "返回 A 的 B 次幂 (A^B)。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = pow(abs(a), b); }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res)   { res = pow(abs(a), b); }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = pow(abs(a), b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res)   { res = pow(abs(a), b); }",
+    "inputs": [
+      { "id": "a", "name": "Base", "type": "vec4" },
+      { "id": "b", "name": "Exp", "type": "vec4", "default": [1,1,1,1] }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Res", "type": "vec4" }]
+  }
+}

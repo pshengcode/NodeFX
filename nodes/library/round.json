@@ -1,0 +1,21 @@
+{
+  "id": "ROUND",
+  "label": "Round",
+  "category": "Math",
+  "description": "Returns the nearest integer to A.",
+  "locales": {
+    "zh": {
+      "Round": "四舍五入",
+      "Returns the nearest integer to A.": "返回最接近 A 的整数。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = floor(a + 0.5); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = floor(a + 0.5); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = floor(a + 0.5); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = floor(a + 0.5); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

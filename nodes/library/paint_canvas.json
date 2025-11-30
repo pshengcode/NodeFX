@@ -1,0 +1,28 @@
+{
+  "id": "PAINT",
+  "label": "Paint Canvas",
+  "category": "Source",
+  "description": "Draw standard textures directly. Connect input to use as background.",
+  "locales": {
+    "zh": {
+      "Paint Canvas": "绘画画布",
+      "Draw standard textures directly. Connect input to use as background.": "直接绘制纹理。连接输入作为背景。",
+      "Background": "背景",
+      "Texture": "纹理",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 bg, sampler2D tex, out vec4 result) {\n    vec4 d = texture(tex, uv);\n    // Composite drawing (d) over background (bg)\n    // d.a is the alpha of the stroke\n    result = mix(bg, d, d.a);\n}",
+    "inputs": [
+      { "id": "bg", "name": "Background", "type": "vec4" },
+      { "id": "tex", "name": "Texture", "type": "sampler2D" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "result", "name": "Output", "type": "vec4" }],
+    "uniforms": {
+      "bg": { "type": "vec4", "value": [0,0,0,1] },
+      "tex": { "type": "sampler2D", "value": null }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "vec4_input",
+  "label": "Vec4 Input",
+  "category": "Source",
+  "description": "Provides a constant vec4 value.",
+  "locales": {
+    "zh": {
+      "Vec4 Input": "Vec4 输入",
+      "Provides a constant vec4 value.": "提供一个常量 Vec4 值。",
+      "value": "值",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 value, out vec4 result) {\n    result = value;\n}",
+    "inputs": [
+      { "id": "value", "name": "value", "type": "vec4" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "value": { "type": "vec4", "value": [0.0, 0.0, 0.0, 1.0], "widget": "default" }
+    },
+    "outputType": "vec4"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "ATAN2",
+  "label": "Atan2",
+  "category": "Math",
+  "description": "Returns the arctangent of Y/X.",
+  "locales": {
+    "zh": {
+      "Atan2": "反正切2",
+      "Returns the arctangent of Y/X.": "返回 Y/X 的反正切值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float y, float x, out float res) { res = atan(y, x); }\nvoid run(vec2 uv, vec2 y, vec2 x, out vec2 res)   { res = atan(y, x); }\nvoid run(vec2 uv, vec3 y, vec3 x, out vec3 res)   { res = atan(y, x); }\nvoid run(vec2 uv, vec4 y, vec4 x, out vec4 res)   { res = atan(y, x); }",
+    "inputs": [
+      { "id": "y", "name": "Y", "type": "vec4" },
+      { "id": "x", "name": "X", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

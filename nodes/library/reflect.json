@@ -1,0 +1,22 @@
+{
+  "id": "REFLECT",
+  "label": "Reflect",
+  "category": "Math",
+  "description": "Calculate reflection direction for an incident vector I and surface normal N.",
+  "locales": {
+    "zh": {
+      "Reflect": "反射",
+      "Calculate reflection direction for an incident vector I and surface normal N.": "计算入射向量 I 和表面法线 N 的反射方向。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, vec3 i, vec3 n, out vec3 res)   { res = reflect(i, normalize(n)); }\nvoid run(vec2 uv, vec4 i, vec4 n, out vec4 res)   { res = vec4(reflect(i.xyz, normalize(n.xyz)), i.w); }",
+    "inputs": [
+      { "id": "i", "name": "Incident", "type": "vec4" },
+      { "id": "n", "name": "Normal", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

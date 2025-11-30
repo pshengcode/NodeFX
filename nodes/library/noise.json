@@ -1,0 +1,75 @@
+{
+  "id": "noise",
+  "label": "Noise",
+  "category": "Source",
+  "description": "Generates high-quality Fractal Brownian Motion (FBM) noise with domain warping support.",
+  "locales": {
+    "zh": {
+      "Noise": "噪波",
+      "Generates high-quality Fractal Brownian Motion (FBM) noise with domain warping support.": "生成支持域扭曲的高质量分形布朗运动 (FBM) 噪波。",
+      "Scale": "缩放",
+      "Detail": "细节",
+      "Roughness": "粗糙度",
+      "Distortion": "扭曲",
+      "Offset": "偏移",
+      "Result": "结果"
+    }
+  },
+  "data": {
+    "glsl": [
+      "vec2 noise_hash(vec2 p) {",
+      "    p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));",
+      "    return -1.0 + 2.0*fract(sin(p)*43758.5453123);",
+      "}",
+      "",
+      "float noise_gnoise(in vec2 p) {",
+      "    vec2 i = floor(p);",
+      "    vec2 f = fract(p);",
+      "    vec2 u = f*f*(3.0-2.0*f);",
+      "    return mix( mix( dot( noise_hash( i + vec2(0.0,0.0) ), f - vec2(0.0,0.0) ),",
+      "                     dot( noise_hash( i + vec2(1.0,0.0) ), f - vec2(1.0,0.0) ), u.x),",
+      "                mix( dot( noise_hash( i + vec2(0.0,1.0) ), f - vec2(0.0,1.0) ),",
+      "                     dot( noise_hash( i + vec2(1.0,1.0) ), f - vec2(1.0,1.0) ), u.x), u.y);",
+      "}",
+      "",
+      "void run(vec2 uv, float scale, float detail, float roughness, float distortion, vec2 offset, out float result) {",
+      "    vec2 p = (uv + offset) * scale;",
+      "    float f = 0.0;",
+      "    float w = 0.5;",
+      "    float tot = 0.0;",
+      "    for (int i = 0; i < 8; i++) {",
+      "        if (float(i) >= detail) break;",
+      "        // Domain warping: add previous noise value to position",
+      "        float n = noise_gnoise(p + distortion * f);",
+      "        f += w * n;",
+      "        p *= 2.0;",
+      "        tot += w;",
+      "        w *= roughness;",
+      "    }",
+      "    // Normalize result to 0.0 - 1.0 range",
+      "    // gnoise is approx -0.7 to 0.7, but FBM sums up.",
+      "    // We normalize by total weight to keep it in -1..1 range roughly",
+      "    // Then map to 0..1",
+      "    result = 0.5 + 0.5 * (f / tot);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "scale", "name": "Scale", "type": "float" },
+      { "id": "detail", "name": "Detail", "type": "float" },
+      { "id": "roughness", "name": "Roughness", "type": "float" },
+      { "id": "distortion", "name": "Distortion", "type": "float" },
+      { "id": "offset", "name": "Offset", "type": "vec2" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "float" }
+    ],
+    "uniforms": {
+      "scale": { "type": "float", "value": 5.0, "widget": "slider", "widgetConfig": { "min": 0.1, "max": 50.0 } },
+      "detail": { "type": "float", "value": 4.0, "widget": "slider", "widgetConfig": { "min": 1.0, "max": 8.0, "step": 1.0 } },
+      "roughness": { "type": "float", "value": 0.5, "widget": "slider", "widgetConfig": { "min": 0.0, "max": 1.0 } },
+      "distortion": { "type": "float", "value": 0.0, "widget": "slider", "widgetConfig": { "min": 0.0, "max": 2.0 } },
+      "offset": { "type": "vec2", "value": [0.0, 0.0], "widget": "pad" }
+    },
+    "outputType": "float"
+  }
+}

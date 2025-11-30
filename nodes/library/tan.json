@@ -1,0 +1,21 @@
+{
+  "id": "TAN",
+  "label": "Tan",
+  "category": "Math",
+  "description": "Returns the tangent of A.",
+  "locales": {
+    "zh": {
+      "Tan": "正切",
+      "Returns the tangent of A.": "返回 A 的正切值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = tan(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = tan(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = tan(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = tan(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

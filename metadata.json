@@ -1,0 +1,5 @@
+{
+  "name": "Copy of GLSL-laset",
+  "description": "A professional, node-based image processing tool where every node is a customizable GLSL shader. Features real-time compilation, custom parameters, and export capabilities.",
+  "requestFramePermissions": []
+}

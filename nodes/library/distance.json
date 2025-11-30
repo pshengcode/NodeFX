@@ -1,0 +1,22 @@
+{
+  "id": "DISTANCE",
+  "label": "Distance",
+  "category": "Math",
+  "description": "Returns the distance between two points.",
+  "locales": {
+    "zh": {
+      "Distance": "距离",
+      "Returns the distance between two points.": "返回两点之间的距离。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = distance(a, b); }\nvoid run(vec2 uv, vec2 a, vec2 b, out float res)   { res = distance(a, b); }\nvoid run(vec2 uv, vec3 a, vec3 b, out float res)   { res = distance(a, b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out float res)   { res = distance(a, b); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec4" },
+      { "id": "b", "name": "B", "type": "vec4" }
+    ],
+    "outputType": "float",
+    "outputs": [{ "id": "res", "name": "Out", "type": "float" }]
+  }
+}

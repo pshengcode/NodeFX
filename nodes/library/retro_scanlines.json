@@ -1,0 +1,35 @@
+{
+  "id": "RETRO_CRT",
+  "label": "Retro CRT",
+  "category": "Filter",
+  "description": "Simulates old TV scanlines with animation.",
+  "data": {
+    "outputType": "vec4",
+    "inputs": [
+      { "id": "color", "name": "Input Color", "type": "vec4" },
+      { "id": "lines", "name": "Lines", "type": "float" },
+      { "id": "intensity", "name": "Intensity", "type": "float" },
+      { "id": "speed", "name": "Speed", "type": "float" }
+    ],
+    "uniforms": {
+      "color": { "type": "vec4", "value": [1,1,1,1] },
+      "lines": { "type": "float", "value": 120.0, "widgetConfig": { "min": 50.0, "max": 300.0 } },
+      "intensity": { "type": "float", "value": 0.15, "widgetConfig": { "min": 0.0, "max": 0.5 } },
+      "speed": { "type": "float", "value": 2.0, "widgetConfig": { "min": 0.0, "max": 10.0 } }
+    },
+    "glsl": [
+      "void run(vec2 uv, vec4 color, float lines, float intensity, float speed, out vec4 result) {",
+      "    // Create scrolling sine wave pattern",
+      "    float scanline = sin(uv.y * lines * 6.28 - u_time * speed);",
+      "    ",
+      "    // Normalize from [-1, 1] to [0, 1]",
+      "    scanline = 0.5 + 0.5 * scanline;",
+      "    ",
+      "    // Darken the image where scanlines are black",
+      "    vec3 res = color.rgb - (color.rgb * scanline * intensity);",
+      "    ",
+      "    result = vec4(res, color.a);",
+      "}"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "MIX",
+  "label": "Mixer",
+  "category": "Filter",
+  "description": "Linearly interpolate between two inputs.",
+  "locales": {
+    "zh": {
+      "Mixer": "混合器",
+      "Linearly interpolate between two inputs.": "在两个输入之间进行线性插值。",
+      "factor": "因子"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 a, vec4 b, float factor, out vec4 result) {\n  result = mix(a, b, factor);\n}",
+    "inputs": [
+      { "id": "a", "name": "a", "type": "vec4" },
+      { "id": "b", "name": "b", "type": "vec4" },
+      { "id": "factor", "name": "factor", "type": "float" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "result", "name": "result", "type": "vec4" }],
+    "uniforms": {
+      "a": { "type": "vec4", "value": [0, 0, 0, 1] },
+      "b": { "type": "vec4", "value": [1, 1, 1, 1] },
+      "factor": { "type": "float", "value": 0.5, "widgetConfig": { "min": 0.0, "max": 1.0 } }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "CEIL",
+  "label": "Ceil",
+  "category": "Math",
+  "description": "Returns the smallest integer greater than or equal to A.",
+  "locales": {
+    "zh": {
+      "Ceil": "向上取整",
+      "Returns the smallest integer greater than or equal to A.": "返回大于或等于 A 的最小整数。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = ceil(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = ceil(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = ceil(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = ceil(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

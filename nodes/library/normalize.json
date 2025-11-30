@@ -1,0 +1,21 @@
+{
+  "id": "NORMALIZE",
+  "label": "Normalize",
+  "category": "Math",
+  "description": "Returns a vector in the same direction as A but with length 1.",
+  "locales": {
+    "zh": {
+      "Normalize": "归一化",
+      "Returns a vector in the same direction as A but with length 1.": "返回与 A 方向相同但长度为 1 的向量。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = normalize(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = normalize(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = normalize(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = normalize(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

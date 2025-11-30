@@ -1,0 +1,21 @@
+{
+  "id": "ATAN",
+  "label": "Atan",
+  "category": "Math",
+  "description": "Returns the arctangent of A.",
+  "locales": {
+    "zh": {
+      "Atan": "反正切",
+      "Returns the arctangent of A.": "返回 A 的反正切值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = atan(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = atan(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = atan(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = atan(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

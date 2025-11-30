@@ -1,0 +1,26 @@
+{
+  "id": "ADD",
+  "label": "Add",
+  "category": "Math",
+  "description": "Adds two inputs together (A + B). Auto-handles types.",
+  "locales": {
+    "zh": {
+      "Add": "加法",
+      "Adds two inputs together (A + B). Auto-handles types.": "将两个输入相加 (A + B)。自动处理类型。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "// Overloaded functions for dynamic typing\nvoid run(vec2 uv, float a, float b, out float res) { res = a + b; }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res)   { res = a + b; }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = a + b; }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res)   { res = a + b; }",
+    "inputs": [
+      { "id": "a", "name": "a", "type": "vec4" },
+      { "id": "b", "name": "b", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "res", "type": "vec4" }],
+    "uniforms": {
+      "a": { "type": "vec4", "value": [0, 0, 0, 0] },
+      "b": { "type": "vec4", "value": [0, 0, 0, 0] }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+
+{
+  "id": "CRT_SCANLINES",
+  "label": "CRT Scanlines",
+  "category": "Filter",
+  "description": "Adds retro animated scanlines to the input.",
+  "data": {
+    "glsl": [
+      "vec4 run(vec2 uv, vec4 inputColor, float count, float opacity) {",
+      "    // Create sine wave pattern based on Y coordinate and Time",
+      "    float scan = sin(uv.y * count * 6.28 + u_time * 5.0);",
+      "    scan = 0.5 + 0.5 * scan;",
+      "    ",
+      "    // Mix original color with dark lines",
+      "    vec3 result = inputColor.rgb * mix(1.0, scan, opacity);",
+      "    ",
+      "    return vec4(result, inputColor.a);",
+      "}"
+    ],
+    "inputs": [
+      {
+        "id": "in_tex",
+        "name": "inputColor",
+        "type": "vec4"
+      }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "count": {
+        "type": "float",
+        "value": 50.0,
+        "min": 10.0,
+        "max": 200.0
+      },
+      "opacity": {
+        "type": "float",
+        "value": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      }
+    }
+  }
+}

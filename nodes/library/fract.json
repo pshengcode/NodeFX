@@ -1,0 +1,21 @@
+{
+  "id": "FRACT",
+  "label": "Fract",
+  "category": "Math",
+  "description": "Returns the fractional part of A (A - floor(A)).",
+  "locales": {
+    "zh": {
+      "Fract": "小数部分",
+      "Returns the fractional part of A (A - floor(A)).": "返回 A 的小数部分 (A - floor(A))。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = fract(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = fract(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = fract(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = fract(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

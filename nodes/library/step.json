@@ -1,0 +1,22 @@
+{
+  "id": "STEP",
+  "label": "Step",
+  "category": "Math",
+  "description": "Returns 0.0 if x < edge, otherwise 1.0.",
+  "locales": {
+    "zh": {
+      "Step": "阶梯",
+      "Returns 0.0 if x < edge, otherwise 1.0.": "如果 x < edge 返回 0.0，否则返回 1.0。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float edge, float x, out float res) { res = step(edge, x); }\nvoid run(vec2 uv, vec2 edge, vec2 x, out vec2 res)   { res = step(edge, x); }\nvoid run(vec2 uv, vec3 edge, vec3 x, out vec3 res)   { res = step(edge, x); }\nvoid run(vec2 uv, vec4 edge, vec4 x, out vec4 res)   { res = step(edge, x); }",
+    "inputs": [
+      { "id": "edge", "name": "Edge", "type": "vec4", "default": [0.5,0.5,0.5,0.5] },
+      { "id": "x", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

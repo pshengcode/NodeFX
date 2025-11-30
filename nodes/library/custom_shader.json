@@ -1,0 +1,26 @@
+{
+  "id": "CUSTOM",
+  "label": "Custom Shader",
+  "category": "Custom",
+  "description": "Write your own GLSL code. Parameters automatically generate inputs/sliders.",
+  "locales": {
+    "zh": {
+      "Custom Shader": "自定义 Shader",
+      "Write your own GLSL code. Parameters automatically generate inputs/sliders.": "编写您自己的 GLSL 代码。参数会自动生成输入/滑块。"
+    }
+  },
+  "data": {
+    "glsl": "// Inputs (float, vec, sampler) become sliders unless connected\nvoid run(vec2 uv, float speed, out vec4 color, out float mask) {\n    color = vec4(uv.x, uv.y, 0.5, 1.0);\n    mask = distance(uv, vec2(0.5)) * speed;\n}",
+    "inputs": [
+      { "id": "speed", "name": "speed", "type": "float" }
+    ],
+    "outputType": "vec4",
+    "outputs": [
+      { "id": "color", "name": "color", "type": "vec4" },
+      { "id": "mask", "name": "mask", "type": "float" }
+    ],
+    "uniforms": {
+      "speed": { "type": "float", "value": 1.0 }
+    }
+  }
+}

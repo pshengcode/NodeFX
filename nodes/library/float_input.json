@@ -1,0 +1,27 @@
+{
+  "id": "float_input",
+  "label": "Float Input",
+  "category": "Source",
+  "description": "Provides a constant float value.",
+  "locales": {
+    "zh": {
+      "Float Input": "浮点数输入",
+      "Provides a constant float value.": "提供一个常量浮点数值。",
+      "value": "值",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, float value, out float result) {\n    result = value;\n}",
+    "inputs": [
+      { "id": "value", "name": "value", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "float" }
+    ],
+    "uniforms": {
+      "value": { "type": "float", "value": 0.0, "widget": "number" }
+    },
+    "outputType": "float"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "DOT",
+  "label": "Dot Product",
+  "category": "Math",
+  "description": "Returns the dot product of two vectors.",
+  "locales": {
+    "zh": {
+      "Dot Product": "点积",
+      "Returns the dot product of two vectors.": "返回两个向量的点积。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = a * b; }\nvoid run(vec2 uv, vec2 a, vec2 b, out float res)   { res = dot(a, b); }\nvoid run(vec2 uv, vec3 a, vec3 b, out float res)   { res = dot(a, b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out float res)   { res = dot(a, b); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec4" },
+      { "id": "b", "name": "B", "type": "vec4" }
+    ],
+    "outputType": "float",
+    "outputs": [{ "id": "res", "name": "Out", "type": "float" }]
+  }
+}

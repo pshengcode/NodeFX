@@ -1,0 +1,21 @@
+{
+  "id": "SIGN",
+  "label": "Sign",
+  "category": "Math",
+  "description": "Returns -1 if A < 0, 0 if A == 0, 1 if A > 0.",
+  "locales": {
+    "zh": {
+      "Sign": "符号",
+      "Returns -1 if A < 0, 0 if A == 0, 1 if A > 0.": "如果 A < 0 返回 -1，A == 0 返回 0，A > 0 返回 1。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = sign(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = sign(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = sign(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = sign(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

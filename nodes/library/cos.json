@@ -1,0 +1,21 @@
+{
+  "id": "COS",
+  "label": "Cos",
+  "category": "Math",
+  "description": "Returns the cosine of A.",
+  "locales": {
+    "zh": {
+      "Cos": "余弦",
+      "Returns the cosine of A.": "返回 A 的余弦值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = cos(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = cos(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = cos(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = cos(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

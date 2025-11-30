@@ -1,0 +1,86 @@
+{
+  "id": "gradient",
+  "label": "Gradient",
+  "category": "Generator",
+  "description": "Generates various types of gradients (Linear, Radial, Angular, Diamond).",
+  "data": {
+    "glsl": [
+    "// Gradient Generator",
+    "// Outputs a float value (0.0 - 1.0) representing the gradient.",
+    "",
+    "const int TYPE_LINEAR = 0;",
+    "const int TYPE_RADIAL = 1;",
+    "const int TYPE_ANGULAR = 2;",
+    "const int TYPE_DIAMOND = 3;",
+    "",
+    "vec2 rotate(vec2 uv, float angle) {",
+    "    float s = sin(angle);",
+    "    float c = cos(angle);",
+    "    return vec2(uv.x * c - uv.y * s, uv.x * s + uv.y * c);",
+    "}",
+    "",
+    "void run(vec2 uv, int type, float angle, float scale, float offset, float power, out float result) {",
+    "    vec2 p = uv - 0.5;",
+    "    p = rotate(p, -angle); // Rotate around center",
+    "    ",
+    "    float t = 0.0;",
+    "    ",
+    "    if (type == TYPE_LINEAR) {",
+    "        // Linear gradient along X axis",
+    "        t = p.x + 0.5;",
+    "    } else if (type == TYPE_RADIAL) {",
+    "        // Radial gradient from center",
+    "        t = 1.0 - length(p) * 2.0;",
+    "    } else if (type == TYPE_ANGULAR) {",
+    "        // Angular gradient around center",
+    "        t = atan(p.y, p.x) / 6.2831853 + 0.5;",
+    "    } else if (type == TYPE_DIAMOND) {",
+    "        // Diamond/Box gradient",
+    "        t = 1.0 - (abs(p.x) + abs(p.y));",
+    "    }",
+    "    ",
+    "    // Apply offset",
+    "    t = t + offset;",
+    "    ",
+    "    // Apply scale (contrast/zoom)",
+    "    t = (t - 0.5) * scale + 0.5;",
+    "    ",
+    "    // Power for curve control",
+    "    t = clamp(t, 0.0, 1.0);",
+    "    if (power != 1.0) {",
+    "        t = pow(t, power);",
+    "    }",
+    "    ",
+    "    result = t;",
+    "}"
+  ],
+  "inputs": [
+      { "id": "angle", "name": "angle", "type": "float" },
+      { "id": "scale", "name": "scale", "type": "float" },
+      { "id": "offset", "name": "offset", "type": "float" },
+      { "id": "power", "name": "power", "type": "float" }
+  ],
+  "outputs": [
+    { "id": "result", "name": "result", "type": "float" }
+  ],
+  "uniforms": {
+    "type": { 
+        "type": "int", 
+        "value": 0, 
+        "widget": "enum", 
+        "widgetConfig": { 
+            "enumOptions": [
+                {"label": "Linear", "value": 0},
+                {"label": "Radial", "value": 1},
+                {"label": "Angular", "value": 2},
+                {"label": "Diamond", "value": 3}
+            ] 
+        } 
+    },
+    "angle": { "type": "float", "value": 0.0, "widget": "slider", "widgetConfig": { "min": -3.14, "max": 3.14, "visibleIf": { "uniform": "type", "notValue": 1 } } },
+    "scale": { "type": "float", "value": 1.0, "widget": "slider", "widgetConfig": { "min": 0.1, "max": 5.0 } },
+    "offset": { "type": "float", "value": 0.0, "widget": "slider", "widgetConfig": { "min": -1.0, "max": 1.0 } },
+    "power": { "type": "float", "value": 1.0, "widget": "slider", "widgetConfig": { "min": 0.1, "max": 5.0 } }
+  }
+  }
+}

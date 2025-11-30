@@ -1,0 +1,36 @@
+{
+  "id": "rgba_combine",
+  "label": "RGBA Combine",
+  "category": "Math",
+  "description": "Combines individual channels into a RGBA color.",
+  "locales": {
+    "zh": {
+      "RGBA Combine": "RGBA 组合",
+      "Combines individual channels into a RGBA color.": "将独立通道组合为 RGBA 颜色。",
+      "r": "红",
+      "g": "绿",
+      "b": "蓝",
+      "a": "透明度",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, float r, float g, float b, float a, out vec4 result) {\n    result = vec4(r, g, b, a);\n}",
+    "inputs": [
+      { "id": "r", "name": "r", "type": "float" },
+      { "id": "g", "name": "g", "type": "float" },
+      { "id": "b", "name": "b", "type": "float" },
+      { "id": "a", "name": "a", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "r": { "type": "float", "value": 0.0, "widget": "slider" },
+      "g": { "type": "float", "value": 0.0, "widget": "slider" },
+      "b": { "type": "float", "value": 0.0, "widget": "slider" },
+      "a": { "type": "float", "value": 1.0, "widget": "slider" }
+    },
+    "outputType": "vec4"
+  }
+}

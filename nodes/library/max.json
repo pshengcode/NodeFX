@@ -1,0 +1,22 @@
+{
+  "id": "MAX",
+  "label": "Max",
+  "category": "Math",
+  "description": "Returns the larger of two values.",
+  "locales": {
+    "zh": {
+      "Max": "最大值",
+      "Returns the larger of two values.": "返回两个值中较大的一个。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = max(a, b); }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res)   { res = max(a, b); }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = max(a, b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res)   { res = max(a, b); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec4" },
+      { "id": "b", "name": "B", "type": "vec4", "default": [1,1,1,1] }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

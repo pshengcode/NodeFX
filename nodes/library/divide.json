@@ -1,0 +1,22 @@
+{
+  "id": "DIVIDE",
+  "label": "Divide",
+  "category": "Math",
+  "description": "Divides input A by input B (A / B).",
+  "locales": {
+    "zh": {
+      "Divide": "除法",
+      "Divides input A by input B (A / B).": "A 除以 B (A / B)。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = a / (b + 0.00001); }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res)   { res = a / (b + 0.00001); }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = a / (b + 0.00001); }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res)   { res = a / (b + 0.00001); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec4" },
+      { "id": "b", "name": "B", "type": "vec4", "default": [1,1,1,1] }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Res", "type": "vec4" }]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "ONE_MINUS",
+  "label": "One Minus",
+  "category": "Math",
+  "description": "Returns 1 - A. Useful for inverting values.",
+  "locales": {
+    "zh": {
+      "One Minus": "一减去",
+      "Returns 1 - A. Useful for inverting values.": "返回 1 - A。用于反转值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = 1.0 - a; }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = 1.0 - a; }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = 1.0 - a; }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = 1.0 - a; }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

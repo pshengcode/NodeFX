@@ -1,0 +1,26 @@
+{
+  "id": "MULTIPLY",
+  "label": "Multiply",
+  "category": "Math",
+  "description": "Multiplies two inputs (A * B). Good for masking.",
+  "locales": {
+    "zh": {
+      "Multiply": "乘法",
+      "Multiplies two inputs (A * B). Good for masking.": "将两个输入相乘 (A * B)。适用于遮罩。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "// Overloaded functions for dynamic typing\nvoid run(vec2 uv, float a, float b, out float res) { res = a * b; }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res)   { res = a * b; }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = a * b; }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res)   { res = a * b; }",
+    "inputs": [
+      { "id": "a", "name": "a", "type": "vec4" },
+      { "id": "b", "name": "b", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "res", "type": "vec4" }],
+    "uniforms": {
+      "a": { "type": "vec4", "value": [1, 1, 1, 1] },
+      "b": { "type": "vec4", "value": [1, 1, 1, 1] }
+    }
+  }
+}

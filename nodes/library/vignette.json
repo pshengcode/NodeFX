@@ -1,0 +1,35 @@
+{
+  "id": "VIGNETTE",
+  "label": "Vignette",
+  "category": "Filter",
+  "description": "Adds a cinematic dark corner effect.",
+  "data": {
+    "outputType": "vec4",
+    "inputs": [
+      { "id": "color", "name": "Input Color", "type": "vec4" },
+      { "id": "radius", "name": "Radius", "type": "float" },
+      { "id": "softness", "name": "Softness", "type": "float" },
+      { "id": "opacity", "name": "Opacity", "type": "float" }
+    ],
+    "uniforms": {
+      "color": { "type": "vec4", "value": [1,1,1,1] },
+      "radius": { "type": "float", "value": 0.5, "widgetConfig": { "min": 0.1, "max": 1.5 } },
+      "softness": { "type": "float", "value": 0.45, "widgetConfig": { "min": 0.0, "max": 1.0 } },
+      "opacity": { "type": "float", "value": 0.8, "widgetConfig": { "min": 0.0, "max": 1.0 } }
+    },
+    "glsl": [
+      "void run(vec2 uv, vec4 color, float radius, float softness, float opacity, out vec4 result) {",
+      "    // Calculate distance from center (0.5, 0.5)",
+      "    float d = length(uv - 0.5);",
+      "    ",
+      "    // Smooth interpolation for the vignette edge",
+      "    float v = smoothstep(radius, radius - softness, d);",
+      "    ",
+      "    // Mix original color with black based on vignette value and opacity",
+      "    vec3 finalColor = mix(color.rgb, color.rgb * v, opacity);",
+      "    ",
+      "    result = vec4(finalColor, color.a);",
+      "}"
+    ]
+  }
+}

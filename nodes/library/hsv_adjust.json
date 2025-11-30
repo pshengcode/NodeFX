@@ -1,0 +1,32 @@
+{
+  "id": "HSV",
+  "label": "HSV Adjust",
+  "category": "Filter",
+  "description": "Adjust Hue, Saturation, and Value.",
+  "locales": {
+    "zh": {
+      "HSV Adjust": "HSV 调整",
+      "Adjust Hue, Saturation, and Value.": "调整色相、饱和度和明度。",
+      "h": "色相",
+      "s": "饱和度",
+      "v": "明度"
+    }
+  },
+  "data": {
+    "glsl": "vec3 rgb2hsv(vec3 c) {\n    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);\n    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));\n    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));\n    float d = q.x - min(q.w, q.y);\n    float e = 1.0e-10;\n    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);\n}\n\nvec3 hsv2rgb(vec3 c) {\n    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);\n    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);\n    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);\n}\n\nvoid run(vec2 uv, vec4 color, float h, float s, float v, out vec4 result) {\n    vec3 hsv = rgb2hsv(color.rgb);\n    hsv.x += h;\n    hsv.y *= s;\n    hsv.z *= v;\n    result = vec4(hsv2rgb(hsv), color.a);\n}",
+    "inputs": [
+      { "id": "color", "name": "color", "type": "vec4" },
+      { "id": "h", "name": "h", "type": "float" },
+      { "id": "s", "name": "s", "type": "float" },
+      { "id": "v", "name": "v", "type": "float" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "result", "name": "result", "type": "vec4" }],
+    "uniforms": {
+      "color": { "type": "vec4", "value": [1, 1, 1, 1] },
+      "h": { "type": "float", "value": 0.0, "widgetConfig": { "min": -0.5, "max": 0.5 } },
+      "s": { "type": "float", "value": 1.0, "widgetConfig": { "min": 0.0, "max": 2.0 } },
+      "v": { "type": "float", "value": 1.0, "widgetConfig": { "min": 0.0, "max": 2.0 } }
+    }
+  }
+}

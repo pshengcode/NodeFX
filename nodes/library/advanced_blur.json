@@ -1,0 +1,38 @@
+{
+  "id": "GAUSSIAN_BLUR",
+  "label": "Advanced Blur",
+  "category": "Filter",
+  "description": "Multi-mode blur: Gaussian, Directional, Radial, and Zoom.",
+  "locales": {
+    "zh": {
+      "Advanced Blur": "高级模糊",
+      "Multi-mode blur: Gaussian, Directional, Radial, and Zoom.": "多模式模糊：高斯、定向、径向和缩放。",
+      "mode": "模式",
+      "strength": "强度",
+      "samples": "采样数",
+      "center": "中心",
+      "angle": "角度"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, int mode, float strength, int samples, vec2 center, float angle, out vec4 result) {\n    vec4 color = vec4(0.0);\n    float total = 0.0;\n    \n    int count = samples;\n    if(count > 64) count = 64;\n    if(count < 2) count = 2;\n    \n    float rad = radians(angle);\n    vec2 dir = vec2(cos(rad), sin(rad));\n\n    for (int i = 0; i < 64; i++) {\n        if (i >= count) break;\n        \n        float t = float(i) / float(count - 1); \n        float t_centered = t * 2.0 - 1.0;\n        \n        vec2 coord = uv;\n        \n        if (mode == 0) { \n            float theta = float(i) / float(count) * 6.28318; \n            float r = sqrt(float(i) / float(count)) * strength * 0.1;\n            vec2 offset = vec2(sin(theta), cos(theta)) * r;\n            coord += offset;\n        } else if (mode == 1) { \n            coord += dir * t_centered * strength * 0.1;\n        } else if (mode == 2) { \n            vec2 rel = uv - center;\n            float phi = t_centered * strength * 0.2;\n            float s = sin(phi);\n            float c = cos(phi);\n            vec2 rotated = vec2(rel.x * c - rel.y * s, rel.x * s + rel.y * c);\n            coord = center + rotated;\n        } else if (mode == 3) { \n            vec2 rel = uv - center;\n            float scale = 1.0 + (t_centered * strength * 0.2);\n            coord = center + rel * scale;\n        }\n        \n        color += texture2D(tex, coord);\n        total += 1.0;\n    }\n    \n    if (total == 0.0) {\n        result = vec4(0.0);\n    } else {\n        result = color / total;\n    }\n}",
+    "inputs": [
+      { "id": "tex", "name": "tex", "type": "sampler2D" },
+      { "id": "mode", "name": "mode", "type": "int" },
+      { "id": "strength", "name": "strength", "type": "float" },
+      { "id": "samples", "name": "samples", "type": "int" },
+      { "id": "center", "name": "center", "type": "vec2" },
+      { "id": "angle", "name": "angle", "type": "float" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "result", "name": "result", "type": "vec4" }],
+    "uniforms": {
+      "tex": { "type": "sampler2D", "value": null },
+      "mode": { "type": "int", "value": 0, "widgetConfig": { "min": 0, "max": 3 } },
+      "strength": { "type": "float", "value": 0.5, "widgetConfig": { "min": 0.0, "max": 1.0 } },
+      "samples": { "type": "int", "value": 16, "widgetConfig": { "min": 2, "max": 64 } },
+      "center": { "type": "vec2", "value": [0.5, 0.5] },
+      "angle": { "type": "float", "value": 0.0, "widgetConfig": { "min": 0.0, "max": 360.0 } }
+    }
+  }
+}

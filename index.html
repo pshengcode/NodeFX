@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GLSL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/reactflow@11.11.4/dist/style.css" />
+    <style>
+      body, html, #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #09090b; /* zinc-950 */
+        color: #e4e4e7; /* zinc-200 */
+        overflow: hidden;
+      }
+      /* React Flow Dark Mode Overrides */
+      .react-flow__node {
+        border-radius: 8px;
+        border: 1px solid #3f3f46;
+      }
+      .react-flow__handle {
+        background: #a1a1aa;
+        width: 8px;
+        height: 8px;
+      }
+      .react-flow__edge-path {
+        stroke: #71717a;
+        stroke-width: 2;
+      }
+      
+      /* Dark Theme for Controls */
+      .react-flow__controls {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        border: 1px solid #3f3f46;
+        border-radius: 6px;
+        overflow: hidden;
+        background-color: #18181b;
+      }
+      
+      .react-flow__controls-button {
+        background-color: #18181b !important; /* zinc-900 */
+        border-bottom: 1px solid #27272a !important; /* zinc-800 */
+        fill: #a1a1aa !important; /* zinc-400 */
+        width: 28px !important;
+        height: 28px !important;
+        transition: all 0.2s;
+      }
+
+      .react-flow__controls-button:last-child {
+        border-bottom: none !important;
+      }
+
+      .react-flow__controls-button:hover {
+        background-color: #27272a !important; /* zinc-800 */
+        fill: #e4e4e7 !important; /* zinc-200 */
+      }
+      
+      .react-flow__controls-button svg {
+        max-width: 14px;
+        max-height: 14px;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "reactflow/": "https://aistudiocdn.com/reactflow@^11.11.4/",
+    "reactflow": "https://aistudiocdn.com/reactflow@^11.11.4",
+    "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@4.6.0?external=react,react-dom",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

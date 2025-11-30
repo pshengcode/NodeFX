@@ -1,0 +1,290 @@
+import { useCallback } from 'react';
+import { Node, Edge } from 'reactflow';
+import { NodeData, GLSLType } from '../types';
+import { extractAllSignatures } from '../utils/glslParser';
+
+// Helper to sanitize types (Duplicate from shaderCompiler to avoid circular deps if any, or just for safety)
+const sanitizeType = (type: string): GLSLType => {
+  if (!type) return 'float';
+  if (type === 'vec1') return 'float';
+  const validTypes = ['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'bool'];
+  return validTypes.includes(type) ? (type as GLSLType) : 'float';
+};
+
+// Helper to rank types for polymorphism
+const getTypeRank = (type: GLSLType): number => {
+    switch (type) {
+        case 'bool': return 1; // Treat bool as float-compatible (0.0/1.0)
+        case 'float': return 1;
+        case 'int': return 1; // Treat int as float-compatible for rank
+        case 'vec2': return 2;
+        case 'vec3': return 3;
+        case 'vec4': return 4;
+        default: return 0;
+    }
+};
+
+const getRankType = (rank: number): GLSLType => {
+    switch (rank) {
+        case 1: return 'float';
+        case 2: return 'vec2';
+        case 3: return 'vec3';
+        case 4: return 'vec4';
+        default: return 'float';
+    }
+};
+
+// Helper to migrate uniform values between types
+const migrateUniformValue = (u: any, newType: GLSLType) => {
+    let newVal: any = 0;
+    if (u) {
+        // Perform conversion
+        newVal = u.value;
+        const isArray = Array.isArray(u.value);
+        const isTargetScalar = newType === 'float' || newType === 'int';
+
+        if (isTargetScalar) {
+             // Vector -> Scalar
+             if (isArray && u.value.length > 0) newVal = u.value[0];
+             else if (isArray) newVal = 0;
+        } else {
+             // Scalar/Vector -> Vector
+             const targetLen = parseInt(newType.slice(3)); // vec2->2, vec3->3, vec4->4
+             if (!isArray) {
+                 // Scalar -> Vector
+                 newVal = Array(targetLen).fill(u.value);
+             } else {
+                 // Vector -> Vector
+                 const current = [...u.value];
+                 while(current.length < targetLen) current.push(0);
+                 newVal = current.slice(0, targetLen);
+             }
+        }
+    } else {
+        // Create default
+        const targetLen = newType === 'float' || newType === 'int' ? 1 : parseInt(newType.slice(3));
+        newVal = targetLen === 1 ? 0 : Array(targetLen).fill(0);
+    }
+    return {
+        type: newType,
+        value: newVal,
+        widget: u?.widget,
+        widgetConfig: u?.widgetConfig
+    };
+};
+
+export function useTypeInference() {
+    const runTypeInference = useCallback((
+        currentNodes: Node<NodeData>[], 
+        currentEdges: Edge[]
+    ): Node<NodeData>[] | null => {
+        let nodes = [...currentNodes];
+        let hasGraphInputUpdates = false;
+        const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+        // --- STEP 1: GraphInput Reverse Inference ---
+        nodes.forEach((node, index) => {
+            if (node.type !== 'graphInput') return;
+            
+            const groupNodeId = node.data.scopeId;
+            const groupNode = groupNodeId ? nodeMap.get(groupNodeId) : null;
+            
+            let inputUpdates = false;
+            const newInputs = node.data.inputs.map(inputDef => {
+                // Find connections FROM this input
+                const edges = currentEdges.filter(e => e.source === node.id && e.sourceHandle === inputDef.id);
+                if (edges.length === 0) return inputDef;
+
+                let maxRank = 0;
+
+                edges.forEach(edge => {
+                    const targetNode = nodeMap.get(edge.target);
+                    if (!targetNode) return;
+                    
+                    const targetInput = targetNode.data.inputs.find(i => i.id === edge.targetHandle);
+                    if (targetInput) {
+                        const rank = getTypeRank(targetInput.type);
+                        if (rank > maxRank) {
+                            maxRank = rank;
+                        }
+                    }
+                });
+
+                if (maxRank > 0) {
+                    const bestType = getRankType(maxRank);
+                    if (bestType !== inputDef.type) {
+                        inputUpdates = true;
+                        return { ...inputDef, type: bestType };
+                    }
+                }
+                return inputDef;
+            });
+
+            if (inputUpdates) {
+                hasGraphInputUpdates = true;
+                
+                // Update GraphInput Node
+                nodes[index] = {
+                    ...node,
+                    data: { ...node.data, inputs: newInputs }
+                };
+                nodeMap.set(node.id, nodes[index]);
+
+                // Update Group Node (if exists)
+                if (groupNode) {
+                    const groupIndex = nodes.findIndex(n => n.id === groupNode.id);
+                    if (groupIndex !== -1) {
+                        const nextUniforms = { ...groupNode.data.uniforms };
+                        newInputs.forEach(inp => {
+                            const oldInp = groupNode.data.inputs.find(i => i.id === inp.id);
+                            if (oldInp && oldInp.type !== inp.type) {
+                                const u = nextUniforms[inp.id];
+                                nextUniforms[inp.id] = migrateUniformValue(u, inp.type);
+                            }
+                        });
+
+                        nodes[groupIndex] = {
+                            ...groupNode,
+                            data: { 
+                                ...groupNode.data, 
+                                inputs: newInputs,
+                                uniforms: nextUniforms
+                            }
+                        };
+                        nodeMap.set(groupNode.id, nodes[groupIndex]);
+                    }
+                }
+            }
+        });
+
+        // --- STEP 2: Standard Forward Inference ---
+        let hasStandardUpdates = false;
+        
+        const updatedNodes = nodes.map(node => {
+            // Only process nodes flagged with autoType
+            if (!node.data.autoType) return node;
+
+            // Find all incoming edges to this node
+            const incomingEdges = currentEdges.filter(e => e.target === node.id);
+            
+            let maxRank = 1; // Default to float
+            let connected = false;
+
+            incomingEdges.forEach(edge => {
+                const sourceNode = nodeMap.get(edge.source); // Use updated map
+                if (sourceNode) {
+                    // Correctly identify the specific output type
+                    let typeToCheck = sourceNode.data.outputType;
+                    
+                    if (edge.sourceHandle && sourceNode.data.outputs) {
+                        const outputDef = sourceNode.data.outputs.find(o => o.id === edge.sourceHandle);
+                        if (outputDef) {
+                            typeToCheck = outputDef.type;
+                        }
+                    }
+                    // Special case for GraphInput: it uses inputs as outputs
+                    if (sourceNode.type === 'graphInput' && edge.sourceHandle) {
+                         const inputDef = sourceNode.data.inputs.find(i => i.id === edge.sourceHandle);
+                         if (inputDef) {
+                             typeToCheck = inputDef.type;
+                         }
+                    }
+
+                    // Sanitize and Rank
+                    const safeType = sanitizeType(typeToCheck);
+                    const rank = getTypeRank(safeType);
+                    
+                    // Logic: Upgrade to highest dimension connected
+                    if (rank > maxRank) maxRank = rank;
+                    connected = true;
+                }
+            });
+
+            // STICKY TYPE STRATEGY:
+            // If nothing is connected, we do NOT change the type.
+            if (!connected) {
+                 return node;
+            }
+
+            const targetType = getRankType(maxRank);
+
+            // --- NEW LOGIC: Signature Lookup ---
+            // 1. Parse all signatures from the node's GLSL
+            const signatures = extractAllSignatures(node.data.glsl);
+            
+            // 2. Find the best matching signature
+            // We look for a signature where the first input matches the targetType
+            let matchedSig = signatures.find(sig => 
+                sig.inputs.length > 0 && sig.inputs[0].type === targetType
+            );
+
+            // Fallback: If no exact match, try to find one that matches the rank? 
+            if (!matchedSig && signatures.length > 0) {
+                matchedSig = signatures.find(sig => 
+                    sig.inputs.length > 0 && getTypeRank(sig.inputs[0].type) === maxRank
+                );
+            }
+            
+            let newInputs = node.data.inputs;
+            let newOutputs = node.data.outputs || [];
+            let newOutputType = node.data.outputType;
+
+            if (matchedSig) {
+                // Use the signature's definition
+                newInputs = matchedSig.inputs;
+                newOutputs = matchedSig.outputs;
+                if (newOutputs.length > 0) {
+                    newOutputType = newOutputs[0].type;
+                }
+            } else {
+                // Fallback to blind upgrade (Old Logic)
+                newInputs = node.data.inputs.map(i => ({ ...i, type: targetType }));
+                newOutputs = node.data.outputs ? node.data.outputs.map(o => ({ ...o, type: targetType })) : [];
+                newOutputType = targetType;
+            }
+
+            // Check if update is needed
+            const inputsChanged = JSON.stringify(node.data.inputs) !== JSON.stringify(newInputs);
+            const outputsChanged = JSON.stringify(node.data.outputs) !== JSON.stringify(newOutputs);
+            const outputTypeChanged = node.data.outputType !== newOutputType;
+            
+            // Check if uniforms need update (types might have changed)
+            const uniformsNeedUpdate = newInputs.some(input => {
+                const u = node.data.uniforms[input.id];
+                return !u || u.type !== input.type;
+            });
+
+            if (inputsChanged || outputsChanged || outputTypeChanged || uniformsNeedUpdate) {
+                hasStandardUpdates = true;
+
+                // Migrate Uniform Values
+                const nextUniforms = { ...node.data.uniforms };
+
+                newInputs.forEach(input => {
+                    const u = nextUniforms[input.id];
+                    nextUniforms[input.id] = migrateUniformValue(u, input.type);
+                });
+
+                return {
+                    ...node,
+                    data: {
+                        ...node.data,
+                        outputType: newOutputType,
+                        inputs: newInputs,
+                        outputs: newOutputs,
+                        uniforms: nextUniforms
+                    }
+                };
+            }
+
+            return node;
+        });
+
+        if (hasGraphInputUpdates || hasStandardUpdates) {
+            return updatedNodes;
+        }
+        return null;
+    }, []);
+
+    return { runTypeInference };
+}

@@ -1,0 +1,21 @@
+{
+  "id": "ACOS",
+  "label": "Acos",
+  "category": "Math",
+  "description": "Returns the arccosine of A.",
+  "locales": {
+    "zh": {
+      "Acos": "反余弦",
+      "Returns the arccosine of A.": "返回 A 的反余弦值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = acos(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = acos(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = acos(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = acos(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "color_input",
+  "label": "Color Input",
+  "category": "Source",
+  "description": "Provides a constant RGBA color value.",
+  "locales": {
+    "zh": {
+      "Color Input": "颜色输入",
+      "Provides a constant RGBA color value.": "提供一个常量 RGBA 颜色值。",
+      "color": "颜色",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 color, out vec4 result) {\n    result = color;\n}",
+    "inputs": [
+      { "id": "color", "name": "color", "type": "vec4" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "color": { "type": "vec4", "value": [1.0, 1.0, 1.0, 1.0], "widget": "color" }
+    },
+    "outputType": "vec4"
+  }
+}

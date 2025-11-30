@@ -1,0 +1,21 @@
+{
+  "id": "ABS",
+  "label": "Abs",
+  "category": "Math",
+  "description": "Returns the absolute value of A.",
+  "locales": {
+    "zh": {
+      "Abs": "绝对值",
+      "Returns the absolute value of A.": "返回 A 的绝对值。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = abs(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res)   { res = abs(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res)   { res = abs(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res)   { res = abs(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

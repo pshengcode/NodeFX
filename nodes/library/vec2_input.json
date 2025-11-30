@@ -1,0 +1,27 @@
+{
+  "id": "vec2_input",
+  "label": "Vec2 Input",
+  "category": "Source",
+  "description": "Provides a constant vec2 value.",
+  "locales": {
+    "zh": {
+      "Vec2 Input": "Vec2 输入",
+      "Provides a constant vec2 value.": "提供一个常量 Vec2 值。",
+      "value": "值",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec2 value, out vec2 result) {\n    result = value;\n}",
+    "inputs": [
+      { "id": "value", "name": "value", "type": "vec2" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec2" }
+    ],
+    "uniforms": {
+      "value": { "type": "vec2", "value": [0.0, 0.0], "widget": "default" }
+    },
+    "outputType": "vec2"
+  }
+}

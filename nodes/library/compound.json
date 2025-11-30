@@ -1,0 +1,13 @@
+{
+  "id": "COMPOUND",
+  "label": "Group",
+  "category": "Custom",
+  "data": {
+    "glsl": "void run(vec2 uv, out vec4 result) { result = vec4(0.0); }",
+    "inputs": [],
+    "outputs": [],
+    "uniforms": {},
+    "outputType": "vec4",
+    "isCompound": true
+  }
+}

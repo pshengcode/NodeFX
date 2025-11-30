@@ -1,0 +1,23 @@
+{
+  "id": "CLAMP",
+  "label": "Clamp",
+  "category": "Math",
+  "description": "Constrains a value to lie between two further values.",
+  "locales": {
+    "zh": {
+      "Clamp": "钳制",
+      "Constrains a value to lie between two further values.": "将值限制在两个值之间。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float mn, float mx, out float res) { res = clamp(a, mn, mx); }\nvoid run(vec2 uv, vec2 a, vec2 mn, vec2 mx, out vec2 res)   { res = clamp(a, mn, mx); }\nvoid run(vec2 uv, vec3 a, vec3 mn, vec3 mx, out vec3 res)   { res = clamp(a, mn, mx); }\nvoid run(vec2 uv, vec4 a, vec4 mn, vec4 mx, out vec4 res)   { res = clamp(a, mn, mx); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" },
+      { "id": "min", "name": "Min", "type": "vec4", "default": [0,0,0,0] },
+      { "id": "max", "name": "Max", "type": "vec4", "default": [1,1,1,1] }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

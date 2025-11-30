@@ -1,0 +1,27 @@
+{
+  "id": "int_input",
+  "label": "Int Input",
+  "category": "Source",
+  "description": "Provides a constant integer value.",
+  "locales": {
+    "zh": {
+      "Int Input": "整数输入",
+      "Provides a constant integer value.": "提供一个常量整数值。",
+      "value": "值",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, int value, out int result) {\n    result = value;\n}",
+    "inputs": [
+      { "id": "value", "name": "value", "type": "int" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "int" }
+    ],
+    "uniforms": {
+      "value": { "type": "int", "value": 0, "widget": "number" }
+    },
+    "outputType": "int"
+  }
+}

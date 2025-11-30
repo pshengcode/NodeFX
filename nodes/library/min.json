@@ -1,0 +1,22 @@
+{
+  "id": "MIN",
+  "label": "Min",
+  "category": "Math",
+  "description": "Returns the smaller of two values.",
+  "locales": {
+    "zh": {
+      "Min": "最小值",
+      "Returns the smaller of two values.": "返回两个值中较小的一个。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = min(a, b); }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res)   { res = min(a, b); }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res)   { res = min(a, b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res)   { res = min(a, b); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec4" },
+      { "id": "b", "name": "B", "type": "vec4", "default": [0,0,0,0] }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}
