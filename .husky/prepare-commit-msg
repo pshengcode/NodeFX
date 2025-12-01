@@ -1,1 +1,1 @@
-node scripts/processCommitMsg.js ""
+node scripts/processCommitMsg.js "$1"
