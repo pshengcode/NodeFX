@@ -2,7 +2,7 @@ import { Node, Edge } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, UniformValueType } from '../types';
 
 // Helper to sanitize types
-const sanitizeType = (type: string): GLSLType => {
+export const sanitizeType = (type: string): GLSLType => {
   if (!type) return 'float';
   if (type === 'vec1') return 'float';
   const validTypes = ['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'bool'];
@@ -10,7 +10,7 @@ const sanitizeType = (type: string): GLSLType => {
 };
 
 // Helper to rank types for polymorphism
-const getTypeRank = (type: GLSLType): number => {
+export const getTypeRank = (type: GLSLType): number => {
     switch (type) {
         case 'float': return 1;
         case 'int': return 1;
@@ -21,7 +21,7 @@ const getTypeRank = (type: GLSLType): number => {
     }
 };
 
-const getRankType = (rank: number): GLSLType => {
+export const getRankType = (rank: number): GLSLType => {
     switch (rank) {
         case 1: return 'float';
         case 2: return 'vec2';
@@ -32,7 +32,7 @@ const getRankType = (rank: number): GLSLType => {
 };
 
 // Helper to migrate uniform values between types
-const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType): UniformVal => {
+export const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType): UniformVal => {
     let newVal: UniformValueType = 0;
     let isNumeric = false;
     if (u && u.value !== null) {
@@ -73,6 +73,87 @@ const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType): Unif
         widgetConfig: u?.widgetConfig
     };
 };
+
+/**
+ * Determines the target type rank for a node based on its connections.
+ * Prioritizes incoming edges (Forward Inference).
+ * If no incoming edges, falls back to outgoing edges (Reverse Inference).
+ */
+export const getConnectedTypeRank = (
+    node: Node<NodeData>, 
+    currentEdges: Edge[], 
+    nodeMap: Map<string, Node<NodeData>>
+): { rank: number, isConnected: boolean } => {
+    let maxRank = 1;
+    let isConnected = false;
+
+    // Strategy:
+    // 1. Look for Incoming Edges (Upstream drives Downstream)
+    const incomingEdges = currentEdges.filter(e => e.target === node.id);
+    
+    if (incomingEdges.length > 0) {
+        // Forward Inference
+        incomingEdges.forEach(edge => {
+            const sourceNode = nodeMap.get(edge.source);
+            if (!sourceNode) return;
+
+            let typeToCheck = sourceNode.data.outputType;
+            
+            if (edge.sourceHandle && sourceNode.data.outputs) {
+                const outputDef = sourceNode.data.outputs.find(o => o.id === edge.sourceHandle);
+                if (outputDef) {
+                    typeToCheck = outputDef.type;
+                }
+            }
+            // Special case for GraphInput: it uses inputs as outputs
+            if (sourceNode.type === 'graphInput' && edge.sourceHandle) {
+                 const inputDef = sourceNode.data.inputs.find(i => i.id === edge.sourceHandle);
+                 if (inputDef) {
+                     typeToCheck = inputDef.type;
+                 }
+            }
+
+            const rank = getTypeRank(sanitizeType(typeToCheck));
+            if (rank > maxRank) maxRank = rank;
+            isConnected = true;
+        });
+    } else {
+        // 2. If NO Incoming Edges, Look for Outgoing Edges (Downstream demand drives Upstream source)
+        // Reverse Inference (Source Nodes)
+        const outgoingEdges = currentEdges.filter(e => e.source === node.id);
+        if (outgoingEdges.length > 0) {
+             outgoingEdges.forEach(edge => {
+                const targetNode = nodeMap.get(edge.target);
+                if (!targetNode) return;
+
+                let typeToCheck = 'float';
+                
+                // Check target input type
+                if (edge.targetHandle && targetNode.data.inputs) {
+                    const inputDef = targetNode.data.inputs.find(i => i.id === edge.targetHandle);
+                    if (inputDef) {
+                        typeToCheck = inputDef.type;
+                    }
+                }
+                // Special case for GraphOutput
+                if (targetNode.type === 'graphOutput' && edge.targetHandle) {
+                    const outputDef = targetNode.data.outputs.find(o => o.id === edge.targetHandle);
+                    if (outputDef) {
+                        typeToCheck = outputDef.type;
+                    }
+                }
+
+                const rank = getTypeRank(sanitizeType(typeToCheck));
+                if (rank > maxRank) maxRank = rank;
+                isConnected = true;
+             });
+        }
+    }
+
+    return { rank: maxRank, isConnected };
+};
+
+// --- INFERENCE LOGIC ---
 
 // --- INFERENCE LOGIC ---
 
