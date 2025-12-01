@@ -23,6 +23,43 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
     // Locales State
     const [selectedLang, setSelectedLang] = useState<string | null>(null);
     const [newLangCode, setNewLangCode] = useState('');
+    const [editingVisibility, setEditingVisibility] = useState<number | null>(null);
+
+    const updateVisibleIf = (inputIndex: number, enabled: boolean, targetUniform?: string, mode?: 'equals' | 'notEquals', value?: number) => {
+        const inp = localData.inputs[inputIndex];
+        const currentUniform = localData.uniforms[inp.id] || { type: inp.type, value: 0 };
+        
+        const newUniforms = { ...localData.uniforms };
+        const currentConfig = currentUniform.widgetConfig || {};
+
+        if (!enabled) {
+            const newConfig = { ...currentConfig };
+            delete newConfig.visibleIf;
+            newUniforms[inp.id] = { ...currentUniform, widgetConfig: newConfig };
+        } else {
+            if (!targetUniform) return;
+            
+            const condition = mode === 'notEquals' 
+                ? { notValue: value, value: undefined } 
+                : { value: value, notValue: undefined };
+
+            // Clean undefineds
+            if (condition.value === undefined) delete condition.value;
+            if (condition.notValue === undefined) delete condition.notValue;
+
+            newUniforms[inp.id] = {
+                ...currentUniform,
+                widgetConfig: {
+                    ...currentConfig,
+                    visibleIf: {
+                        uniform: targetUniform,
+                        ...condition
+                    }
+                }
+            };
+        }
+        setLocalData({ ...localData, uniforms: newUniforms });
+    };
 
     // Extract all translatable keys
     const translatableKeys = useMemo(() => {
@@ -155,17 +192,86 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                         <div className="flex flex-col gap-6">
                             <div className="flex flex-col gap-2">
                                 <h3 className="text-xs font-bold text-zinc-500 uppercase border-b border-zinc-800 pb-1">{t("Inputs")}</h3>
-                                {localData.inputs.map((inp, idx) => (
-                                    <div key={idx} className="flex items-center gap-2">
-                                        <span className="text-[10px] font-mono text-zinc-500 w-8">{inp.type}</span>
-                                        <input 
-                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
-                                            value={inp.name}
-                                            onChange={e => updateInputName(idx, e.target.value)}
-                                        />
-                                        <span className="text-[10px] font-mono text-zinc-600">{inp.id}</span>
-                                    </div>
-                                ))}
+                                {localData.inputs.map((inp, idx) => {
+                                    const uniform = localData.uniforms[inp.id];
+                                    const visibleIf = uniform?.widgetConfig?.visibleIf;
+                                    const isEditing = editingVisibility === idx;
+
+                                    return (
+                                        <div key={idx} className="flex flex-col gap-1 bg-zinc-900/30 p-1 rounded border border-transparent hover:border-zinc-800 transition-colors">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-mono text-zinc-500 w-8">{inp.type}</span>
+                                                <input 
+                                                    className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                                    value={inp.name}
+                                                    onChange={e => updateInputName(idx, e.target.value)}
+                                                />
+                                                <span className="text-[10px] font-mono text-zinc-600">{inp.id}</span>
+                                                <button 
+                                                    onClick={() => setEditingVisibility(isEditing ? null : idx)}
+                                                    className={`p-1 rounded hover:bg-zinc-800 transition-colors ${visibleIf ? 'text-blue-400 bg-blue-900/20' : 'text-zinc-600 hover:text-zinc-400'}`}
+                                                    title={t("Conditional Visibility")}
+                                                >
+                                                    <Eye size={14} />
+                                                </button>
+                                            </div>
+                                            
+                                            {isEditing && (
+                                                <div className="ml-8 p-2 bg-zinc-950 border border-zinc-800 rounded flex flex-col gap-2 animate-in slide-in-from-top-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={!!visibleIf}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    const other = localData.inputs.find(i => i.id !== inp.id);
+                                                                    if (other) updateVisibleIf(idx, true, other.id, 'equals', 1);
+                                                                } else {
+                                                                    updateVisibleIf(idx, false);
+                                                                }
+                                                            }}
+                                                            className="rounded border-zinc-700 bg-zinc-900 text-blue-600 focus:ring-0 focus:ring-offset-0 w-3 h-3"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase">{t("Conditional Visibility")}</span>
+                                                    </div>
+                                                    
+                                                    {visibleIf && (
+                                                        <div className="grid grid-cols-[auto_1fr] gap-2 items-center pl-5">
+                                                            <span className="text-[10px] text-zinc-500 uppercase text-right">{t("Depends On")}</span>
+                                                            <select 
+                                                                className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                                                value={visibleIf.uniform}
+                                                                onChange={(e) => updateVisibleIf(idx, true, e.target.value, visibleIf.notValue !== undefined ? 'notEquals' : 'equals', visibleIf.notValue ?? visibleIf.value)}
+                                                            >
+                                                                {localData.inputs.filter(i => i.id !== inp.id).map(i => (
+                                                                    <option key={i.id} value={i.id}>{i.name} ({i.id})</option>
+                                                                ))}
+                                                            </select>
+
+                                                            <span className="text-[10px] text-zinc-500 uppercase text-right">{t("Condition")}</span>
+                                                            <div className="flex gap-2">
+                                                                <select 
+                                                                    className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                                                    value={visibleIf.notValue !== undefined ? 'notEquals' : 'equals'}
+                                                                    onChange={(e) => updateVisibleIf(idx, true, visibleIf.uniform, e.target.value as any, visibleIf.notValue ?? visibleIf.value)}
+                                                                >
+                                                                    <option value="equals">{t("Equals (=)")}</option>
+                                                                    <option value="notEquals">{t("Not Equals (!=)")}</option>
+                                                                </select>
+                                                                <input 
+                                                                    type="number"
+                                                                    className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
+                                                                    value={visibleIf.notValue ?? visibleIf.value ?? 0}
+                                                                    onChange={(e) => updateVisibleIf(idx, true, visibleIf.uniform, visibleIf.notValue !== undefined ? 'notEquals' : 'equals', parseFloat(e.target.value))}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                                 {localData.inputs.length === 0 && <span className="text-xs text-zinc-600 italic">{t("No inputs")}</span>}
                             </div>
 
