@@ -408,6 +408,25 @@ uniform sampler2D u_empty_tex;
         const nodeIdClean = node.id.replace(/-/g, '_');
         const mainFuncName = `node_${nodeIdClean}_run`;
         
+        // --- SPECIAL HANDLING: GLOBAL VARIABLE ---
+        if (node.data.isGlobalVar) {
+            const name = node.data.globalName || `u_global_${nodeIdClean}`;
+            const type = sanitizeType(node.data.outputType || 'float');
+            header += `uniform ${type} ${name};\n`;
+            
+            // Add to globalUniforms
+            let val = node.data.value;
+            // Fallback to uniforms if data.value is not set (e.g. from UI widget)
+            if (val === undefined && node.data.uniforms && node.data.uniforms['value']) {
+                val = node.data.uniforms['value'].value;
+            }
+
+            if (val === undefined) val = getDefaultUniformValue(type);
+            globalUniforms[name] = { type, value: getUniformValue(type, val) };
+            
+            return; // Skip function generation
+        }
+
         // --- SPECIAL HANDLING: GRAPH INPUT ---
         if (node.type === 'graphInput') {
             // 1. Generate Uniforms
@@ -563,6 +582,11 @@ uniform sampler2D u_empty_tex;
           const nodeIdClean = node.id.replace(/-/g, '_');
           const funcName = `node_${nodeIdClean}_run`;
           
+          // --- SPECIAL HANDLING: GLOBAL VARIABLE ---
+          if (node.data.isGlobalVar) {
+              return; // Global variables are uniforms, no run function to call
+          }
+
           // --- SPECIAL HANDLING: GRAPH INPUT ---
           if (node.type === 'graphInput') {
               const outputs = node.data.outputs || [];
@@ -597,13 +621,19 @@ uniform sampler2D u_empty_tex;
                               let sourceVarName: string | null = null;
                               let sourceType = sourceNode.data.outputType;
 
-                              const targetOutputId = edge.sourceHandle || 'out';
-                              const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
-                              const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+                              // --- GLOBAL VAR CHECK ---
+                              if (sourceNode.data.isGlobalVar) {
+                                  sourceVarName = sourceNode.data.globalName || `u_global_${sourceIdClean}`;
+                                  sourceType = sourceNode.data.outputType;
+                              } else {
+                                  const targetOutputId = edge.sourceHandle || 'out';
+                                  const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+                                  const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
 
-                              if (outputDef) {
-                                  sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
-                                  sourceType = outputDef.type;
+                                  if (outputDef) {
+                                      sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
+                                      sourceType = outputDef.type;
+                                  }
                               }
                               
                               if (sourceVarName) {
@@ -649,13 +679,19 @@ uniform sampler2D u_empty_tex;
                           let sourceVarName: string | null = null;
                           let sourceType = sourceNode.data.outputType;
 
-                          const targetOutputId = edge.sourceHandle || 'out';
-                          const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
-                          const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+                          // --- GLOBAL VAR CHECK ---
+                          if (sourceNode.data.isGlobalVar) {
+                              sourceVarName = sourceNode.data.globalName || `u_global_${sourceIdClean}`;
+                              sourceType = sourceNode.data.outputType;
+                          } else {
+                              const targetOutputId = edge.sourceHandle || 'out';
+                              const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+                              const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
 
-                          if (outputDef) {
-                              sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
-                              sourceType = outputDef.type;
+                              if (outputDef) {
+                                  sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
+                                  sourceType = outputDef.type;
+                              }
                           }
 
                           if (sourceVarName) {

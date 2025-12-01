@@ -1010,6 +1010,24 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         </div>
         <div className="flex relative">
             <div className="flex-1 flex flex-col py-2 gap-2 min-w-[50%] border-r border-zinc-800/50">
+                {/* RENDER UNIFORMS FOR GLOBAL VARS */}
+                {data.isGlobalVar && data.uniforms['value'] && (
+                    <div className="relative pl-6 pr-3 group">
+                        <div className="flex flex-col gap-1">
+                            <UniformControlWrapper 
+                                input={{ id: 'value', name: data.label, type: data.outputType }} 
+                                uniform={data.uniforms['value']} 
+                                allUniforms={data.uniforms} 
+                                isConnected={false} 
+                                typeColor={TYPE_COLORS[data.outputType] || '#a1a1aa'} 
+                                t={t}
+                                onUpdateValue={(val) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next['value'] = { ...next['value'], value: val }; return { uniforms: next }; })}
+                                onUpdateConfig={(widget, config) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next['value'] = { ...next['value'], widget, widgetConfig: config || next['value'].widgetConfig }; return { uniforms: next }; })}
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {data.inputs.map((input) => {
                     if (!isInputVisible(input.id)) return null;
                     const isConnected = edges.some(e => e.target === id && e.targetHandle === input.id);

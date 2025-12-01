@@ -1,0 +1,34 @@
+{
+  "id": "polar_coords",
+  "label": "Polar Coordinates",
+  "category": "Vector",
+  "description": "Converts Cartesian coordinates (UV) to Polar coordinates (Radius, Angle 0-1).",
+  "locales": {
+    "zh": {
+      "Polar Coordinates": "极坐标",
+      "Converts Cartesian coordinates (UV) to Polar coordinates (Radius, Angle 0-1).": "将直角坐标 (UV) 转换为极坐标 (半径, 角度 0-1)。",
+      "Cartesian": "直角坐标",
+      "Center": "中心",
+      "Polar": "极坐标",
+      "Radius": "半径",
+      "Angle": "角度"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec2 cartesian, vec2 center, out vec2 polar, out float radius, out float angle) {\n    vec2 delta = cartesian - center;\n    radius = length(delta);\n    float raw_angle = atan(delta.y, delta.x);\n    angle = raw_angle / 6.2831853 + 0.5;\n    polar = vec2(radius, angle);\n}",
+    "inputs": [
+      { "id": "cartesian", "name": "Cartesian", "type": "vec2" },
+      { "id": "center", "name": "Center", "type": "vec2" }
+    ],
+    "outputs": [
+      { "id": "polar", "name": "Polar", "type": "vec2" },
+      { "id": "radius", "name": "Radius", "type": "float" },
+      { "id": "angle", "name": "Angle", "type": "float" }
+    ],
+    "uniforms": {
+      "cartesian": { "type": "vec2", "value": [0, 0] },
+      "center": { "type": "vec2", "value": [0.5, 0.5] }
+    },
+    "outputType": "vec2"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": "split",
+  "label": "Split",
+  "category": "Vector",
+  "locales": {
+    "zh": {
+      "RGBA Split": "向量分割",
+      "Splits a color into its individual RGBA channels.": "将颜色分离为独立的 RGBA 通道。",
+      "input": "输入",
+      "r": "R",
+      "g": "G",
+      "b": "B",
+      "a": "A",
+      "input_val": "输入",
+      "Split": "分割"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 input_val, out float r, out float g, out float b, out float a) {\n    r = input_val.r;\n    g = input_val.g;\n    b = input_val.b;\n    a = input_val.a;\n}\nvoid run(vec2 uv, vec3 input_val, out float r, out float g, out float b) {\n    r = input_val.r;\n    g = input_val.g;\n    b = input_val.b;\n}\nvoid run(vec2 uv, vec2 input_val, out float r, out float g) {\n    r = input_val.r;\n    g = input_val.g;\n}",
+    "inputs": [
+      {
+        "id": "input_val",
+        "name": "input_val",
+        "type": "vec4"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "r",
+        "name": "r",
+        "type": "float"
+      },
+      {
+        "id": "g",
+        "name": "g",
+        "type": "float"
+      },
+      {
+        "id": "b",
+        "name": "b",
+        "type": "float"
+      },
+      {
+        "id": "a",
+        "name": "a",
+        "type": "float"
+      }
+    ],
+    "uniforms": {
+      "input_val": {
+        "type": "vec4",
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "widget": "color"
+      }
+    },
+    "outputType": "float"
+  }
+}

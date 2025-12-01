@@ -1,0 +1,26 @@
+{
+  "id": "global_vec2",
+  "label": "Global Vec2",
+  "category": "Input",
+  "description": "Defines a global vec2 uniform variable.",
+  "data": {
+    "glsl": "",
+    "outputType": "vec2",
+    "isGlobalVar": true,
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "out",
+        "type": "vec2",
+        "name": "Value"
+      }
+    ],
+    "uniforms": {
+      "value": {
+        "type": "vec2",
+        "value": [0.0, 0.0],
+        "widget": "default"
+      }
+    }
+  }
+}

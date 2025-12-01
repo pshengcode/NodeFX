@@ -1,0 +1,26 @@
+{
+  "id": "global_vec3",
+  "label": "Global Vec3",
+  "category": "Input",
+  "description": "Defines a global vec3 uniform variable.",
+  "data": {
+    "glsl": "",
+    "outputType": "vec3",
+    "isGlobalVar": true,
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "out",
+        "type": "vec3",
+        "name": "Value"
+      }
+    ],
+    "uniforms": {
+      "value": {
+        "type": "vec3",
+        "value": [1.0, 1.0, 1.0],
+        "widget": "color"
+      }
+    }
+  }
+}

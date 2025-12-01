@@ -1,6 +1,7 @@
 
 import { ShaderNodeDefinition } from '../types';
 import { ShaderNodeDefinitionSchema } from '../utils/schemas';
+import { extractShaderIO } from '../utils/glslParser';
 
 // Helper to validate if an object is a valid node definition (for JSON import)
 export const validateNodeDefinition = (obj: any): obj is ShaderNodeDefinition => {
@@ -20,6 +21,14 @@ export const normalizeNodeDefinition = (json: any): ShaderNodeDefinition => {
     // Handle "glsl": ["line 1", "line 2"]
     if (obj.data && Array.isArray(obj.data.glsl)) {
         obj.data.glsl = obj.data.glsl.join('\n');
+    }
+
+    // Auto-detect overloading if not explicitly set
+    if (obj.data && obj.data.glsl && obj.data.autoType === undefined) {
+        const { isOverloaded } = extractShaderIO(obj.data.glsl);
+        if (isOverloaded) {
+            obj.data.autoType = true;
+        }
     }
 
     // Ensure outputs array exists.

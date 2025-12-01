@@ -118,6 +118,11 @@ export interface NodeData {
   scopeId?: string; // The ID of the parent compound node (or 'root')
   internalNodes?: SerializedNode[];
   internalEdges?: SerializedEdge[];
+
+  // Global Variable Support
+  isGlobalVar?: boolean;
+  globalName?: string;
+  value?: any;
 }
 
 export interface RenderPass {

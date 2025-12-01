@@ -45,15 +45,74 @@ export function useTypeInference() {
             // 1. Parse all signatures from the node's GLSL
             const signatures = extractAllSignatures(node.data.glsl);
             
-            // 2. Find the best matching signature
-            // We look for a signature where the first input matches the targetType
-            let matchedSig = signatures.find(sig => 
-                sig.inputs.length > 0 && sig.inputs[0].type === targetType
-            );
+            // 2. Find the best matching signature based on ALL connections
+            let matchedSig = null;
+            let bestMatchScore = -1;
 
-            // Fallback: If no exact match, try to find one that matches the rank? 
-            if (!matchedSig && signatures.length > 0) {
-                matchedSig = signatures.find(sig => 
+            // Get all incoming edges for this node
+            const incomingEdges = currentEdges.filter(e => e.target === node.id);
+
+            for (const sig of signatures) {
+                let score = 0;
+                let isCompatible = true;
+
+                // Check each input in the signature
+                for (let i = 0; i < sig.inputs.length; i++) {
+                    const sigInput = sig.inputs[i];
+                    
+                    // Find if there is an edge connected to this input
+                    // Note: sigInput.id might not match edge.targetHandle if names changed, 
+                    // but usually they should match if autoType is working correctly.
+                    // However, autoType usually updates inputs to match signature names.
+                    // If inputs are not yet updated, we might need to match by index?
+                    // Let's try matching by ID first.
+                    const edge = incomingEdges.find(e => e.targetHandle === sigInput.id);
+                    
+                    if (edge) {
+                        const sourceNode = nodeMap.get(edge.source);
+                        if (sourceNode) {
+                            let sourceType = sourceNode.data.outputType;
+                            if (edge.sourceHandle) {
+                                const out = sourceNode.data.outputs?.find(o => o.id === edge.sourceHandle);
+                                if (out) sourceType = out.type;
+                                if (sourceNode.type === 'graphInput') {
+                                    const inp = sourceNode.data.inputs.find(i => i.id === edge.sourceHandle);
+                                    if (inp) sourceType = inp.type;
+                                }
+                            }
+                            
+                            // Check compatibility
+                            if (sourceType === sigInput.type) {
+                                score += 10; // Exact match
+                            } else if (getTypeRank(sourceType) <= getTypeRank(sigInput.type)) {
+                                score += 1; // Compatible (can cast up)
+                            } else {
+                                // Incompatible (e.g. vec4 -> vec2, or sampler2D -> vec2)
+                                // UNLESS it is sampler2D target (which accepts nothing but sampler2D usually)
+                                // But wait, getTypeRank(sampler2D) is 0.
+                                // Let's be strict:
+                                if (sigInput.type === 'sampler2D' && sourceType !== 'sampler2D') isCompatible = false;
+                                else if (sourceType === 'sampler2D' && sigInput.type !== 'sampler2D') isCompatible = false;
+                                else if (getTypeRank(sourceType) > getTypeRank(sigInput.type)) isCompatible = false;
+                            }
+                        }
+                    }
+                }
+
+                if (isCompatible && score > bestMatchScore) {
+                    bestMatchScore = score;
+                    matchedSig = sig;
+                }
+            }
+
+            // Fallback: If no connections or no match found, keep current or try rank-based
+            if (!matchedSig && signatures.length > 0 && !isConnected) {
+                 // If not connected, maybe default to the first one? Or keep current?
+                 // Let's keep current behavior: don't change if not connected.
+            } else if (!matchedSig && signatures.length > 0 && isConnected) {
+                 // Connected but no perfect match found via edges (maybe edges are new?)
+                 // Try the old rank-based fallback for the first input
+                 matchedSig = signatures.find(sig => 
                     sig.inputs.length > 0 && getTypeRank(sig.inputs[0].type) === maxRank
                 );
             }
@@ -69,11 +128,6 @@ export function useTypeInference() {
                 if (newOutputs.length > 0) {
                     newOutputType = newOutputs[0].type;
                 }
-            } else {
-                // Fallback to blind upgrade (Old Logic)
-                newInputs = node.data.inputs.map(i => ({ ...i, type: targetType }));
-                newOutputs = node.data.outputs ? node.data.outputs.map(o => ({ ...o, type: targetType })) : [];
-                newOutputType = targetType;
             }
 
             // Check if update is needed

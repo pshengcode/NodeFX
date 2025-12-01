@@ -26,6 +26,7 @@ import { useFileOperations } from '../hooks/useFileOperations';
 import { useShaderCompiler } from '../hooks/useShaderCompiler';
 import { compileCompoundNode } from '../utils/shaderCompiler';
 import { useUserLibrary } from '../hooks/useUserLibrary';
+import { sanitizeType } from '../utils/inferenceHelpers';
 
 // Initial state helpers
 const initialDef = getNodeDefinition('IMAGE');
@@ -484,12 +485,70 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (nodes.length === 0) return;
 
-    setNodes(currentNodes => {
-        const updatedNodes = runTypeInference(currentNodes, edges);
-        return updatedNodes || currentNodes;
+    const currentNodes = nodesRef.current;
+    let nextNodes = currentNodes;
+    let nodesChanged = false;
+
+    // 1. Run Type Inference
+    const inferredNodes = runTypeInference(currentNodes, edges);
+    if (inferredNodes) {
+        nextNodes = inferredNodes;
+        nodesChanged = true;
+    }
+
+    // 2. Validate Edges
+    const edgesToRemove: string[] = [];
+    edges.forEach(edge => {
+        const sourceNode = nextNodes.find(n => n.id === edge.source);
+        const targetNode = nextNodes.find(n => n.id === edge.target);
+        
+        if (!sourceNode || !targetNode) return;
+
+        // Get Source Type
+        let sourceType = sourceNode.data.outputType;
+        if (edge.sourceHandle) {
+             const out = sourceNode.data.outputs?.find(o => o.id === edge.sourceHandle);
+             if (out) sourceType = out.type;
+             if (sourceNode.type === 'graphInput') {
+                 const inp = sourceNode.data.inputs.find(i => i.id === edge.sourceHandle);
+                 if (inp) sourceType = inp.type;
+             }
+        }
+
+        // Get Target Type
+        let targetType = 'float';
+        if (edge.targetHandle) {
+            const inp = targetNode.data.inputs.find(i => i.id === edge.targetHandle);
+            if (inp) targetType = inp.type;
+             if (targetNode.type === 'graphOutput') {
+                 const out = targetNode.data.outputs?.find(o => o.id === edge.targetHandle);
+                 if (out) targetType = out.type;
+             }
+        }
+
+        const sType = sanitizeType(sourceType);
+        const tType = sanitizeType(targetType);
+
+        const isVectorOrScalar = (t: string) => ['float', 'int', 'vec2', 'vec3', 'vec4'].includes(t);
+
+        if (sType !== tType) {
+            if (tType === 'sampler2D') return; // Allow Multi-pass
+            if (isVectorOrScalar(sType) && isVectorOrScalar(tType)) return; // Allow casting
+            edgesToRemove.push(edge.id);
+        }
     });
 
-  }, [edges, graphTypeSignature, runTypeInference, setNodes]);
+    if (nodesChanged) {
+        setNodes(nextNodes);
+    }
+    
+    if (edgesToRemove.length > 0) {
+        setTimeout(() => {
+             setEdges(eds => eds.filter(e => !edgesToRemove.includes(e.id)));
+        }, 0);
+    }
+
+  }, [edges, graphTypeSignature, runTypeInference, setNodes, setEdges]);
 
   const value = {
     nodes, edges, setNodes, setEdges, onNodesChange: onNodesChangeAction, onEdgesChange,

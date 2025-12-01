@@ -1,0 +1,26 @@
+{
+  "id": "global_vec4",
+  "label": "Global Vec4",
+  "category": "Input",
+  "description": "Defines a global vec4 uniform variable.",
+  "data": {
+    "glsl": "",
+    "outputType": "vec4",
+    "isGlobalVar": true,
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "out",
+        "type": "vec4",
+        "name": "Value"
+      }
+    ],
+    "uniforms": {
+      "value": {
+        "type": "vec4",
+        "value": [1.0, 1.0, 1.0, 1.0],
+        "widget": "color"
+      }
+    }
+  }
+}

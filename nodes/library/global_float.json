@@ -1,0 +1,31 @@
+{
+  "id": "global_float",
+  "label": "Global Float",
+  "category": "Input",
+  "description": "Defines a global float uniform variable that can be shared across the graph.",
+  "data": {
+    "glsl": "",
+    "outputType": "float",
+    "isGlobalVar": true,
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "out",
+        "type": "float",
+        "name": "Value"
+      }
+    ],
+    "uniforms": {
+      "value": {
+        "type": "float",
+        "value": 0.0,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "global_texture",
+  "label": "Global Texture",
+  "category": "Input",
+  "description": "Defines a global sampler2D uniform variable.",
+  "data": {
+    "glsl": "",
+    "outputType": "sampler2D",
+    "isGlobalVar": true,
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "out",
+        "type": "sampler2D",
+        "name": "Texture"
+      }
+    ],
+    "uniforms": {
+      "value": {
+        "type": "sampler2D",
+        "value": null,
+        "widget": "image"
+      }
+    }
+  }
+}
