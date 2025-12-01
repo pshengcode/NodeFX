@@ -1,7 +1,7 @@
 {
   "id": "vec2_input",
   "label": "Vec2",
-  "category": "Source",
+  "category": "Input",
   "description": "Provides a constant vec2 value.",
   "locales": {
     "zh": {

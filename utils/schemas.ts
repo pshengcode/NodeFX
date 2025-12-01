@@ -9,7 +9,8 @@ export const WidgetModeSchema = z.enum([
 ]);
 
 export const NodeCategorySchema = z.enum([
-    'Source', 'Filter', 'Math', 'Output', 'Network', 'Custom', 'User'
+    'Input', 'Generator', 'Math', 'Vector', 'Color', 'Filter', 'Effect', 'Utility', 
+    'Output', 'Network', 'Custom', 'User'
 ]);
 
 // Widget Config

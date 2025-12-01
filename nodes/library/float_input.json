@@ -1,7 +1,7 @@
 {
   "id": "float_input",
   "label": "Float",
-  "category": "Source",
+  "category": "Input",
   "description": "Provides a constant float value.",
   "locales": {
     "zh": {

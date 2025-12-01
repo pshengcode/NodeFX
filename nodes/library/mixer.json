@@ -1,7 +1,7 @@
 {
   "id": "MIX",
   "label": "Mixer",
-  "category": "Filter",
+  "category": "Color",
   "description": "Linearly interpolate between two inputs.",
   "locales": {
     "zh": {

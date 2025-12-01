@@ -1,7 +1,7 @@
 {
   "id": "UV",
   "label": "UV",
-  "category": "Source",
+  "category": "Generator",
   "description": "Outputs the normalized UV coordinates (0-1) and individual components.",
   "locales": {
     "zh": {

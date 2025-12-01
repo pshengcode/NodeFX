@@ -1,7 +1,7 @@
 {
   "id": "PAINT",
   "label": "Paint Canvas",
-  "category": "Source",
+  "category": "Generator",
   "description": "Draw standard textures directly. Connect input to use as background.",
   "locales": {
     "zh": {

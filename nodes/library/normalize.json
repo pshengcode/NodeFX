@@ -1,7 +1,7 @@
 {
   "id": "NORMALIZE",
   "label": "Normalize",
-  "category": "Math",
+  "category": "Vector",
   "description": "Returns a vector in the same direction as A but with length 1.",
   "locales": {
     "zh": {

@@ -4,6 +4,23 @@ import { ShaderNodeDefinition } from '../types';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { useTranslation } from 'react-i18next';
 
+const getCategoryColor = (category: string) => {
+    switch (category) {
+        case 'Input': return 'bg-blue-500';
+        case 'Generator': return 'bg-emerald-500';
+        case 'Math': return 'bg-orange-500';
+        case 'Vector': return 'bg-indigo-500';
+        case 'Color': return 'bg-pink-500';
+        case 'Filter': return 'bg-purple-500';
+        case 'Effect': return 'bg-violet-500';
+        case 'Utility': return 'bg-zinc-400';
+        case 'Network': return 'bg-cyan-500';
+        case 'Custom': return 'bg-yellow-500';
+        case 'User': return 'bg-red-500';
+        default: return 'bg-zinc-500';
+    }
+};
+
 const ContextMenuItem: React.FC<{ node: ShaderNodeDefinition, onClick: () => void }> = ({ node, onClick }) => {
     const translate = useNodeTranslation(node);
     return (
@@ -12,7 +29,7 @@ const ContextMenuItem: React.FC<{ node: ShaderNodeDefinition, onClick: () => voi
             className="w-full flex items-center gap-2 px-2 py-1 hover:bg-zinc-800 rounded text-left group transition-colors"
         >
              <div className="flex items-center justify-center w-5 h-5 rounded bg-zinc-800/50 border border-zinc-700/50 shrink-0">
-                <div className={`w-1.5 h-1.5 rounded-full ${node.category === 'Source' ? 'bg-blue-500' : node.category === 'Filter' ? 'bg-purple-500' : 'bg-zinc-500'}`}></div>
+                <div className={`w-1.5 h-1.5 rounded-full ${getCategoryColor(node.category)}`}></div>
              </div>
              <div className="flex flex-col overflow-hidden">
                 <span className="text-xs text-zinc-300 truncate font-medium">{translate(node.label)}</span>

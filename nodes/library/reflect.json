@@ -1,7 +1,7 @@
 {
   "id": "REFLECT",
   "label": "Reflect",
-  "category": "Math",
+  "category": "Vector",
   "description": "Calculate reflection direction for an incident vector I and surface normal N.",
   "locales": {
     "zh": {

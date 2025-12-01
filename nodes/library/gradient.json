@@ -1,7 +1,7 @@
 {
   "id": "gradient",
   "label": "Gradient",
-  "category": "Source",
+  "category": "Generator",
   "description": "Generates various types of gradients (Linear, Radial, Angular, Diamond).",
   "data": {
     "outputType": "float",

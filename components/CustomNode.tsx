@@ -172,7 +172,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                     value={localData.category || 'Custom'}
                                     onChange={e => setLocalData({ ...localData, category: e.target.value as NodeCategory })}
                                 >
-                                    {['Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'].map(c => (
+                                    {['Input', 'Generator', 'Math', 'Vector', 'Color', 'Filter', 'Effect', 'Utility', 'Output', 'Network', 'Custom', 'User'].map(c => (
                                         <option key={c} value={c}>{t(c)}</option>
                                     ))}
                                 </select>

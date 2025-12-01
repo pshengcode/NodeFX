@@ -1,7 +1,7 @@
 {
   "id": "DOT",
   "label": "Dot Product",
-  "category": "Math",
+  "category": "Vector",
   "description": "Returns the dot product of two vectors.",
   "locales": {
     "zh": {

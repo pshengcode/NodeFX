@@ -134,7 +134,19 @@ export interface CompilationResult {
   error?: string;
 }
 
-export type NodeCategory = 'Source' | 'Filter' | 'Math' | 'Output' | 'Network' | 'Custom' | 'User';
+export type NodeCategory = 
+  | 'Input' 
+  | 'Generator' 
+  | 'Math' 
+  | 'Vector' 
+  | 'Color' 
+  | 'Filter' 
+  | 'Effect' 
+  | 'Utility' 
+  | 'Output' 
+  | 'Network' 
+  | 'Custom' 
+  | 'User';
 
 export interface ShaderNodeDefinition {
   id: string;         

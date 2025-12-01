@@ -1,7 +1,7 @@
 {
   "id": "rgba_combine",
   "label": "RGBA Combine",
-  "category": "Math",
+  "category": "Color",
   "description": "Combines individual channels into a RGBA color.",
   "locales": {
     "zh": {

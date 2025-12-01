@@ -1,7 +1,7 @@
 {
   "id": "color_input",
   "label": "Color",
-  "category": "Source",
+  "category": "Input",
   "description": "Provides a constant RGBA color value.",
   "locales": {
     "zh": {

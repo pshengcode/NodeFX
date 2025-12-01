@@ -1,7 +1,7 @@
 {
   "id": "TIME",
   "label": "Time",
-  "category": "Source",
+  "category": "Generator",
   "description": "Outputs the current time scaled by speed.",
   "locales": {
     "zh": {

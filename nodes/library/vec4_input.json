@@ -1,7 +1,7 @@
 {
   "id": "vec4_input",
   "label": "Vec4",
-  "category": "Source",
+  "category": "Input",
   "description": "Provides a constant vec4 value.",
   "locales": {
     "zh": {

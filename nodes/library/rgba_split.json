@@ -1,7 +1,7 @@
 {
   "id": "rgba_split",
   "label": "RGBA Split",
-  "category": "Math",
+    "category": "Color",
   "description": "Splits a color into its individual RGBA channels.",
   "locales": {
     "zh": {

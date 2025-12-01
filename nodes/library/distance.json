@@ -1,7 +1,7 @@
 {
   "id": "DISTANCE",
   "label": "Distance",
-  "category": "Math",
+  "category": "Vector",
   "description": "Returns the distance between two points.",
   "locales": {
     "zh": {

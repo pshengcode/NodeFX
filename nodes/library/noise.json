@@ -1,7 +1,7 @@
 {
   "id": "noise",
   "label": "Noise",
-  "category": "Source",
+  "category": "Generator",
   "description": "Generates high-quality Fractal Brownian Motion (FBM) noise with domain warping support.",
   "locales": {
     "zh": {

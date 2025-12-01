@@ -86,7 +86,20 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDr
     );
 };
 
-const CATEGORY_ORDER: NodeCategory[] = ['User', 'Source', 'Filter', 'Math', 'Custom', 'Network', 'Output'];
+const CATEGORY_ORDER: NodeCategory[] = [
+    'User', 
+    'Input', 
+    'Generator', 
+    'Math', 
+    'Vector', 
+    'Color', 
+    'Filter', 
+    'Effect', 
+    'Utility', 
+    'Network', 
+    'Custom', 
+    'Output'
+];
 
 export const Sidebar: React.FC = () => {
     const { t } = useTranslation();

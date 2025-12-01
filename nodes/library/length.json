@@ -1,7 +1,7 @@
 {
   "id": "LENGTH",
   "label": "Length",
-  "category": "Math",
+  "category": "Vector",
   "description": "Returns the length of a vector.",
   "locales": {
     "zh": {

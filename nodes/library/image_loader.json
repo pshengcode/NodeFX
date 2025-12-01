@@ -1,7 +1,7 @@
 {
   "id": "IMAGE",
   "label": "Image Loader",
-  "category": "Source",
+  "category": "Generator",
   "description": "Loads an external image texture. Optional UV input.",
   "locales": {
     "zh": {

@@ -1,7 +1,7 @@
 {
   "id": "CROSS",
   "label": "Cross Product",
-  "category": "Math",
+  "category": "Vector",
   "description": "Returns the cross product of two vectors (vec3).",
   "locales": {
     "zh": {

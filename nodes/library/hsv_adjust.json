@@ -1,7 +1,7 @@
 {
   "id": "HSV",
   "label": "HSV Adjust",
-  "category": "Filter",
+  "category": "Color",
   "description": "Adjust Hue, Saturation, and Value.",
   "locales": {
     "zh": {
