@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { Node, Edge } from 'reactflow';
+import { Node, Edge, ReactFlowInstance } from 'reactflow';
 import { NodeData } from '../types';
 import { useTranslation } from 'react-i18next';
+import { getAbsolutePosition, cloneNodesAndEdges } from '../utils/graphUtils';
 
 export function useKeyboardShortcuts(
     nodes: Node<NodeData>[],
@@ -10,9 +11,25 @@ export function useKeyboardShortcuts(
     setEdges: React.Dispatch<React.SetStateAction<Edge[]>>,
     resolution: { w: number, h: number },
     undo: () => void,
-    redo: () => void
+    redo: () => void,
+    currentScope: string,
+    reactFlowInstance: ReactFlowInstance | null
 ) {
     const { t } = useTranslation();
+
+    // Clipboard state
+    const [clipboard, setClipboard] = React.useState<{ nodes: Node<NodeData>[], edges: Edge[] } | null>(null);
+    
+    // Track mouse position
+    const mousePosRef = React.useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            mousePosRef.current = { x: e.clientX, y: e.clientY };
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, []);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,6 +44,7 @@ export function useKeyboardShortcuts(
             // If typing, ignore global shortcuts
             if (isInput) return;
   
+            // Grouping (C key without Ctrl)
             if ((e.key === 'c' || e.key === 'C') && !e.repeat && !e.ctrlKey && !e.metaKey) {
                 const selectedNodes = nodes.filter(n => n.selected && n.type !== 'group' && !n.parentId);
                 if (selectedNodes.length > 0) {
@@ -47,9 +65,10 @@ export function useKeyboardShortcuts(
                         type: 'group',
                         position: { x: minX - padding, y: minY - padding - 30 },
                         style: { width: (maxX - minX) + padding * 2, height: (maxY - minY) + padding * 2 + 30 },
-                        data: { label: t('Group'), description: '' },
+                        data: { label: t('Group'), description: '', scopeId: currentScope === 'root' ? undefined : currentScope },
                         selected: true,
                         zIndex: -10, 
+                        parentId: currentScope === 'root' ? undefined : currentScope
                     };
   
                     const updatedChildren = nodes.map(node => {
@@ -72,61 +91,98 @@ export function useKeyboardShortcuts(
                 }
             }
   
+            // Copy (Ctrl+C)
+            if ((e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                const selectedNodes = nodes.filter(n => n.selected);
+                if (selectedNodes.length === 0) return;
+
+                const selectedNodeIds = new Set(selectedNodes.map(n => n.id));
+                const internalEdges = edges.filter(e => 
+                    selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
+                );
+
+                setClipboard({
+                    nodes: selectedNodes,
+                    edges: internalEdges
+                });
+            }
+
+            // Paste (Ctrl+V)
+            if ((e.key === 'v' || e.key === 'V') && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                if (!clipboard || clipboard.nodes.length === 0) return;
+
+                let pasteX = 0;
+                let pasteY = 0;
+                let useMousePos = false;
+
+                if (reactFlowInstance) {
+                    // Convert screen coordinates to flow coordinates
+                    const flowPos = reactFlowInstance.screenToFlowPosition({
+                        x: mousePosRef.current.x,
+                        y: mousePosRef.current.y
+                    });
+                    pasteX = flowPos.x;
+                    pasteY = flowPos.y;
+
+                    // NOTE: We do NOT subtract groupPos here anymore.
+                    // Since we are not setting parentId to currentScope, the position should be absolute (World Space).
+                    // React Flow handles the viewport transform via screenToFlowPosition.
+                    
+                    useMousePos = true;
+                }
+
+                const { nodes: finalNodes, edges: newEdges } = cloneNodesAndEdges(
+                    clipboard.nodes,
+                    clipboard.edges,
+                    resolution,
+                    currentScope,
+                    (node, minX, minY) => {
+                        if (useMousePos) {
+                            const offsetX = node.position.x - minX;
+                            const offsetY = node.position.y - minY;
+                            return { x: pasteX + offsetX, y: pasteY + offsetY };
+                        } else {
+                            return { x: node.position.x + 50, y: node.position.y + 50 };
+                        }
+                    }
+                );
+
+                setNodes((currentNodes) => 
+                    currentNodes.map(n => ({...n, selected: false})).concat(finalNodes)
+                );
+
+                if (newEdges.length > 0) {
+                    setEdges((currentEdges) => [...currentEdges, ...newEdges]);
+                }
+            }
+  
+            // Duplicate (Ctrl+D)
             if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 
                 const selectedNodes = nodes.filter(n => n.selected);
                 if (selectedNodes.length === 0) return;
 
-                // Map to store Old ID -> New ID
-                const idMap = new Map<string, string>();
-
-                const newNodes = selectedNodes.map((node, index) => {
-                    const id = `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
-                    idMap.set(node.id, id);
-
-                    const newData = JSON.parse(JSON.stringify(node.data));
-                    if (newData.preview) newData.preview = false;
-                    newData.resolution = resolution;
-                    if (newData.executionError) delete newData.executionError;
-                    
-                    // Fix: If duplicating a Network Node, remove the ID so it regenerates a random one
-                    if (node.type === 'networkNode') {
-                        delete newData.customId;
-                    }
-
-                    return {
-                        ...node,
-                        id,
-                        type: node.type,
-                        position: { x: node.position.x + 50, y: node.position.y + 50 },
-                        data: newData,
-                        selected: true,
-                        zIndex: node.type === 'group' ? -10 : 10,
-                        parentId: node.parentId
-                    };
-                });
-
-                setNodes((currentNodes) => 
-                    currentNodes.map(n => ({...n, selected: false})).concat(newNodes)
-                );
-
-                // Duplicate Edges between selected nodes
                 const selectedNodeIds = new Set(selectedNodes.map(n => n.id));
                 const internalEdges = edges.filter(e => 
                     selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
                 );
 
-                if (internalEdges.length > 0) {
-                    const newEdges = internalEdges.map(edge => ({
-                        ...edge,
-                        id: `e_${idMap.get(edge.source)}-${idMap.get(edge.target)}_${Math.random().toString(36).substr(2, 5)}`,
-                        source: idMap.get(edge.source)!,
-                        target: idMap.get(edge.target)!,
-                        selected: false,
-                        animated: false // Reset animation if any
-                    }));
-                    
+                const { nodes: newNodes, edges: newEdges } = cloneNodesAndEdges(
+                    selectedNodes,
+                    internalEdges,
+                    resolution,
+                    currentScope,
+                    (node) => ({ x: node.position.x + 50, y: node.position.y + 50 })
+                );
+
+                setNodes((currentNodes) => 
+                    currentNodes.map(n => ({...n, selected: false})).concat(newNodes)
+                );
+
+                if (newEdges.length > 0) {
                     setEdges((currentEdges) => [...currentEdges, ...newEdges]);
                 }
             }
@@ -134,7 +190,7 @@ export function useKeyboardShortcuts(
   
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [nodes, setNodes, resolution]);
+    }, [nodes, setNodes, resolution, clipboard, currentScope, reactFlowInstance]); // Added dependencies
 
     // Keyboard Shortcuts for Undo/Redo
     useEffect(() => {

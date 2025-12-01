@@ -360,7 +360,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { copyShareLink } = useUrlSharing();
   const { runTypeInference } = useTypeInference();
   
-  useKeyboardShortcuts(nodes, setNodes, edges, setEdges, resolution, undo, redo);
+  useKeyboardShortcuts(nodes, setNodes, edges, setEdges, resolution, undo, redo, currentScope, reactFlowInstance);
   useShaderCompiler(nodes, edges, previewNodeId, setCompiledData);
 
   const { 
