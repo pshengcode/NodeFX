@@ -1,11 +1,11 @@
 {
   "id": "int_input",
-  "label": "Int Input",
+  "label": "Int",
   "category": "Source",
   "description": "Provides a constant integer value.",
   "locales": {
     "zh": {
-      "Int Input": "整数输入",
+      "Int": "整数",
       "Provides a constant integer value.": "提供一个常量整数值。",
       "value": "值",
       "result": "结果"

@@ -1,11 +1,11 @@
 {
   "id": "color_input",
-  "label": "Color Input",
+  "label": "Color",
   "category": "Source",
   "description": "Provides a constant RGBA color value.",
   "locales": {
     "zh": {
-      "Color Input": "颜色输入",
+      "Color": "颜色",
       "Provides a constant RGBA color value.": "提供一个常量 RGBA 颜色值。",
       "color": "颜色",
       "result": "结果"

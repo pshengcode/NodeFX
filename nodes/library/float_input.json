@@ -1,11 +1,11 @@
 {
   "id": "float_input",
-  "label": "Float Input",
+  "label": "Float",
   "category": "Source",
   "description": "Provides a constant float value.",
   "locales": {
     "zh": {
-      "Float Input": "浮点数输入",
+      "Float": "浮点数",
       "Provides a constant float value.": "提供一个常量浮点数值。",
       "value": "值",
       "result": "结果"

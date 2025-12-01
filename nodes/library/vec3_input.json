@@ -1,11 +1,11 @@
 {
   "id": "vec3_input",
-  "label": "Vec3 Input",
+  "label": "Vec3",
   "category": "Source",
   "description": "Provides a constant vec3 value.",
   "locales": {
     "zh": {
-      "Vec3 Input": "Vec3 输入",
+      "Vec3": "Vec3",
       "Provides a constant vec3 value.": "提供一个常量 Vec3 值。",
       "value": "值",
       "result": "结果"
