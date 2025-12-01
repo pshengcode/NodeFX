@@ -33,14 +33,25 @@ export function useGraphActions(
     // Custom onNodesChange to handle Group deletion (Ungroup Children)
     const onNodesChange = useCallback((changes: NodeChange[]) => {
         setNodes((currentNodes) => {
+            // Filter out invalid removals first (Protect GraphInput/Output)
+            const validChanges = changes.filter(c => {
+                if (c.type === 'remove') {
+                    const node = currentNodes.find(n => n.id === c.id);
+                    if (node && (node.type === 'graphInput' || node.type === 'graphOutput')) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
             // 1. Separate remove changes
-            const removeChanges = changes.filter(c => c.type === 'remove') as NodeRemoveChange[];
-            const otherChanges = changes.filter(c => c.type !== 'remove');
+            const removeChanges = validChanges.filter(c => c.type === 'remove') as NodeRemoveChange[];
+            const otherChanges = validChanges.filter(c => c.type !== 'remove');
             const nodesToRemove = new Set(removeChanges.map(c => c.id));
 
             // If no removals, standard behavior
             if (nodesToRemove.size === 0) {
-                return applyNodeChanges(changes, currentNodes);
+                return applyNodeChanges(validChanges, currentNodes);
             }
 
             // Helper to find nearest surviving ancestor and calculate offset

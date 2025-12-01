@@ -95,15 +95,19 @@ export function useKeyboardShortcuts(
             if ((e.key === 'c' || e.key === 'C') && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 const selectedNodes = nodes.filter(n => n.selected);
-                if (selectedNodes.length === 0) return;
+                
+                // RESTRICTION: Prevent copying of GraphInput and GraphOutput nodes
+                const copyableNodes = selectedNodes.filter(n => n.type !== 'graphInput' && n.type !== 'graphOutput');
 
-                const selectedNodeIds = new Set(selectedNodes.map(n => n.id));
+                if (copyableNodes.length === 0) return;
+
+                const selectedNodeIds = new Set(copyableNodes.map(n => n.id));
                 const internalEdges = edges.filter(e => 
                     selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
                 );
 
                 setClipboard({
-                    nodes: selectedNodes,
+                    nodes: copyableNodes,
                     edges: internalEdges
                 });
             }
@@ -163,15 +167,19 @@ export function useKeyboardShortcuts(
                 e.preventDefault();
                 
                 const selectedNodes = nodes.filter(n => n.selected);
-                if (selectedNodes.length === 0) return;
+                
+                // RESTRICTION: Prevent duplication of GraphInput and GraphOutput nodes
+                const duplicatableNodes = selectedNodes.filter(n => n.type !== 'graphInput' && n.type !== 'graphOutput');
 
-                const selectedNodeIds = new Set(selectedNodes.map(n => n.id));
+                if (duplicatableNodes.length === 0) return;
+
+                const selectedNodeIds = new Set(duplicatableNodes.map(n => n.id));
                 const internalEdges = edges.filter(e => 
                     selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
                 );
 
                 const { nodes: newNodes, edges: newEdges } = cloneNodesAndEdges(
-                    selectedNodes,
+                    duplicatableNodes,
                     internalEdges,
                     resolution,
                     currentScope,
