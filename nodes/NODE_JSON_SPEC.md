@@ -105,6 +105,33 @@ void run(vec2 uv, vec4 inputColor, float intensity, out vec4 result) {
 *   `enum`: 下拉菜单 (需配置 enumOptions)
 *   `hidden`: 隐藏控件
 
+### 2.4 条件可见性 (`visibleIf`)
+
+`widgetConfig` 中可以包含 `visibleIf` 对象，用于根据其他 Uniform 的值动态显示或隐藏当前控件。
+
+**结构:**
+```json
+"visibleIf": {
+  "uniform": "target_uniform_id", // 目标 Uniform 的 ID
+  "value": 1,                     // (可选) 当目标值等于此值时显示
+  "notValue": 0                   // (可选) 当目标值不等于此值时显示
+}
+```
+*注意: `value` 和 `notValue` 通常只使用其中一个。*
+
+**示例:**
+```json
+"radius": {
+  "type": "float",
+  "widgetConfig": {
+    "visibleIf": {
+      "uniform": "shape_type",
+      "value": 0 // 仅当 shape_type 为 0 时显示
+    }
+  }
+}
+```
+
 ---
 
 ## 完整示例 (Vignette 节点)

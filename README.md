@@ -1,20 +1,91 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# NodeFX - Visual GLSL Shader Editor
 
-# Run and deploy your AI Studio app
+NodeFX is a powerful, node-based visual editor for creating GLSL shaders directly in your browser. It allows developers and artists to construct complex shaders by connecting modular nodes, offering real-time preview and code generation.
 
-This contains everything you need to run your app locally.
+![NodeFX Editor](https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6)
 
-View your app in AI Studio: https://ai.studio/apps/drive/1_zUxrdRElI0wivw_Qjf9bW-qgbwTcJIN
+## ✨ Features
 
-## Run Locally
+- **Visual Graph Editor**: Intuitive drag-and-drop interface built with React Flow.
+- **Real-time Compilation**: Instant feedback as you connect nodes; the shader compiles and renders on the fly.
+- **Smart Type Inference**: Automatic detection of GLSL types (`float`, `vec2`, `vec3`, `color`, etc.) with connection validation.
+- **Rich Node Library**:
+  - **Math**: Basic arithmetic, trigonometry, vectors.
+  - **Generative**: Noise, gradients, patterns.
+  - **Image Processing**: Blur, bloom, color adjustments.
+  - **Utility**: Mixers, logic, time inputs.
+- **Custom Nodes**: Write your own raw GLSL code within a node and expose uniforms dynamically.
+- **Compound Nodes**: Group multiple nodes into a single reusable "Compound Node" to keep your graph clean.
+- **Advanced Widget System**:
+  - Color Pickers (RGB/RGBA)
+  - Curve Editors
+  - Gradient Editors
+  - Image Uploads
+  - **Conditional Visibility**: Dynamic UI controls that show/hide based on other parameter values.
+- **Localization (i18n)**: Full support for multi-language interfaces, with per-node translation data.
+- **Export/Import**: Save your projects or individual nodes to JSON.
 
-**Prerequisites:**  Node.js
+## 🚀 Getting Started
 
+### Prerequisites
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- Node.js (v16 or higher recommended)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd GLSL-APP
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+4. Open your browser at `http://localhost:5173` (or the port shown in your terminal).
+
+## 📖 Usage Guide
+
+### Basic Editing
+- **Add Node**: Right-click on the canvas to open the context menu and select a node category.
+- **Connect**: Drag from an output handle to a compatible input handle.
+- **Preview**: Click the "Eye" icon on any node to visualize its output on the main canvas.
+
+### Custom Nodes
+1. Add a **Custom Code** node.
+2. Click the `< >` icon to open the code editor.
+3. Write standard GLSL. Define a `void run(...)` function.
+4. Inputs and outputs are automatically detected from your function signature.
+
+### Conditional Visibility
+You can make a parameter appear only when another parameter meets a condition (e.g., show "Radius" only when "Shape" is "Circle").
+1. Open the Node Editor (Settings icon).
+2. Go to the **Inputs** tab.
+3. Click the **Eye** icon next to the input you want to control.
+4. Set the **Depends On** uniform and the **Condition** (Equals/Not Equals).
+
+## 🛠️ Tech Stack
+
+- **Framework**: [React](https://react.dev/)
+- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Graph Engine**: [React Flow](https://reactflow.dev/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Localization**: i18next
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+[MIT](LICENSE)
