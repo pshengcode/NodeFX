@@ -229,6 +229,7 @@ export function useGraphActions(
             label: def.label, 
             category: def.category,
             definitionId: def.id,
+            locales: def.locales,
             preview: false,
             resolution,
             uniforms: {
