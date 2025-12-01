@@ -1,0 +1,229 @@
+{
+  "id": "rgb_offset",
+  "label": "RGB Offset",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "RGB Offset": "RGB偏移",
+      "Image": "图像",
+      "Mode": "模式",
+      "Control Mode": "控制模式",
+      "Offset (Unified)": "偏移(统一)",
+      "Offset R": "偏移R",
+      "Offset G": "偏移G",
+      "Offset B": "偏移B",
+      "Center": "中心",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D image, int mode, int control_mode, vec2 offset_unified, vec2 offset_r, vec2 offset_g, vec2 offset_b, vec2 center, out vec4 output_color) {\n    vec2 uv_r = uv;\n    vec2 uv_g = uv;\n    vec2 uv_b = uv;\n\n    if (mode == 0) { // Linear\n        if (control_mode == 0) { // Unified\n            uv_r = uv - offset_unified;\n            uv_g = uv;\n            uv_b = uv + offset_unified;\n        } else { // Separate\n            uv_r = uv - offset_r;\n            uv_g = uv - offset_g;\n            uv_b = uv - offset_b;\n        }\n    } else { // Radial\n        vec2 dir = uv - center;\n        if (control_mode == 0) { // Unified\n            uv_r = uv - dir * offset_unified;\n            uv_g = uv;\n            uv_b = uv + dir * offset_unified;\n        } else {\n            uv_r = uv - dir * offset_r;\n            uv_g = uv - dir * offset_g;\n            uv_b = uv - dir * offset_b;\n        }\n    }\n\n    float r = texture(image, uv_r).r;\n    float g = texture(image, uv_g).g;\n    float b = texture(image, uv_b).b;\n    float a = texture(image, uv).a;\n\n    output_color = vec4(r, g, b, a);\n}",
+    "inputs": [
+      {
+        "id": "image",
+        "type": "sampler2D",
+        "name": "Image"
+      },
+      {
+        "id": "mode",
+        "type": "int",
+        "name": "Mode"
+      },
+      {
+        "id": "control_mode",
+        "type": "int",
+        "name": "Control Mode"
+      },
+      {
+        "id": "offset_unified",
+        "type": "vec2",
+        "name": "Offset (Unified)"
+      },
+      {
+        "id": "offset_r",
+        "type": "vec2",
+        "name": "Offset R"
+      },
+      {
+        "id": "offset_g",
+        "type": "vec2",
+        "name": "Offset G"
+      },
+      {
+        "id": "offset_b",
+        "type": "vec2",
+        "name": "Offset B"
+      },
+      {
+        "id": "center",
+        "type": "vec2",
+        "name": "Center"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "output",
+        "type": "vec4",
+        "name": "Output"
+      }
+    ],
+    "uniforms": {
+      "mode": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "options": [
+            {
+              "label": "Linear",
+              "value": 0
+            },
+            {
+              "label": "Radial",
+              "value": 1
+            }
+          ],
+          "enumOptions": [
+            {
+              "label": "Line",
+              "value": 0
+            },
+            {
+              "label": "Scale",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "control_mode": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "options": [
+            {
+              "label": "Unified",
+              "value": 0
+            },
+            {
+              "label": "Separate",
+              "value": 1
+            }
+          ],
+          "enumOptions": [
+            {
+              "label": "unified",
+              "value": 0
+            },
+            {
+              "label": "rgb",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "offset_unified": {
+        "type": "vec2",
+        "value": [
+          0,
+          0
+        ],
+        "visibleIf": {
+          "control_mode": 0
+        },
+        "widget": "pad",
+        "widgetConfig": {
+          "minX": -0.1,
+          "minY": -0.1,
+          "maxX": 0.1,
+          "maxY": 0.1,
+          "visibleIf": {
+            "uniform": "control_mode",
+            "value": 0
+          }
+        }
+      },
+      "offset_r": {
+        "type": "vec2",
+        "value": [
+          0,
+          0
+        ],
+        "visibleIf": {
+          "control_mode": 1
+        },
+        "widgetConfig": {
+          "visibleIf": {
+            "uniform": "control_mode",
+            "value": 1
+          },
+          "minX": -0.2,
+          "minY": -0.2,
+          "maxX": 0.2,
+          "maxY": 0.2
+        },
+        "widget": "pad"
+      },
+      "offset_g": {
+        "type": "vec2",
+        "value": [
+          0,
+          0
+        ],
+        "visibleIf": {
+          "control_mode": 1
+        },
+        "widgetConfig": {
+          "visibleIf": {
+            "uniform": "control_mode",
+            "value": 1
+          },
+          "minX": -0.2,
+          "maxX": 0.2,
+          "minY": -0.2,
+          "maxY": 0.2
+        },
+        "widget": "pad"
+      },
+      "offset_b": {
+        "type": "vec2",
+        "value": [
+          0,
+          0
+        ],
+        "visibleIf": {
+          "control_mode": 1
+        },
+        "widgetConfig": {
+          "visibleIf": {
+            "uniform": "control_mode",
+            "value": 1
+          },
+          "maxX": 0.2,
+          "minX": -0.2,
+          "minY": -0.2,
+          "maxY": 0.2
+        },
+        "widget": "pad"
+      },
+      "center": {
+        "type": "vec2",
+        "value": [
+          0.5,
+          0.5
+        ],
+        "visibleIf": {
+          "mode": 1
+        },
+        "widgetConfig": {
+          "visibleIf": {
+            "uniform": "mode",
+            "value": 1
+          }
+        },
+        "widget": "pad"
+      }
+    },
+    "outputType": "vec4"
+  }
+}

@@ -690,6 +690,54 @@ const UniformControlWrapper = ({
                                                 <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Max Y")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.maxY ?? 1} onChange={(val) => updateConfig('maxY', val)} step={0.1} /></div>
                                             </div>
                                         ) : null}
+
+                                        {mode === 'enum' && (
+                                            <div className="flex flex-col border-t border-zinc-800 pt-2 gap-1.5 px-1 pb-1">
+                                                <span className="text-[8px] font-bold text-zinc-500 uppercase px-1">{t("Options")}</span>
+                                                {(config.enumOptions || []).map((opt, i) => (
+                                                    <div key={i} className="flex items-center gap-1">
+                                                        <input 
+                                                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-1 py-0.5 text-[9px] text-zinc-300 outline-none focus:border-blue-500"
+                                                            value={opt.label}
+                                                            onChange={(e) => {
+                                                                const newOpts = [...(config.enumOptions || [])];
+                                                                newOpts[i] = { ...newOpts[i], label: e.target.value };
+                                                                updateConfig('enumOptions', newOpts);
+                                                            }}
+                                                            placeholder="Label"
+                                                        />
+                                                        <SmartNumberInput 
+                                                            className="w-8 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={opt.value}
+                                                            onChange={(val) => {
+                                                                const newOpts = [...(config.enumOptions || [])];
+                                                                newOpts[i] = { ...newOpts[i], value: val };
+                                                                updateConfig('enumOptions', newOpts);
+                                                            }}
+                                                            step={1}
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newOpts = (config.enumOptions || []).filter((_, idx) => idx !== i);
+                                                                updateConfig('enumOptions', newOpts);
+                                                            }}
+                                                            className="p-0.5 hover:bg-red-900/50 text-zinc-500 hover:text-red-400 rounded"
+                                                        >
+                                                            <X size={10} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <button 
+                                                    onClick={() => {
+                                                        const newOpts = [...(config.enumOptions || []), { label: 'New Option', value: (config.enumOptions?.length || 0) }];
+                                                        updateConfig('enumOptions', newOpts);
+                                                    }}
+                                                    className="mt-1 flex items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-[9px] py-1 rounded border border-zinc-700 transition-colors"
+                                                >
+                                                    <Plus size={10} /> {t("Add Option")}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                  </>
                              )}
@@ -815,15 +863,15 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           id: data.definitionId || 'CUSTOM',
           label: data.label,
           category: data.category || 'Custom',
+          locales: data.locales,
           data: {
               glsl: data.glsl,
               inputs: data.inputs,
               outputs: data.outputs,
               uniforms: data.uniforms,
               outputType: data.outputType,
-              locales: data.locales,
               isCompound: data.isCompound,
-              internalNodes: data.isCompound ? internalNodes : undefined,
+              internalNodes: data.isCompound ? internalNodes as any : undefined,
               internalEdges: data.isCompound ? internalEdges : undefined
           }
       };
@@ -851,7 +899,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
 
       const nodeDataToSave: NodeData = {
           ...data,
-          internalNodes: data.isCompound ? internalNodes : undefined,
+          internalNodes: data.isCompound ? internalNodes as any : undefined,
           internalEdges: data.isCompound ? internalEdges : undefined
       };
       
