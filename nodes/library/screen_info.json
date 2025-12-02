@@ -1,0 +1,25 @@
+{
+  "id": "SCREEN_INFO",
+  "label": "Screen Info",
+  "category": "Generator",
+  "icon": "Monitor",
+  "description": "Provides information about the screen resolution and pixel size.",
+  "locales": {
+    "zh": {
+      "Screen Info": "屏幕信息 (Screen Info)",
+      "Resolution": "分辨率 (像素)",
+      "Texel Size": "像素大小 (1/Res)",
+      "Aspect Ratio": "纵横比 (W/H)"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, out vec2 res, out vec2 texel, out float aspect) {\n    res = u_resolution;\n    texel = 1.0 / u_resolution;\n    aspect = u_resolution.x / u_resolution.y;\n}",
+    "inputs": [],
+    "outputs": [
+      { "id": "res", "name": "Resolution", "type": "vec2" },
+      { "id": "texel", "name": "Texel Size", "type": "vec2" },
+      { "id": "aspect", "name": "Aspect Ratio", "type": "float" }
+    ],
+    "outputType": "vec2"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "VORONOI",
+  "label": "Voronoi",
+  "category": "Generator",
+  "icon": "Grid",
+  "description": "Generates cellular patterns based on distance to random feature points.",
+  "locales": {
+    "zh": {
+      "Voronoi": "细胞噪波 (Voronoi)",
+      "Scale": "缩放",
+      "Randomness": "随机性",
+      "Distance": "距离场",
+      "ID": "细胞ID"
+    }
+  },
+  "data": {
+    "glsl": "vec2 voronoi_hash( vec2 p ) {\n    p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );\n    return fract(sin(p)*43758.5453);\n}\n\nvoid run(vec2 uv, float scale, float randomness, out float dist, out float id) {\n    vec2 n = floor(uv * scale);\n    vec2 f = fract(uv * scale);\n\n    float m_dist = 8.0;\n    vec2 m_point = vec2(0.0);\n    vec2 m_neighbor = vec2(0.0);\n\n    // First pass: find the closest point\n    for( int j=-1; j<=1; j++ ) {\n        for( int i=-1; i<=1; i++ ) {\n            vec2 g = vec2(float(i),float(j));\n            vec2 o = voronoi_hash( n + g );\n            o = 0.5 + 0.5*sin( 6.2831*o + randomness ); // Animate or randomize\n            vec2 r = g + o - f;\n            float d = length(r);\n\n            if( d < m_dist ) {\n                m_dist = d;\n                m_point = o;\n                m_neighbor = g;\n            }\n        }\n    }\n    \n    dist = m_dist;\n    // Generate a random ID based on the cell position\n    id = voronoi_hash(n + m_neighbor).x;\n}",
+    "outputType": "float",
+    "inputs": [
+      { "id": "scale", "name": "Scale", "type": "float" },
+      { "id": "randomness", "name": "Randomness", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "dist", "name": "Distance", "type": "float" },
+      { "id": "id", "name": "ID", "type": "float" }
+    ],
+    "uniforms": {
+      "scale": {
+        "type": "float",
+        "value": 5.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 1.0, "max": 50.0 }
+      },
+      "randomness": {
+        "type": "float",
+        "value": 1.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 10.0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "CURL_NOISE",
+  "label": "Curl Noise",
+  "category": "Generator",
+  "icon": "Wind",
+  "description": "Generates a divergence-free vector field, useful for fluid-like motion.",
+  "locales": {
+    "zh": {
+      "Curl Noise": "卷曲噪波 (Curl Noise)",
+      "Scale": "缩放",
+      "Time": "时间",
+      "Vector": "向量场"
+    }
+  },
+  "data": {
+    "glsl": "// Simplex noise helper\nvec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }\nfloat snoise(vec2 v){\n  const vec4 C = vec4(0.211324865405187, 0.366025403784439,\n           -0.577350269189626, 0.024390243902439);\n  vec2 i  = floor(v + dot(v, C.yy) );\n  vec2 x0 = v -   i + dot(i, C.xx);\n  vec2 i1;\n  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);\n  vec4 x12 = x0.xyxy + C.xxzz;\n  x12.xy -= i1;\n  i = mod(i, 289.0);\n  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))\n  + i.x + vec3(0.0, i1.x, 1.0 ));\n  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),\n    dot(x12.zw,x12.zw)), 0.0);\n  m = m*m ;\n  m = m*m ;\n  vec3 x = 2.0 * fract(p * C.www) - 1.0;\n  vec3 h = abs(x) - 0.5;\n  vec3 ox = floor(x + 0.5);\n  vec3 a0 = x - ox;\n  m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );\n  vec3 g;\n  g.x  = a0.x  * x0.x  + h.x  * x0.y;\n  g.yz = a0.yz * x12.xz + h.yz * x12.yw;\n  return 130.0 * dot(m, g);\n}\n\nvoid run(vec2 uv, float scale, float time, out vec2 vector) {\n    vec2 p = uv * scale;\n    float eps = 0.1;\n    \n    // Calculate curl from noise field potential\n    // Curl(F) = (dF_y/dx - dF_x/dy)\n    // Here we use a scalar potential field P and calculate curl as (-dP/dy, dP/dx)\n    \n    float n1 = snoise(p + vec2(0.0, eps) + time);\n    float n2 = snoise(p - vec2(0.0, eps) + time);\n    float a = (n1 - n2) / (2.0 * eps);\n    \n    float n3 = snoise(p + vec2(eps, 0.0) + time);\n    float n4 = snoise(p - vec2(eps, 0.0) + time);\n    float b = (n3 - n4) / (2.0 * eps);\n    \n    vector = vec2(a, -b);\n    // Map from [-1, 1] range to [0, 1] for visualization if needed, \n    // but usually Curl Noise is used as a force/offset which expects negative values.\n    // To make it look \"normal\" as a color map, we can offset it.\n    // vector = vector * 0.5 + 0.5; \n}",
+    "outputType": "vec2",
+    "inputs": [
+      { "id": "scale", "name": "Scale", "type": "float" },
+      { "id": "time", "name": "Time", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "vector", "name": "Vector", "type": "vec2" }
+    ],
+    "uniforms": {
+      "scale": {
+        "type": "float",
+        "value": 3.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.1, "max": 20.0 }
+      },
+      "time": {
+        "type": "float",
+        "value": 0.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 10.0 }
+      }
+    }
+  }
+}

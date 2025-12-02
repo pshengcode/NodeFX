@@ -1,0 +1,42 @@
+{
+  "id": "GRADIENT_SOFTEN",
+  "label": "Gradient Soften",
+  "category": "Filter",
+  "icon": "Droplet",
+  "description": "Softens edges based on a threshold and softness factor (Threshold-based Smoothstep).",
+  "locales": {
+    "zh": {
+      "Gradient Soften": "梯度边缘柔化 (Gradient Soften)",
+      "Input": "输入",
+      "Threshold": "阈值",
+      "Softness": "柔化度",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, float val, float threshold, float softness, out float result) {\n    float half_s = max(0.0001, softness * 0.5);\n    result = smoothstep(threshold - half_s, threshold + half_s, val);\n}\nvoid run(vec2 uv, vec3 val, float threshold, float softness, out vec3 result) {\n    float half_s = max(0.0001, softness * 0.5);\n    result = smoothstep(vec3(threshold - half_s), vec3(threshold + half_s), val);\n}\nvoid run(vec2 uv, vec4 val, float threshold, float softness, out vec4 result) {\n    float half_s = max(0.0001, softness * 0.5);\n    result = smoothstep(vec4(threshold - half_s), vec4(threshold + half_s), val);\n}",
+    "autoType": true,
+    "inputs": [
+      { "id": "val", "name": "Input", "type": "float" },
+      { "id": "threshold", "name": "Threshold", "type": "float" },
+      { "id": "softness", "name": "Softness", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "float" }
+    ],
+    "uniforms": {
+      "threshold": {
+        "type": "float",
+        "value": 0.5,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0 }
+      },
+      "softness": {
+        "type": "float",
+        "value": 0.2,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0 }
+      }
+    }
+  }
+}

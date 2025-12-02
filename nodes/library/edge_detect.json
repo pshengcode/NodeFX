@@ -1,0 +1,42 @@
+{
+  "id": "EDGE_DETECT",
+  "label": "Edge Detect",
+  "category": "Filter",
+  "icon": "Activity",
+  "description": "Detects edges using screen-space derivatives (DDX/DDY).",
+  "locales": {
+    "zh": {
+      "Edge Detect": "边缘检测 (Edge Detect)",
+      "Input": "输入",
+      "Power": "强度",
+      "Threshold": "阈值 (0为禁用)",
+      "Edge": "边缘强度"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 input_col, float power, float threshold, out float edge) {\n    // Convert to grayscale (Luminance)\n    float lum = dot(input_col.rgb, vec3(0.299, 0.587, 0.114));\n    \n    // Calculate derivatives\n    float dx = dFdx(lum);\n    float dy = dFdy(lum);\n    \n    // Calculate gradient magnitude\n    float mag = sqrt(dx*dx + dy*dy);\n    \n    // Apply power scaling\n    edge = mag * power;\n    \n    // Apply threshold if active\n    if (threshold > 0.001) {\n        edge = step(threshold, edge);\n    }\n}",
+    "outputType": "float",
+    "inputs": [
+      { "id": "input_col", "name": "Input", "type": "vec4" },
+      { "id": "power", "name": "Power", "type": "float" },
+      { "id": "threshold", "name": "Threshold", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "edge", "name": "Edge", "type": "float" }
+    ],
+    "uniforms": {
+      "power": {
+        "type": "float",
+        "value": 5.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 50.0 }
+      },
+      "threshold": {
+        "type": "float",
+        "value": 0.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0 }
+      }
+    }
+  }
+}

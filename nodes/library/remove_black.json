@@ -1,0 +1,34 @@
+{
+  "id": "REMOVE_BLACK",
+  "label": "Remove Black",
+  "category": "Filter",
+  "icon": "Ghost",
+  "description": "Makes black pixels transparent by setting alpha based on brightness.",
+  "locales": {
+    "zh": {
+      "Remove Black": "去黑底 (Remove Black)",
+      "Input": "输入",
+      "Multiplier": "强度",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 input_col, float multiplier, out vec4 result) {\n    // Algorithm: Alpha = Max(R, G, B)\n    float max_val = max(input_col.r, max(input_col.g, input_col.b));\n    \n    // Apply multiplier to adjust transparency sensitivity\n    float alpha = clamp(max_val * multiplier, 0.0, 1.0);\n    \n    // Preserve original RGB, update Alpha\n    result = vec4(input_col.rgb, alpha);\n}",
+    "outputType": "vec4",
+    "inputs": [
+      { "id": "input_col", "name": "Input", "type": "vec4" },
+      { "id": "multiplier", "name": "Multiplier", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "vec4" }
+    ],
+    "uniforms": {
+      "multiplier": {
+        "type": "float",
+        "value": 1.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.1, "max": 5.0 }
+      }
+    }
+  }
+}

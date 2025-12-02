@@ -1,0 +1,40 @@
+{
+  "id": "WHITE_NOISE",
+  "label": "White Noise",
+  "category": "Generator",
+  "icon": "Tv",
+  "description": "Generates pure random static noise.",
+  "locales": {
+    "zh": {
+      "White Noise": "白噪波 (White Noise)",
+      "Scale": "缩放",
+      "Seed": "种子",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "float random(vec2 st) {\n    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);\n}\n\nvoid run(vec2 uv, float scale, float seed, out float result) {\n    vec2 st = uv * scale;\n    // Add seed to coordinate to vary the pattern\n    result = random(st + seed);\n}",
+    "outputType": "float",
+    "inputs": [
+      { "id": "scale", "name": "Scale", "type": "float" },
+      { "id": "seed", "name": "Seed", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "float" }
+    ],
+    "uniforms": {
+      "scale": {
+        "type": "float",
+        "value": 100.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 1.0, "max": 1000.0 }
+      },
+      "seed": {
+        "type": "float",
+        "value": 0.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 100.0 }
+      }
+    }
+  }
+}

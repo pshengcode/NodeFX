@@ -1,0 +1,48 @@
+{
+  "id": "TWIST",
+  "label": "Twist",
+  "category": "Filter",
+  "icon": "RotateCw",
+  "description": "Applies a geometric twist distortion to UV coordinates.",
+  "locales": {
+    "zh": {
+      "Twist": "扭曲 (Twist)",
+      "UV": "UV坐标",
+      "Amount": "强度",
+      "Center": "中心",
+      "Radius": "半径",
+      "Output": "输出UV"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, float amount, vec2 center, float radius, out vec2 result) {\n    vec2 d = uv - center;\n    float dist = length(d);\n    if (dist < radius) {\n        float angle = amount * (radius - dist) / radius;\n        float s = sin(angle);\n        float c = cos(angle);\n        d = vec2(d.x * c - d.y * s, d.x * s + d.y * c);\n        result = center + d;\n    } else {\n        result = uv;\n    }\n}",
+    "outputType": "vec2",
+    "inputs": [
+      { "id": "uv", "name": "UV", "type": "vec2" },
+      { "id": "amount", "name": "Amount", "type": "float" },
+      { "id": "center", "name": "Center", "type": "vec2" },
+      { "id": "radius", "name": "Radius", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "vec2" }
+    ],
+    "uniforms": {
+      "amount": {
+        "type": "float",
+        "value": 5.0,
+        "widget": "slider",
+        "widgetConfig": { "min": -20.0, "max": 20.0, "step": 0.1 }
+      },
+      "center": {
+        "type": "vec2",
+        "value": [0.5, 0.5]
+      },
+      "radius": {
+        "type": "float",
+        "value": 0.5,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 2.0, "step": 0.01 }
+      }
+    }
+  }
+}

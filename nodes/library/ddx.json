@@ -1,0 +1,24 @@
+{
+  "id": "DDX",
+  "label": "DDX",
+  "category": "Math",
+  "description": "Computes the partial derivative relative to the X coordinate (dFdx).",
+  "locales": {
+    "zh": {
+      "DDX": "X偏导数 (DDX)",
+      "Input": "输入",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, float val, out float result) { result = dFdx(val); }\nvoid run(vec2 uv, vec2 val, out vec2 result) { result = dFdx(val); }\nvoid run(vec2 uv, vec3 val, out vec3 result) { result = dFdx(val); }\nvoid run(vec2 uv, vec4 val, out vec4 result) { result = dFdx(val); }",
+    "autoType": true,
+    "inputs": [
+      { "id": "val", "name": "Input", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "float" }
+    ],
+    "outputType": "float"
+  }
+}

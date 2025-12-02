@@ -387,6 +387,10 @@ out vec4 fragColor;
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform sampler2D u_empty_tex;
+
+// Shadertoy compatibility
+#define iTime u_time
+#define iResolution vec3(u_resolution, 1.0)
 `;
 
       // Helper to get actual value for uniforms
