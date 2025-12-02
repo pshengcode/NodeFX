@@ -1,0 +1,83 @@
+{
+  "id": "CUSTOM",
+  "label": "ColorMapping",
+  "category": "Color",
+  "locales": {
+    "zh": {
+      "in": "灰度图",
+      "color": "渐变颜色",
+      "outcolor": "输出",
+      "ColorMapping": "颜色映射"
+    }
+  },
+  "data": {
+    "glsl": "\nvoid run(vec2 uv, float u, sampler2D color,out vec4 outcolor) {\n  vec4 color2= texture2D(color,vec2(u,0.5));\noutcolor= color2;\n\n}",
+    "inputs": [
+      {
+        "id": "u",
+        "name": "in",
+        "type": "float"
+      },
+      {
+        "id": "color",
+        "name": "color",
+        "type": "sampler2D"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "outcolor",
+        "name": "outcolor",
+        "type": "vec4"
+      }
+    ],
+    "uniforms": {
+      "u": {
+        "type": "float",
+        "value": 0,
+        "widget": "hidden",
+        "widgetConfig": {}
+      },
+      "color": {
+        "type": "sampler2D",
+        "value": null,
+        "widget": "gradient",
+        "widgetConfig": {
+          "gradientStops": [
+            {
+              "pos": 0,
+              "color": "#131525"
+            },
+            {
+              "pos": 0.3420985524351941,
+              "color": "#ff0000"
+            },
+            {
+              "pos": 0.6702988801929154,
+              "color": "#fbff00"
+            },
+            {
+              "pos": 0.25248832212693356,
+              "color": "#652041"
+            },
+            {
+              "pos": 0.9098791684239398,
+              "color": "#ffffff"
+            }
+          ],
+          "alphaStops": [
+            {
+              "pos": 0,
+              "value": 1
+            },
+            {
+              "pos": 1,
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    "outputType": "vec4"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "id": "__",
+  "label": "Levels",
+  "category": "Color",
+  "locales": {
+    "zh": {
+      "Vignette": "暗角",
+      "inValue": "最小",
+      "Intensity": "强度",
+      "Smoothness": "平滑度",
+      "color": "颜色",
+      "outColor": "输出",
+      "outValue": "最大",
+      "色阶": "",
+      "Levels": "色阶"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv,vec3 color, vec2 inValue, vec2 outValue,out vec3 outColor) {\n    float denom = inValue.y - inValue.x;\n    vec3 t = vec3(\n        denom == 0.0 ? 0.0 : (color.x - inValue.x) / denom,\n        denom == 0.0 ? 0.0 : (color.y - inValue.x) / denom,\n        denom == 0.0 ? 0.0 : (color.z - inValue.x) / denom\n    );\n   t = clamp(t, 0.0, 1.0);\n    outColor= mix(vec3(outValue.x,outValue.x,outValue.x),vec3(outValue.y,outValue.y,outValue.y), t);\n}\nvoid run(vec2 uv,float color, vec2 inValue, vec2 outValue,out float outColor) {\n    float denom = inValue.y - inValue.x;\n    float t =  denom == 0.0 ? 0.0 : (color - inValue.x) / denom;      \n   t = clamp(t, 0.0, 1.0);\n    outColor= mix(outValue.x,outValue.y, t);\n}",
+    "inputs": [
+      {
+        "id": "color",
+        "name": "color",
+        "type": "float"
+      },
+      {
+        "id": "inValue",
+        "name": "inValue",
+        "type": "vec2"
+      },
+      {
+        "id": "outValue",
+        "name": "outValue",
+        "type": "vec2"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "outColor",
+        "name": "outColor",
+        "type": "float"
+      }
+    ],
+    "uniforms": {
+      "color": {
+        "type": "float",
+        "value": 0
+      },
+      "inValue": {
+        "type": "vec2",
+        "value": [
+          0,
+          1
+        ],
+        "widget": "range",
+        "widgetConfig": {
+          "max": 1,
+          "step": 0.001
+        }
+      },
+      "outValue": {
+        "type": "vec2",
+        "value": [
+          0,
+          1
+        ],
+        "widget": "range",
+        "widgetConfig": {
+          "max": 1,
+          "step": 0.001
+        }
+      }
+    },
+    "outputType": "float"
+  }
+}

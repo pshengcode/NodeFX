@@ -51,17 +51,18 @@ interface SidebarCategoryProps {
     onDragStart: (e: React.DragEvent, id: string) => void;
     onClick: (node: ShaderNodeDefinition) => void;
     extraAction?: React.ReactNode;
+    isOpen: boolean;
+    onToggle: () => void;
 }
 
-const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick, extraAction }) => {
-    const [isOpen, setIsOpen] = useState(true);
+const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick, extraAction, isOpen, onToggle }) => {
     const { t } = useTranslation();
 
     return (
-        <div className="flex flex-col w-full mb-2">
-            <div className="flex items-center justify-between w-full px-2 py-1.5 rounded hover:bg-zinc-800/50 transition-colors group">
+        <div className={`flex flex-col w-full transition-all duration-300 ${isOpen ? 'flex-1 min-h-0' : 'shrink-0'}`}>
+            <div className="flex-none sticky top-0 z-10 flex items-center justify-between w-full px-2 py-1.5 rounded bg-zinc-900/95 backdrop-blur-sm border border-zinc-800/50 hover:bg-zinc-800 transition-colors group shadow-sm">
                 <button 
-                    onClick={() => setIsOpen(!isOpen)}
+                    onClick={onToggle}
                     className="flex items-center gap-2 flex-1 text-xs font-bold text-zinc-200 uppercase tracking-wider hover:text-white select-none text-left"
                 >
                     {isOpen ? <ChevronDown size={12} className="opacity-50 group-hover:opacity-100"/> : <ChevronRight size={12} className="opacity-50 group-hover:opacity-100"/>}
@@ -71,7 +72,7 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDr
             </div>
             
             {isOpen && (
-                <div className="flex flex-col gap-0.5 mt-0.5 pl-1">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pl-1 mt-0.5 flex flex-col gap-0.5 min-h-0">
                     {nodes.map(node => (
                         <SidebarItem 
                             key={node.id} 
@@ -114,6 +115,7 @@ export const Sidebar: React.FC = () => {
         importLibrary
     } = useProject();
 
+    const [expandedCategory, setExpandedCategory] = useState<string | null>('Generator');
     const libraryImportRef = useRef<HTMLInputElement>(null);
 
     const handleLibraryImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,7 +187,7 @@ export const Sidebar: React.FC = () => {
             
             <div className="w-full h-px bg-zinc-800/50 mb-3 shrink-0 mx-2"></div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-2 pb-2 gap-2">
                 {CATEGORY_ORDER.map(cat => {
                     const groupNodes = nodesByCategory[cat];
                     if (!groupNodes) return null;
@@ -220,6 +222,8 @@ export const Sidebar: React.FC = () => {
                             onDragStart={onDragStart}
                             onClick={handleSidebarClick}
                             extraAction={extra}
+                            isOpen={expandedCategory === cat}
+                            onToggle={() => setExpandedCategory(prev => prev === cat ? null : cat)}
                         />
                     );
                 })}

@@ -84,16 +84,17 @@ export function useTypeInference() {
                             // Check compatibility
                             if (sourceType === sigInput.type) {
                                 score += 10; // Exact match
+                            } else if (sigInput.type === 'sampler2D') {
+                                // Multi-pass support: Allow connecting value types to sampler2D
+                                score += 5; 
+                            } else if (sourceType === 'sampler2D') {
+                                // Sampler source can only match Sampler target (handled in first if)
+                                isCompatible = false;
                             } else if (getTypeRank(sourceType) <= getTypeRank(sigInput.type)) {
                                 score += 1; // Compatible (can cast up)
                             } else {
-                                // Incompatible (e.g. vec4 -> vec2, or sampler2D -> vec2)
-                                // UNLESS it is sampler2D target (which accepts nothing but sampler2D usually)
-                                // But wait, getTypeRank(sampler2D) is 0.
-                                // Let's be strict:
-                                if (sigInput.type === 'sampler2D' && sourceType !== 'sampler2D') isCompatible = false;
-                                else if (sourceType === 'sampler2D' && sigInput.type !== 'sampler2D') isCompatible = false;
-                                else if (getTypeRank(sourceType) > getTypeRank(sigInput.type)) isCompatible = false;
+                                // Incompatible (e.g. vec4 -> vec2)
+                                if (getTypeRank(sourceType) > getTypeRank(sigInput.type)) isCompatible = false;
                             }
                         }
                     }

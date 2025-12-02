@@ -2,8 +2,6 @@
   "id": "TWIST",
   "label": "Twist",
   "category": "Filter",
-  "icon": "RotateCw",
-  "description": "Applies a geometric twist distortion to UV coordinates.",
   "locales": {
     "zh": {
       "Twist": "扭曲 (Twist)",
@@ -11,38 +9,73 @@
       "Amount": "强度",
       "Center": "中心",
       "Radius": "半径",
-      "Output": "输出UV"
+      "Output": "输出UV",
+      "amount": "强度",
+      "center": "中心",
+      "radius": "半径",
+      "outColor": "输出",
+      "inColor": "输入"
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, float amount, vec2 center, float radius, out vec2 result) {\n    vec2 d = uv - center;\n    float dist = length(d);\n    if (dist < radius) {\n        float angle = amount * (radius - dist) / radius;\n        float s = sin(angle);\n        float c = cos(angle);\n        d = vec2(d.x * c - d.y * s, d.x * s + d.y * c);\n        result = center + d;\n    } else {\n        result = uv;\n    }\n}",
-    "outputType": "vec2",
+    "glsl": "void run(vec2 uv, float amount, vec2 center, float radius, out vec2 result) {\n    vec2 d = uv - center;\n    float dist = length(d);\n    if (dist < radius) {\n        float angle = amount * (radius - dist) / radius;\n        float s = sin(angle);\n        float c = cos(angle);\n        d = vec2(d.x * c - d.y * s, d.x * s + d.y * c);\n        result = center + d;\n    } else {\n        result = uv;\n    }\n}\nvoid run(vec2 uv, sampler2D inColor, float amount, vec2 center, float radius, out vec4 outColor) {\n    vec2 coord = uv;\n    vec2 d = uv - center;\n    float dist = length(d);\n    \n    if (dist < radius) {\n        float angle = amount * (radius - dist) / radius;\n        float s = sin(angle);\n        float c = cos(angle);\n        // 旋转向量\n        d = vec2(d.x * c - d.y * s, d.x * s + d.y * c);\n        coord = center + d;\n    }\n    \n    // 采样纹理\n    outColor = texture(inColor, coord);\n}",
     "inputs": [
-      { "id": "uv", "name": "UV", "type": "vec2" },
-      { "id": "amount", "name": "Amount", "type": "float" },
-      { "id": "center", "name": "Center", "type": "vec2" },
-      { "id": "radius", "name": "Radius", "type": "float" }
+      {
+        "id": "amount",
+        "name": "amount",
+        "type": "float"
+      },
+      {
+        "id": "center",
+        "name": "center",
+        "type": "vec2"
+      },
+      {
+        "id": "radius",
+        "name": "radius",
+        "type": "float"
+      }
     ],
     "outputs": [
-      { "id": "result", "name": "Output", "type": "vec2" }
+      {
+        "id": "result",
+        "name": "result",
+        "type": "vec2"
+      }
     ],
     "uniforms": {
       "amount": {
         "type": "float",
-        "value": 5.0,
+        "value": 0,
         "widget": "slider",
-        "widgetConfig": { "min": -20.0, "max": 20.0, "step": 0.1 }
+        "widgetConfig": {
+          "min": -20,
+          "max": 20,
+          "step": 0.1
+        }
       },
       "center": {
         "type": "vec2",
-        "value": [0.5, 0.5]
+        "value": [
+          0.5,
+          0.5
+        ]
       },
       "radius": {
         "type": "float",
-        "value": 0.5,
+        "value": 1.09,
         "widget": "slider",
-        "widgetConfig": { "min": 0.0, "max": 2.0, "step": 0.01 }
+        "widgetConfig": {
+          "min": 0,
+          "max": 2,
+          "step": 0.01
+        }
+      },
+      "inColor": {
+        "type": "sampler2D",
+        "value": 0
       }
-    }
+    },
+    "outputType": "vec2"
   }
 }
