@@ -2,7 +2,6 @@
   "id": "polar_coords",
   "label": "Polar Coordinates",
   "category": "Vector",
-  "description": "Converts Cartesian coordinates (UV) to Polar coordinates (Radius, Angle 0-1).",
   "locales": {
     "zh": {
       "Polar Coordinates": "极坐标",
@@ -15,19 +14,51 @@
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, vec2 cartesian, vec2 center, out vec2 polar, out float radius, out float angle) {\n    vec2 delta = cartesian - center;\n    radius = length(delta);\n    float raw_angle = atan(delta.y, delta.x);\n    angle = raw_angle / 6.2831853 + 0.5;\n    polar = vec2(radius, angle);\n}",
+    "glsl": "void run(vec2 uv, vec2 cartesian, vec2 center, out vec2 polar, out float radius, out float angle) {\n    vec2 delta = cartesian - center;\n    radius = length(delta);\n    float raw_angle = atan(delta.y, delta.x);\n    angle = raw_angle / 6.2831853 + 0.5;\n    polar = vec2(radius, angle);\n}\nvoid run(vec2 uv, sampler2D cartesian, vec2 center, out vec4 outColor, out float radius, out float angle) {\n    vec2 delta = uv - center;\n    radius = length(delta);\n    float raw_angle = atan(delta.y, delta.x);\n    angle = raw_angle / 6.2831853 + 0.5;\n  vec2  polar = vec2(radius, angle);\n    outColor=texture(cartesian,polar);\n}",
     "inputs": [
-      { "id": "cartesian", "name": "Cartesian", "type": "vec2" },
-      { "id": "center", "name": "Center", "type": "vec2" }
+      {
+        "id": "cartesian",
+        "name": "cartesian",
+        "type": "vec2"
+      },
+      {
+        "id": "center",
+        "name": "center",
+        "type": "vec2"
+      }
     ],
     "outputs": [
-      { "id": "polar", "name": "Polar", "type": "vec2" },
-      { "id": "radius", "name": "Radius", "type": "float" },
-      { "id": "angle", "name": "Angle", "type": "float" }
+      {
+        "id": "polar",
+        "name": "polar",
+        "type": "vec2"
+      },
+      {
+        "id": "radius",
+        "name": "radius",
+        "type": "float"
+      },
+      {
+        "id": "angle",
+        "name": "angle",
+        "type": "float"
+      }
     ],
     "uniforms": {
-      "cartesian": { "type": "vec2", "value": [0, 0] },
-      "center": { "type": "vec2", "value": [0.5, 0.5] }
+      "cartesian": {
+        "type": "vec2",
+        "value": [
+          0,
+          0
+        ]
+      },
+      "center": {
+        "type": "vec2",
+        "value": [
+          0.5,
+          0.5
+        ]
+      }
     },
     "outputType": "vec2"
   }

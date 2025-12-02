@@ -46,7 +46,7 @@ export const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType
     if (isNumeric && u) {
         const val = u.value as number | number[];
         const isArray = Array.isArray(val);
-        const isTargetScalar = newType === 'float' || newType === 'int';
+        const isTargetScalar = newType === 'float' || newType === 'int' || newType === 'sampler2D';
 
         if (isTargetScalar) {
              if (isArray && (val as number[]).length > 0) newVal = (val as number[])[0];
@@ -54,16 +54,26 @@ export const migrateUniformValue = (u: UniformVal | undefined, newType: GLSLType
              else newVal = val as number;
         } else {
              const targetLen = parseInt(newType.slice(3));
-             if (!isArray) {
-                 newVal = Array(targetLen).fill(val);
+             if (isNaN(targetLen)) {
+                 newVal = 0;
              } else {
-                 const current = [...(val as number[])];
-                 while(current.length < targetLen) current.push(0);
-                 newVal = current.slice(0, targetLen);
+                 if (!isArray) {
+                     newVal = Array(targetLen).fill(val);
+                 } else {
+                     const current = [...(val as number[])];
+                     while(current.length < targetLen) current.push(0);
+                     newVal = current.slice(0, targetLen);
+                 }
              }
         }
     } else {
-        const targetLen = newType === 'float' || newType === 'int' ? 1 : parseInt(newType.slice(3));
+        let targetLen = 1;
+        if (newType === 'float' || newType === 'int' || newType === 'sampler2D') {
+            targetLen = 1;
+        } else {
+            const parsed = parseInt(newType.slice(3));
+            targetLen = isNaN(parsed) ? 1 : parsed;
+        }
         newVal = targetLen === 1 ? 0 : Array(targetLen).fill(0);
     }
     return {
