@@ -269,15 +269,27 @@ export const ColorWidget = ({ value, onChange, alpha = false }: { value: number[
     const b = safeValue[2] || 0;
     const a = safeValue[3] !== undefined ? safeValue[3] : 1.0;
 
-    const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    const propHex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    
+    const [localHex, setLocalHex] = useState(propHex);
+    const timeoutRef = useRef<any>(null);
+
+    useEffect(() => {
+        setLocalHex(propHex);
+    }, [propHex]);
 
     const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const h = e.target.value;
-        const nr = parseInt(h.substring(1, 3), 16) / 255;
-        const ng = parseInt(h.substring(3, 5), 16) / 255;
-        const nb = parseInt(h.substring(5, 7), 16) / 255;
-        if (alpha) onChange([nr, ng, nb, a]);
-        else onChange([nr, ng, nb]);
+        setLocalHex(h);
+        
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+            const nr = parseInt(h.substring(1, 3), 16) / 255;
+            const ng = parseInt(h.substring(3, 5), 16) / 255;
+            const nb = parseInt(h.substring(5, 7), 16) / 255;
+            if (alpha) onChange([nr, ng, nb, a]);
+            else onChange([nr, ng, nb]);
+        }, 30);
     };
 
     return (
@@ -289,13 +301,13 @@ export const ColorWidget = ({ value, onChange, alpha = false }: { value: number[
                      {/* Hidden Color Input for Picker */}
                     <input
                         type="color"
-                        value={hex}
+                        value={localHex}
                         onChange={handleColorChange}
                         className="absolute -top-2 -left-2 w-[200%] h-[200%] cursor-pointer p-0 m-0 opacity-0"
                     />
-                    <div className="w-full h-full pointer-events-none" style={{ backgroundColor: hex }} />
+                    <div className="w-full h-full pointer-events-none" style={{ backgroundColor: localHex }} />
                 </div>
-                <span className="text-[8px] text-zinc-400 w-8 text-right font-mono">{hex.toUpperCase()}</span>
+                <span className="text-[8px] text-zinc-400 w-8 text-right font-mono">{localHex.toUpperCase()}</span>
             </div>
 
             {/* Alpha Bar */}

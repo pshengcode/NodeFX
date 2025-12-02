@@ -1,0 +1,53 @@
+{
+  "id": "MOSAIC",
+  "label": "Mosaic",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "Mosaic": "马赛克 (Mosaic)",
+      "Pixelates the texture": "将纹理像素化",
+      "tex": "纹理",
+      "blocks": "网格密度",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, vec2 blocks, out vec4 result) {\n    // 避免除以0\n    vec2 b = max(blocks, vec2(1.0));\n    vec2 p = floor(uv * b) / b;\n    // 采样中心点以避免边缘伪影\n    p += 0.5 / b;\n    result = texture(tex, p);\n}",
+    "inputs": [
+      {
+        "id": "tex",
+        "name": "tex",
+        "type": "sampler2D"
+      },
+      {
+        "id": "blocks",
+        "name": "blocks",
+        "type": "vec2"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "result",
+        "name": "result",
+        "type": "vec4"
+      }
+    ],
+    "uniforms": {
+      "tex": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "blocks": {
+        "type": "vec2",
+        "value": [
+          64,
+          64
+        ],
+        "widgetConfig": {
+          "step": 1
+        }
+      }
+    },
+    "outputType": "vec4"
+  }
+}

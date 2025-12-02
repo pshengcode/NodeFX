@@ -1,0 +1,189 @@
+{
+  "id": "DISSOLVE",
+  "label": "Dissolve",
+  "category": "Effect",
+  "locales": {
+    "zh": {
+      "Dissolve": "溶解 (Dissolve)",
+      "Dissolves the texture based on a noise map": "根据噪波图溶解纹理",
+      "tex": "纹理",
+      "noise_tex": "溶解图(噪波)",
+      "progress": "进度",
+      "edge_softness": "边缘柔化",
+      "edge_color": "边缘颜色",
+      "edge_intensity": "边缘强度",
+      "edge_width": "边缘宽度",
+      "edge_power": "边缘指数",
+      "edge_only": "仅显示边缘",
+      "blend_mode": "叠加模式",
+      "result": "结果",
+      "noise": "溶解灰度图"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, float noise, float progress, float edge_softness, vec3 edge_color, float edge_intensity, float edge_width, float edge_power, int edge_only, int blend_mode, out vec4 result) {\n    vec4 color = texture(tex, uv);\n    float lum = dot(color.rgb, vec3(0.299, 0.587, 0.114));\n    \n    float n_val = noise;\n    \n    if (blend_mode == 1) {\n        // Multiply: Dark areas dissolve first\n        n_val = n_val * lum;\n    } else if (blend_mode == 2) {\n        // Add: Weighted mix\n        n_val = (n_val + lum) * 0.5;\n    } else if (blend_mode == 3) {\n        // Luminance Only\n        n_val = lum;\n    } else if (blend_mode == 4) {\n        // Overlay\n        float base = lum;\n        float blend = n_val;\n        n_val = base < 0.5 ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend));\n    }\n    \n    if (n_val < progress) {\n        result = vec4(0.0);\n        return;\n    }\n    \n    float edge = 0.0;\n    if (n_val < progress + edge_width) {\n        float d = (n_val - progress) / max(0.0001, edge_width);\n        edge = 1.0 - smoothstep(1.0 - edge_softness, 1.0, d);\n        edge = pow(edge, edge_power);\n    }\n    \n    vec3 edge_final = edge_color * edge_intensity;\n    float alpha_edge = edge * color.a;\n    \n    if (edge_only == 1) {\n        result = vec4(edge_final * alpha_edge, alpha_edge);\n    } else {\n        // Mix based on alpha_edge to respect transparency\n        result = vec4(mix(color.rgb, edge_final, alpha_edge), color.a);\n    }\n}",
+    "inputs": [
+      {
+        "id": "tex",
+        "name": "tex",
+        "type": "sampler2D"
+      },
+      {
+        "id": "noise",
+        "name": "noise",
+        "type": "float"
+      },
+      {
+        "id": "progress",
+        "name": "progress",
+        "type": "float"
+      },
+      {
+        "id": "edge_softness",
+        "name": "edge_softness",
+        "type": "float"
+      },
+      {
+        "id": "edge_color",
+        "name": "edge_color",
+        "type": "vec3"
+      },
+      {
+        "id": "edge_intensity",
+        "name": "edge_intensity",
+        "type": "float"
+      },
+      {
+        "id": "edge_width",
+        "name": "edge_width",
+        "type": "float"
+      },
+      {
+        "id": "edge_power",
+        "name": "edge_power",
+        "type": "float"
+      },
+      {
+        "id": "edge_only",
+        "name": "edge_only",
+        "type": "int"
+      },
+      {
+        "id": "blend_mode",
+        "name": "blend_mode",
+        "type": "int"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "result",
+        "name": "result",
+        "type": "vec4"
+      }
+    ],
+    "uniforms": {
+      "tex": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "noise": {
+        "type": "float",
+        "value": 0.48
+      },
+      "progress": {
+        "type": "float",
+        "value": 0.05,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      },
+      "edge_softness": {
+        "type": "float",
+        "value": 0.5,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.01,
+          "max": 1,
+          "step": 0.01
+        }
+      },
+      "edge_color": {
+        "type": "vec3",
+        "value": [
+          1,
+          0.5,
+          0
+        ],
+        "widget": "color"
+      },
+      "edge_intensity": {
+        "type": "float",
+        "value": 2,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 10,
+          "step": 0.1
+        }
+      },
+      "edge_width": {
+        "type": "float",
+        "value": 0.1,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.01,
+          "max": 0.5,
+          "step": 0.01
+        }
+      },
+      "edge_power": {
+        "type": "float",
+        "value": 1,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.1,
+          "max": 5,
+          "step": 0.1
+        }
+      },
+      "edge_only": {
+        "type": "int",
+        "value": 0,
+        "widget": "toggle"
+      },
+      "blend_mode": {
+        "type": "int",
+        "value": 3,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Noise Only",
+              "value": 0
+            },
+            {
+              "label": "Multiply (Noise * Image)",
+              "value": 1
+            },
+            {
+              "label": "Add (Noise + Image)",
+              "value": 2
+            },
+            {
+              "label": "Image Luminance",
+              "value": 3
+            },
+            {
+              "label": "Overlay",
+              "value": 4
+            }
+          ]
+        }
+      }
+    },
+    "outputType": "vec4"
+  }
+}
