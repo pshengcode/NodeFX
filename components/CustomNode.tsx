@@ -2,13 +2,13 @@ import React, { useState, useCallback, memo, useMemo, useRef, useEffect } from '
 import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps, useReactFlow, useEdges, useStore } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory } from '../types';
-import { Code, X, Settings2, Eye, AlertTriangle, ChevronDown, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical } from 'lucide-react';
+import { Code, X, Settings2, Eye, AlertTriangle, ChevronDown, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
 import { assetManager } from '../utils/assetManager';
 import { Upload, Scan } from 'lucide-react';
-import { extractShaderIO } from '../utils/glslParser';
+import { extractShaderIO, extractAllSignatures } from '../utils/glslParser';
 import { useTranslation } from 'react-i18next';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { getNodeDefinition } from '../nodes/registry';
@@ -535,7 +535,7 @@ const UniformControlWrapper = ({
         }
 
         if (type === 'vec3') {
-            if (mode === 'color') return <ColorWidget value={uniform.value} onChange={onUpdateValue} alpha={false} />;
+            if (mode === 'color') return <ColorWidget value={uniform.value as number[]} onChange={onUpdateValue} alpha={false} />;
             const v = Array.isArray(uniform.value) ? uniform.value : [0,0,0];
             return (
                 <div className="flex gap-1">
@@ -553,7 +553,7 @@ const UniformControlWrapper = ({
         }
 
         if (type === 'vec4') {
-             if (mode === 'color') return <ColorWidget value={uniform.value} onChange={onUpdateValue} alpha={true} />;
+             if (mode === 'color') return <ColorWidget value={uniform.value as number[]} onChange={onUpdateValue} alpha={true} />;
              const v = Array.isArray(uniform.value) ? uniform.value : [0,0,0,0];
              return (
                  <div className="grid grid-cols-2 gap-1">
@@ -615,13 +615,13 @@ const UniformControlWrapper = ({
                  const maxX = config.maxX !== undefined ? config.maxX : 1;
                  const minY = config.minY !== undefined ? config.minY : 0;
                  const maxY = config.maxY !== undefined ? config.maxY : 1;
-                 return <PadWidget value={uniform.value} onChange={onUpdateValue} minX={minX} maxX={maxX} minY={minY} maxY={maxY} />;
+                 return <PadWidget value={uniform.value as number[]} onChange={onUpdateValue} minX={minX} maxX={maxX} minY={minY} maxY={maxY} />;
              }
              if (mode === 'range') {
                  const min = config.min !== undefined ? config.min : 0;
                  const max = config.max !== undefined ? config.max : 100;
                  const step = config.step !== undefined ? config.step : 0.1;
-                 return <RangeWidget value={uniform.value} onChange={onUpdateValue} min={min} max={max} step={step} />;
+                 return <RangeWidget value={uniform.value as number[]} onChange={onUpdateValue} min={min} max={max} step={step} />;
              }
              const v = Array.isArray(uniform.value) ? uniform.value : [0,0];
              return (
@@ -773,6 +773,72 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   
   const [showEditor, setShowEditor] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+  
+  const signatures = useMemo(() => extractAllSignatures(data.glsl), [data.glsl]);
+  const [showOverloads, setShowOverloads] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getDefaultValue = (type: GLSLType) => {
+      if (type === 'vec2') return [0,0];
+      if (type === 'vec3') return [1,1,1];
+      if (type === 'vec4') return [1,1,1,1];
+      if (type === 'sampler2D') return null;
+      return 0;
+  };
+
+  const currentSignatureIndex = useMemo(() => {
+      if (signatures.length <= 1) return 0;
+      for (let i = 0; i < signatures.length; i++) {
+          const sig = signatures[i];
+          if (sig.inputs.length !== data.inputs.length) continue;
+          const inputsMatch = sig.inputs.every((inp, idx) => 
+              inp.id === data.inputs[idx].id && inp.type === data.inputs[idx].type
+          );
+          if (inputsMatch) return i;
+      }
+      return 0;
+  }, [signatures, data.inputs]);
+
+  const updateNodeData = useCallback((update: Partial<NodeData> | ((curr: NodeData) => Partial<NodeData>)) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === id) {
+          const newData = typeof update === 'function' ? update(node.data) : update;
+          return { ...node, data: { ...node.data, ...newData } };
+        }
+        return node;
+      })
+    );
+  }, [id, setNodes]);
+
+  const handleSelectSignature = useCallback((index: number) => {
+      if (index < 0 || index >= signatures.length || index === currentSignatureIndex) return;
+      
+      const sig = signatures[index];
+      
+      const nextUniforms = { ...data.uniforms };
+      
+      // Initialize new uniforms
+      sig.inputs.forEach(inp => {
+          if (!nextUniforms[inp.id] || nextUniforms[inp.id].type !== inp.type) {
+              nextUniforms[inp.id] = { type: inp.type, value: getDefaultValue(inp.type) };
+          }
+      });
+
+      // Cleanup old uniforms
+      const inputIds = new Set(sig.inputs.map(i => i.id));
+      Object.keys(nextUniforms).forEach(key => {
+          if (!inputIds.has(key) && key !== 'value') delete nextUniforms[key];
+      });
+
+      updateNodeData({
+          inputs: sig.inputs,
+          outputs: sig.outputs,
+          outputType: sig.outputs.length > 0 ? sig.outputs[0].type : 'float',
+          uniforms: nextUniforms
+      });
+  }, [signatures, currentSignatureIndex, data.uniforms, updateNodeData]);
+
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
       e.preventDefault();
@@ -805,18 +871,6 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       }
       return true;
   }, [data.uniforms]);
-
-  const updateNodeData = useCallback((update: Partial<NodeData> | ((curr: NodeData) => Partial<NodeData>)) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === id) {
-          const newData = typeof update === 'function' ? update(node.data) : update;
-          return { ...node, data: { ...node.data, ...newData } };
-        }
-        return node;
-      })
-    );
-  }, [id, setNodes]);
 
   const handleDeleteNode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -950,14 +1004,6 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       }
   }, [localCode, data.uniforms, updateNodeData]);
 
-  const getDefaultValue = (type: GLSLType) => {
-      if (type === 'vec2') return [0,0];
-      if (type === 'vec3') return [1,1,1];
-      if (type === 'vec4') return [1,1,1,1];
-      if (type === 'sampler2D') return null;
-      return 0;
-  };
-
   const borderClass = data.executionError 
     ? 'border-red-500 ring-1 ring-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' 
     : selected ? 'border-yellow-500 ring-1 ring-yellow-500/50' : 'border-zinc-700';
@@ -974,7 +1020,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
 
   return (
     <>
-        <div className={`shadow-xl rounded-lg border transition-all duration-200 min-w-[280px] ${nodeBgClass} ${borderClass}`}>
+        <div className={`relative shadow-xl rounded-lg border transition-all duration-200 min-w-[280px] ${nodeBgClass} ${borderClass}`}>
         {data.executionError && (
             <div className="bg-red-900/80 text-red-100 text-[10px] px-2 py-1 rounded-t-lg border-b border-red-700 flex items-start gap-1">
                 <AlertTriangle size={12} className="shrink-0 mt-0.5" />
@@ -1069,6 +1115,61 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     <CodeEditor value={localCode} onChange={(val) => setLocalCode(val || '')} onSave={handleCodeCompile} onBlur={handleCodeCompile} height="250px" lineNumbers="off" readOnly={data.isCompound}/>
                 </div>
                 <div className="text-[9px] text-zinc-600 flex justify-between px-1"><span>{tGlobal("Ctrl+S to save")}</span><span>{tGlobal("Standard GLSL syntax")}</span></div>
+            </div>
+        )}
+        
+        {signatures.length > 1 && (
+            <div 
+                className="absolute bottom-0 left-0 z-20"
+                onMouseEnter={() => {
+                    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+                    hoverTimer.current = setTimeout(() => setShowOverloads(true), 500);
+                }}
+                onMouseLeave={() => {
+                    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+                    setShowOverloads(false);
+                }}
+            >
+                <div className={`w-5 h-5 flex items-center justify-center rounded-bl-lg rounded-tr-lg border-t border-r transition-colors cursor-help ${showOverloads ? 'bg-blue-900/40 border-blue-500/50 text-blue-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800'}`}>
+                    <Layers size={10} />
+                </div>
+
+                {showOverloads && (
+                    <div className="absolute bottom-full left-0 pb-1 z-50" onClick={e => e.stopPropagation()}>
+                        <div className="bg-zinc-900 border border-zinc-700 rounded shadow-xl p-1 min-w-[260px] max-w-[400px] animate-in fade-in zoom-in-95 duration-100 origin-bottom-left">
+                            <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {signatures.map((sig, idx) => (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => handleSelectSignature(idx)}
+                                        className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-mono border transition-colors ${idx === currentSignatureIndex ? 'bg-blue-900/20 border-blue-500/30 cursor-default' : 'bg-zinc-950 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 cursor-pointer'}`}
+                                    >
+                                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
+                                            <span className={`font-bold mr-1 ${idx === currentSignatureIndex ? 'text-blue-400' : 'text-zinc-600'}`}>#{idx + 1}</span>
+                                            <span className="text-zinc-500">run(</span>
+                                            {sig.inputs.map((i, iIdx) => (
+                                                <span key={i.id} className="flex items-center">
+                                                    <span className="text-purple-400">{i.type}</span>
+                                                    <span className="text-zinc-300 ml-1">{i.name}</span>
+                                                    {iIdx < sig.inputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                </span>
+                                            ))}
+                                            {sig.outputs.length > 0 && sig.inputs.length > 0 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                            {sig.outputs.map((o, oIdx) => (
+                                                <span key={o.id} className="flex items-center">
+                                                    <span className="text-orange-400">out {o.type}</span>
+                                                    <span className="text-zinc-300 ml-1">{o.name}</span>
+                                                    {oIdx < sig.outputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                </span>
+                                            ))}
+                                            <span className="text-zinc-500">)</span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
         </div>

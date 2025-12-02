@@ -403,7 +403,8 @@ uniform sampler2D u_empty_tex;
 
       const globalUniforms: Record<string, { type: GLSLType; value: UniformValueType }> = {};
 
-      Object.values(inputTextureUniforms).forEach(uName => {
+      const uniqueTextureUniforms = new Set(Object.values(inputTextureUniforms));
+      uniqueTextureUniforms.forEach(uName => {
           header += `uniform sampler2D ${uName};\n`;
       });
 

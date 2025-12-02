@@ -47,7 +47,7 @@ interface Props {
 }
 
 const ContextMenu: React.FC<Props> = ({ x, y, onClose, onAddNode, registry }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,32 +59,46 @@ const ContextMenu: React.FC<Props> = ({ x, y, onClose, onAddNode, registry }) =>
     const term = search.toLowerCase();
     if (!term) return registry;
 
+    const lang = i18n.language;
+    const getTranslatedLabel = (node: ShaderNodeDefinition) => {
+        const text = node.label;
+        if (node.locales) {
+            if (node.locales[lang]?.[text]) return node.locales[lang][text];
+            const shortLang = lang.split('-')[0];
+            if (node.locales[shortLang]?.[text]) return node.locales[shortLang][text];
+        }
+        return i18n.exists(text) ? t(text) : text;
+    };
+
     return [...registry].sort((a, b) => {
-        // Priority: 
-        // 1. Exact Name match
-        // 2. Starts with Name
-        // 3. Contains Name
         const aName = a.label.toLowerCase();
         const bName = b.label.toLowerCase();
+        const aTrans = getTranslatedLabel(a).toLowerCase();
+        const bTrans = getTranslatedLabel(b).toLowerCase();
         
-        const aExact = aName === term ? 1 : 0;
-        const bExact = bName === term ? 1 : 0;
+        // Check exact match (Original or Translated)
+        const aExact = (aName === term || aTrans === term) ? 1 : 0;
+        const bExact = (bName === term || bTrans === term) ? 1 : 0;
         if (aExact !== bExact) return bExact - aExact;
 
-        const aStart = aName.startsWith(term) ? 1 : 0;
-        const bStart = bName.startsWith(term) ? 1 : 0;
+        // Check startsWith (Original or Translated)
+        const aStart = (aName.startsWith(term) || aTrans.startsWith(term)) ? 1 : 0;
+        const bStart = (bName.startsWith(term) || bTrans.startsWith(term)) ? 1 : 0;
         if (aStart !== bStart) return bStart - aStart;
 
-        const aHas = aName.includes(term) ? 1 : 0;
-        const bHas = bName.includes(term) ? 1 : 0;
+        // Check includes (Original or Translated)
+        const aHas = (aName.includes(term) || aTrans.includes(term)) ? 1 : 0;
+        const bHas = (bName.includes(term) || bTrans.includes(term)) ? 1 : 0;
         if (aHas !== bHas) return bHas - aHas;
 
         return 0;
-    }).filter(n => 
-        n.label.toLowerCase().includes(term) || 
-        n.category.toLowerCase().includes(term)
-    );
-  }, [search, registry]);
+    }).filter(n => {
+        const trans = getTranslatedLabel(n).toLowerCase();
+        return n.label.toLowerCase().includes(term) || 
+               trans.includes(term) ||
+               n.category.toLowerCase().includes(term);
+    });
+  }, [search, registry, i18n.language, t]);
 
   return (
     <div 

@@ -378,9 +378,14 @@ class WebGLSystem {
 
             // Pass Inputs
             if (pass.inputTextureUniforms) {
+                 const boundUniforms = new Set<string>();
                  Object.entries(pass.inputTextureUniforms).forEach(([_, uName]) => {
-                     const loc = gl.getUniformLocation(prog, uName as string);
-                     const match = (uName as string).match(/u_pass_(.*)_tex/);
+                     const name = uName as string;
+                     if (boundUniforms.has(name)) return;
+                     boundUniforms.add(name);
+
+                     const loc = gl.getUniformLocation(prog, name);
+                     const match = name.match(/u_pass_(.*)_tex/);
                      if (match && loc) {
                          const depId = match[1];
                          // Find pass by "clean" ID (replacing - with _)
