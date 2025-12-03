@@ -3,31 +3,59 @@
   "label": "Remove Black",
   "category": "Filter",
   "icon": "Ghost",
-  "description": "Makes black pixels transparent by setting alpha based on brightness.",
+  "description": "Makes black pixels transparent based on brightness/luminance.",
   "locales": {
     "zh": {
       "Remove Black": "去黑底 (Remove Black)",
       "Input": "输入",
-      "Multiplier": "强度",
+      "Mode": "模式",
+      "Low Clip": "黑场阈值",
+      "High Clip": "白场阈值",
+      "Unpremultiply": "色彩还原(去预乘)",
       "Output": "输出"
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, vec4 input_col, float multiplier, out vec4 result) {\n    // Algorithm: Alpha = Max(R, G, B)\n    float max_val = max(input_col.r, max(input_col.g, input_col.b));\n    \n    // Apply multiplier to adjust transparency sensitivity\n    float alpha = clamp(max_val * multiplier, 0.0, 1.0);\n    \n    // Preserve original RGB, update Alpha\n    result = vec4(input_col.rgb, alpha);\n}",
+    "glsl": "void run(vec2 uv, vec4 input_col, int mode, float low, float high, int unpremult, out vec4 result) {\n    float val = 0.0;\n    if (mode == 0) {\n        // Max RGB\n        val = max(input_col.r, max(input_col.g, input_col.b));\n    } else {\n        // Luminance\n        val = dot(input_col.rgb, vec3(0.299, 0.587, 0.114));\n    }\n    \n    // Calculate Alpha using smoothstep for better control\n    float alpha = smoothstep(low, high, val);\n    \n    vec3 out_rgb = input_col.rgb;\n    \n    // Unpremultiply: Boost RGB to recover original color intensity for straight alpha blending\n    if (unpremult == 1 && alpha > 0.0001) {\n        // We use the original 'val' as the divisor because that represents the original 'alpha' assumption\n        // But using the new 'alpha' ensures we don't boost clipped regions incorrectly.\n        // However, standard unpremult uses the alpha channel.\n        out_rgb = input_col.rgb / max(0.0001, val); \n        // Note: dividing by 'val' (original brightness) is mathematically closer to recovering the color \n        // before it was multiplied by black.\n        \n        // Clamp to avoid HDR artifacts if needed\n        out_rgb = clamp(out_rgb, 0.0, 1.0);\n    }\n    \n    result = vec4(out_rgb, alpha);\n}",
     "outputType": "vec4",
     "inputs": [
       { "id": "input_col", "name": "Input", "type": "vec4" },
-      { "id": "multiplier", "name": "Multiplier", "type": "float" }
+      { "id": "mode", "name": "Mode", "type": "int" },
+      { "id": "low", "name": "Low Clip", "type": "float" },
+      { "id": "high", "name": "High Clip", "type": "float" },
+      { "id": "unpremult", "name": "Unpremultiply", "type": "int" }
     ],
     "outputs": [
       { "id": "result", "name": "Output", "type": "vec4" }
     ],
     "uniforms": {
-      "multiplier": {
+      "mode": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            { "label": "Max RGB", "value": 0 },
+            { "label": "Luminance", "value": 1 }
+          ]
+        }
+      },
+      "low": {
+        "type": "float",
+        "value": 0.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0 }
+      },
+      "high": {
         "type": "float",
         "value": 1.0,
         "widget": "slider",
-        "widgetConfig": { "min": 0.1, "max": 5.0 }
+        "widgetConfig": { "min": 0.0, "max": 2.0 }
+      },
+      "unpremult": {
+        "type": "int",
+        "value": 0,
+        "widget": "toggle"
       }
     }
   }

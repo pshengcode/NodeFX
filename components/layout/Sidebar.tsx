@@ -175,7 +175,7 @@ export const Sidebar: React.FC = () => {
             </div>
 
             <div className="px-2 mb-4 flex gap-1 shrink-0">
-                <input type="file" ref={nodeImportInputRef} onChange={importNodeFromJson} className="hidden" accept=".json" />
+                <input type="file" ref={nodeImportInputRef} onChange={importNodeFromJson} className="hidden" accept=".nodefx,.json" />
                 <input type="file" ref={libraryImportRef} onChange={handleLibraryImport} className="hidden" accept=".json" />
                 <button 
                     onClick={() => nodeImportInputRef.current?.click()}

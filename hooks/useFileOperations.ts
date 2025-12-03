@@ -26,7 +26,7 @@ export function useFileOperations(
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'glsl-project.json';
+        link.download = 'glsl-project.nodefxs';
         link.click();
         URL.revokeObjectURL(url);
     }, [nodes, edges]);

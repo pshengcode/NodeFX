@@ -115,7 +115,7 @@ export const Toolbar: React.FC = () => {
                 <button onClick={resetCanvas} className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-red-900/50 text-zinc-300 hover:text-red-200 rounded-full border border-zinc-700 hover:border-red-800/50 transition-colors" title={t("Reset")}>
                     <RefreshCw size={14}/> {t("Reset")}
                 </button>
-                <input type="file" ref={projectFileInputRef} onChange={loadProject} className="hidden" accept=".json" />
+                <input type="file" ref={projectFileInputRef} onChange={loadProject} className="hidden" accept=".nodefxs,.json" />
                 <button onClick={() => projectFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 rounded-full border border-zinc-700 transition-colors">
                     <FolderOpen size={14}/> {t("Load")}
                 </button>

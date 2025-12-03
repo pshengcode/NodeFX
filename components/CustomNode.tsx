@@ -934,7 +934,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${data.label.replace(/\s+/g, '_')}.json`;
+      link.download = `${data.label.replace(/\s+/g, '_')}.nodefx`;
       link.click();
       URL.revokeObjectURL(url);
   }, [data, id, getNodes, getEdges]);

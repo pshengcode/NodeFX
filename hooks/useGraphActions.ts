@@ -415,7 +415,7 @@ export function useGraphActions(
                     reader.readAsDataURL(file);
                 }
                 // Handle JSON Node Definitions
-                else if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) {
+                else if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json') || file.name.toLowerCase().endsWith('.nodefx')) {
                      const reader = new FileReader();
                      reader.onload = (e) => {
                          try {
