@@ -107,6 +107,7 @@ export const compileCompoundNode = (
     
     innerNodes.forEach(node => {
         if (node.type === 'graphInput' || node.type === 'graphOutput') return;
+        if (node.data.isGlobalVar) return; // Global variables are handled as uniforms
         
         let nodeGlsl = node.data.glsl;
         if (node.data.isCompound) {
@@ -119,16 +120,47 @@ export const compileCompoundNode = (
         const funcName = `node_${nodeIdClean}_run`;
         
         // Strip comments
-        const cleanCode = stripComments(nodeGlsl);
+        const cleanAnalysisCode = stripComments(nodeGlsl);
         
-        // Rename helpers
-        // ... (Simplified renaming logic) ...
-        // Actually, we can rely on the fact that this code will be processed AGAIN by the parent compileGraph!
-        // Wait. If we return code here, it becomes the "userCode" in compileGraph.
-        // compileGraph will then rename functions in THIS code.
-        // So we just need to make sure we don't have name collisions INSIDE this block.
-        // We should rename 'run' to 'node_ID_run' here so they are distinct.
-        
+        // --- RENAMING LOGIC (Copied from compileGraph to prevent collisions inside Compound Node) ---
+
+        // 1. Identify Helper Functions
+        const funcDeclRegex = /^\s*(?:float|int|vec2|vec3|vec4|void|bool)\s+([a-zA-Z0-9_]+)\s*\(/gm;
+        let match;
+        const funcsToRename = new Set<string>();
+
+        while ((match = funcDeclRegex.exec(cleanAnalysisCode)) !== null) {
+            const fName = match[1];
+            // Don't rename 'run' yet (special handling), don't rename built-ins
+            if (fName !== 'run' && !GLSL_BUILTINS.has(fName)) {
+                funcsToRename.add(fName);
+            }
+        }
+
+        // 1.5 Identify Const Variables
+        const constDeclRegex = /\bconst\s+(?:float|int|uint|bool|vec[234]|mat[234])\s+([a-zA-Z0-9_]+)\s*=/gm;
+        const constsToRename = new Set<string>();
+        while ((match = constDeclRegex.exec(cleanAnalysisCode)) !== null) {
+            constsToRename.add(match[1]);
+        }
+
+        // 2. Perform Renaming
+        // Rename Consts
+        constsToRename.forEach(name => {
+             const newName = `node_${nodeIdClean}_${name}`;
+             const regex = new RegExp(`\\b${name}\\b`, 'g');
+             nodeGlsl = nodeGlsl.replace(regex, newName);
+        });
+
+        // Rename Helper Functions
+        funcsToRename.forEach(name => {
+            const newName = `node_${nodeIdClean}_${name}`;
+            const regex = new RegExp(`\\b${name}\\s*\\(`, 'g');
+            nodeGlsl = nodeGlsl.replace(regex, `${newName}(`);
+        });
+
+        // -----------------------------------------------------------------------------------------
+
         // Rename 'run' to unique name
         const runRegex = /\bvoid\s+run\s*\(/g;
         if (runRegex.test(nodeGlsl)) {
@@ -210,27 +242,44 @@ export const compileCompoundNode = (
                         let varName: string | null = null;
                         let sourceType = sourceNode.data.outputType;
 
-                        const targetOutputId = edge.sourceHandle || 'out';
-                        const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
-                        const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+                        if (sourceNode.data.isGlobalVar) {
+                             varName = sourceNode.data.globalName || `u_global_${sourceIdClean}`;
+                        } else {
+                            const targetOutputId = edge.sourceHandle || 'out';
+                            const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+                            const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
 
-                        if (outputDef) {
-                            varName = `out_${sourceIdClean}_${outputDef.id}`;
-                            sourceType = outputDef.type;
+                            if (outputDef) {
+                                varName = `out_${sourceIdClean}_${outputDef.id}`;
+                                sourceType = outputDef.type;
+                            }
                         }
                         
                         if (varName) {
                             const targetType = sanitizeType(inp.type);
                             args.push(castGLSLVariable(varName, sanitizeType(sourceType), targetType));
                         } else {
-                            args.push(getDefaultGLSLValue(inp.type));
+                            // Fallback to uniform if source output not found
+                            if (node.data.uniforms && node.data.uniforms[inp.id]) {
+                                const uniformName = `u_${nodeIdClean}_${inp.id}`;
+                                args.push(uniformName);
+                            } else {
+                                args.push(getDefaultGLSLValue(inp.type));
+                            }
                         }
                     }
                 } else {
+                    // Source node not found (should not happen if edge exists)
                     args.push(getDefaultGLSLValue(inp.type));
                 }
             } else {
-                args.push(getDefaultGLSLValue(inp.type));
+                // Not connected. Check for uniform.
+                if (node.data.uniforms && node.data.uniforms[inp.id]) {
+                     const uniformName = `u_${nodeIdClean}_${inp.id}`;
+                     args.push(uniformName);
+                } else {
+                     args.push(getDefaultGLSLValue(inp.type));
+                }
             }
         });
         
@@ -408,6 +457,86 @@ uniform sampler2D u_empty_tex;
           header += `uniform sampler2D ${uName};\n`;
       });
 
+      const injectUniformsRecursive = (n: Node<NodeData>) => {
+          const nodeIdClean = n.id.replace(/-/g, '_');
+          
+          // Handle Global Vars
+          if (n.data.isGlobalVar) {
+                const name = n.data.globalName || `u_global_${nodeIdClean}`;
+                const type = sanitizeType(n.data.outputType || 'float');
+                
+                if (!globalUniforms[name]) {
+                    header += `uniform ${type} ${name};\n`;
+                    
+                    let val = n.data.value;
+                    if (val === undefined && n.data.uniforms && n.data.uniforms['value']) {
+                        val = n.data.uniforms['value'].value;
+                    }
+                    if (val === undefined) val = getDefaultUniformValue(type);
+                    globalUniforms[name] = { type, value: getUniformValue(type, val) };
+                }
+                return; 
+          }
+
+          // Handle Standard Uniforms
+          (n.data.inputs || []).forEach(input => {
+             if (n.data.uniforms && n.data.uniforms[input.id]) {
+                 const uVal = n.data.uniforms[input.id];
+                 const uniformName = `u_${nodeIdClean}_${input.id}`;
+                 const safeType = sanitizeType(uVal.type);
+                 
+                 if (globalUniforms[uniformName]) return;
+
+                 header += `uniform ${safeType} ${uniformName};\n`;
+                 
+                 let val = getUniformValue(safeType, uVal.value);
+                 
+                 if (safeType === 'sampler2D') {
+                    if (uVal.widget === 'gradient' && uVal.widgetConfig?.gradientStops) {
+                        const w = n.data.resolution?.w || 512;
+                        val = generateGradientTexture(
+                          uVal.widgetConfig.gradientStops, 
+                          w, 
+                          uVal.widgetConfig.alphaStops
+                        );
+                    } else if (uVal.widget === 'curve' && uVal.widgetConfig?.curvePoints) {
+                        const w = n.data.resolution?.w || 512;
+                        val = generateCurveTexture(uVal.widgetConfig.curvePoints, w);
+                    }
+                 }
+                 
+                 if ((safeType === 'vec3' || safeType === 'vec4' || safeType === 'float') && (uVal.widget === 'gradient' || uVal.widget === 'curve')) {
+                     let textureData = null;
+                     const w = 512;
+                     if (uVal.widget === 'gradient' && uVal.widgetConfig?.gradientStops) {
+                         textureData = generateGradientTexture(uVal.widgetConfig.gradientStops, w, uVal.widgetConfig.alphaStops);
+                     } else if (uVal.widget === 'curve' && uVal.widgetConfig?.curvePoints) {
+                         textureData = generateCurveTexture(uVal.widgetConfig.curvePoints, w);
+                     }
+
+                     if (textureData) {
+                         const centerIdx = Math.floor(w / 2) * 4;
+                         const r = textureData.data[centerIdx] / 255;
+                         const g = textureData.data[centerIdx + 1] / 255;
+                         const b = textureData.data[centerIdx + 2] / 255;
+                         const a = textureData.data[centerIdx + 3] / 255;
+
+                         if (safeType === 'vec4') val = new Float32Array([r,g,b,a]);
+                         else if (safeType === 'vec3') val = new Float32Array([r,g,b]);
+                         else if (safeType === 'float') val = r;
+                     }
+                 }
+
+                 globalUniforms[uniformName] = { type: safeType, value: val };
+             }
+          });
+
+          if (n.data.isCompound) {
+              const inner = nodes.filter(innerN => innerN.data.scopeId === n.id);
+              inner.forEach(injectUniformsRecursive);
+          }
+      };
+
       // --- GENERATE FUNCTIONS & UNIFORMS ---
       localNodes.forEach(node => {
         const nodeIdClean = node.id.replace(/-/g, '_');
@@ -484,54 +613,7 @@ uniform sampler2D u_empty_tex;
         }
 
         // A. Inject Uniforms for ALL Inputs
-        (node.data.inputs || []).forEach(input => {
-             if (node.data.uniforms && node.data.uniforms[input.id]) {
-                 const uVal = node.data.uniforms[input.id];
-                 const uniformName = `u_${nodeIdClean}_${input.id}`;
-                 const safeType = sanitizeType(uVal.type);
-                 header += `uniform ${safeType} ${uniformName};\n`;
-                 
-                 let val = getUniformValue(safeType, uVal.value);
-                 
-                 if (safeType === 'sampler2D') {
-                    if (uVal.widget === 'gradient' && uVal.widgetConfig?.gradientStops) {
-                        const w = node.data.resolution?.w || 512;
-                        val = generateGradientTexture(
-                          uVal.widgetConfig.gradientStops, 
-                          w, 
-                          uVal.widgetConfig.alphaStops
-                        );
-                    } else if (uVal.widget === 'curve' && uVal.widgetConfig?.curvePoints) {
-                        const w = node.data.resolution?.w || 512;
-                        val = generateCurveTexture(uVal.widgetConfig.curvePoints, w);
-                    }
-                 }
-                 
-                 if ((safeType === 'vec3' || safeType === 'vec4' || safeType === 'float') && (uVal.widget === 'gradient' || uVal.widget === 'curve')) {
-                     let textureData = null;
-                     const w = 512;
-                     if (uVal.widget === 'gradient' && uVal.widgetConfig?.gradientStops) {
-                         textureData = generateGradientTexture(uVal.widgetConfig.gradientStops, w, uVal.widgetConfig.alphaStops);
-                     } else if (uVal.widget === 'curve' && uVal.widgetConfig?.curvePoints) {
-                         textureData = generateCurveTexture(uVal.widgetConfig.curvePoints, w);
-                     }
-
-                     if (textureData) {
-                         const centerIdx = Math.floor(w / 2) * 4;
-                         const r = textureData.data[centerIdx] / 255;
-                         const g = textureData.data[centerIdx + 1] / 255;
-                         const b = textureData.data[centerIdx + 2] / 255;
-                         const a = textureData.data[centerIdx + 3] / 255;
-
-                         if (safeType === 'vec4') val = new Float32Array([r,g,b,a]);
-                         else if (safeType === 'vec3') val = new Float32Array([r,g,b]);
-                         else if (safeType === 'float') val = r;
-                     }
-                 }
-
-                 globalUniforms[uniformName] = { type: safeType, value: val };
-             }
-        });
+        injectUniformsRecursive(node);
 
         // B. Process & Rename Functions
         let userCode = node.data.glsl;
@@ -559,7 +641,24 @@ uniform sampler2D u_empty_tex;
             }
         }
 
-        // 2. Perform Renaming of Helper Functions
+        // 1.5 Identify Const Variables (to prevent redefinition errors on copy)
+        // Regex: const type name = value;
+        const constDeclRegex = /\bconst\s+(?:float|int|uint|bool|vec[234]|mat[234])\s+([a-zA-Z0-9_]+)\s*=/gm;
+        const constsToRename = new Set<string>();
+        while ((match = constDeclRegex.exec(cleanAnalysisCode)) !== null) {
+            constsToRename.add(match[1]);
+        }
+
+        // 2. Perform Renaming
+        // Rename Consts
+        constsToRename.forEach(name => {
+             const newName = `node_${nodeIdClean}_${name}`;
+             // Use word boundary to avoid partial matches
+             const regex = new RegExp(`\\b${name}\\b`, 'g');
+             userCode = userCode.replace(regex, newName);
+        });
+
+        // Rename Helper Functions
         funcsToRename.forEach(name => {
             const newName = `node_${nodeIdClean}_${name}`;
             // Replace both definition and usage. 

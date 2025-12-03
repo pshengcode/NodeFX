@@ -52,6 +52,12 @@ export function useTypeInference() {
             // Get all incoming edges for this node
             const incomingEdges = currentEdges.filter(e => e.target === node.id);
 
+            // Helper to check if sig matches current inputs
+            const isCurrentSignature = (sig: any) => {
+                if (sig.inputs.length !== node.data.inputs.length) return false;
+                return sig.inputs.every((inp: any, i: number) => inp.id === node.data.inputs[i].id && inp.type === node.data.inputs[i].type);
+            };
+
             for (const sig of signatures) {
                 let score = 0;
                 let isCompatible = true;
@@ -100,9 +106,17 @@ export function useTypeInference() {
                     }
                 }
 
-                if (isCompatible && score > bestMatchScore) {
-                    bestMatchScore = score;
-                    matchedSig = sig;
+                if (isCompatible) {
+                    if (score > bestMatchScore) {
+                        bestMatchScore = score;
+                        matchedSig = sig;
+                    } else if (score === bestMatchScore) {
+                        // Tie-breaking: Prefer current signature if scores are equal
+                        // This prevents switching signatures when adding a common input (like tDiffuse)
+                        if (isCurrentSignature(sig)) {
+                            matchedSig = sig;
+                        }
+                    }
                 }
             }
 

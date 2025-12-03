@@ -996,6 +996,8 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   }, [data, id, getNodes, getEdges, addToLibrary]);
 
   const handleCodeCompile = useCallback(() => {
+      if (data.isCompound) return; // Prevent compiling manual edits for compound nodes
+
       const code = localCode;
       const nextUniforms = { ...data.uniforms };
       
@@ -1214,11 +1216,13 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     <div className="h-10 border-b border-zinc-800 flex items-center justify-between px-3 bg-zinc-900 select-none">
                         <div className="flex items-center gap-2"><div className="p-1 bg-blue-600/20 rounded text-blue-400"><Code size={16} /></div><span className="font-bold text-zinc-200 text-xs">{tGlobal("Editing:")} {data.label}</span></div>
                         <div className="flex items-center gap-2">
-                             <button onClick={handleCodeCompile} className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wide"><Save size={12} /> {tGlobal("Compile")}</button>
+                             {!data.isCompound && (
+                                <button onClick={handleCodeCompile} className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wide"><Save size={12} /> {tGlobal("Compile")}</button>
+                             )}
                             <button onClick={() => setIsFloatingCode(false)} className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded"><Minimize2 size={16} /></button>
                         </div>
                     </div>
-                    <div className="flex-1 p-0 overflow-hidden relative nodrag"><CodeEditor value={localCode} onChange={(val) => setLocalCode(val || '')} onSave={handleCodeCompile} onBlur={() => {}} height="100%" lineNumbers="on"/></div>
+                    <div className="flex-1 p-0 overflow-hidden relative nodrag"><CodeEditor value={localCode} onChange={(val) => setLocalCode(val || '')} onSave={handleCodeCompile} onBlur={() => {}} height="100%" lineNumbers="on" readOnly={data.isCompound}/></div>
                 </div>
             </div>,
             document.body
