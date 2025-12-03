@@ -21,6 +21,7 @@
       { "id": "threshold", "name": "Threshold", "type": "float" },
       { "id": "softness", "name": "Softness", "type": "float" }
     ],
+    "outputType": "float",
     "outputs": [
       { "id": "result", "name": "Output", "type": "float" }
     ],
