@@ -41,7 +41,7 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
     if (data && !data.error) {
         data.passes.forEach(pass => {
             Object.values(pass.uniforms).forEach(async (u: any) => {
-                if (u.type === 'sampler2D' && typeof u.value === 'string' && u.value.startsWith('asset://')) {
+                if (u.type === 'sampler2D' && typeof u.value === 'string' && (u.value.startsWith('asset://') || u.value.startsWith('builtin://'))) {
                     await assetManager.ensure(u.value);
                 }
             });

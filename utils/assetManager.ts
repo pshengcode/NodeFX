@@ -1,5 +1,6 @@
 
 import { RawTextureData } from '../types';
+import { getBuiltinResource } from './builtinResources';
 
 // Simple IDB Wrapper
 const DB_NAME = 'glsl-editor-assets';
@@ -55,6 +56,12 @@ class AssetManager {
 
     // Get asset
     async get(id: string): Promise<string | RawTextureData | undefined> {
+        // 0. Check Built-in
+        if (id.startsWith('builtin://')) {
+            const res = getBuiltinResource(id);
+            return res ? res.url : undefined;
+        }
+
         // 1. Check Memory
         if (this.cache.has(id)) {
             const entry = this.cache.get(id)!;
@@ -87,6 +94,10 @@ class AssetManager {
 
     // Synchronous get (for render loops, assumes loaded)
     getSync(id: string): string | RawTextureData | undefined {
+        if (id.startsWith('builtin://')) {
+            const res = getBuiltinResource(id);
+            return res ? res.url : undefined;
+        }
         const entry = this.cache.get(id);
         if (entry) {
             entry.lastUsed = Date.now();

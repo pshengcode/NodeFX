@@ -7,7 +7,8 @@ import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, Rang
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
 import { assetManager } from '../utils/assetManager';
-import { Upload, Scan } from 'lucide-react';
+import { BUILTIN_TEXTURES } from '../utils/builtinResources';
+import { Upload, Scan, Grid } from 'lucide-react';
 import { extractShaderIO, extractAllSignatures } from '../utils/glslParser';
 import { useTranslation } from 'react-i18next';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
@@ -380,11 +381,12 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
     const { t } = useTranslation();
     const [dimensions, setDimensions] = useState<{w: number, h: number} | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [showBuiltin, setShowBuiltin] = useState(false);
 
     // Load preview if value is an Asset ID
     useEffect(() => {
         if (typeof value === 'string') {
-            if (value.startsWith('asset://')) {
+            if (value.startsWith('asset://') || value.startsWith('builtin://')) {
                 assetManager.get(value).then(res => {
                     if (typeof res === 'string') setPreviewUrl(res);
                 });
@@ -425,7 +427,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
     };
     
     return (
-        <div className="flex flex-col gap-1 w-full">
+        <div className="flex flex-col gap-1 w-full relative">
             {previewUrl && (
                 <div className="relative w-full h-16 bg-black/50 rounded overflow-hidden border border-zinc-700 group flex items-center justify-center">
                     <img 
@@ -448,13 +450,46 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
                     )}
                 </div>
             )}
-            <label className="nodrag flex items-center justify-center w-full h-5 px-2 bg-zinc-800 border border-zinc-700 border-dashed rounded cursor-pointer hover:border-zinc-500 hover:bg-zinc-700 transition-colors">
-                <span className="flex items-center gap-1">
-                    <Upload size={10} className="text-zinc-400" />
-                    <span className="text-[9px] text-zinc-400">{t("Load Image")}</span>
-                </span>
-                <input type="file" className="nodrag hidden" accept="image/*" onChange={handleFileChange} />
-            </label>
+            <div className="flex gap-1">
+                <label className="nodrag flex-1 flex items-center justify-center h-5 px-2 bg-zinc-800 border border-zinc-700 border-dashed rounded cursor-pointer hover:border-zinc-500 hover:bg-zinc-700 transition-colors">
+                    <span className="flex items-center gap-1">
+                        <Upload size={10} className="text-zinc-400" />
+                        <span className="text-[9px] text-zinc-400">{t("Load Image")}</span>
+                    </span>
+                    <input type="file" className="nodrag hidden" accept="image/*" onChange={handleFileChange} />
+                </label>
+                <button 
+                    onClick={() => setShowBuiltin(!showBuiltin)}
+                    className={`nodrag px-2 h-5 rounded border transition-colors flex items-center justify-center ${showBuiltin ? 'bg-blue-900/50 border-blue-500 text-blue-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}
+                    title={t("Built-in Resources")}
+                >
+                    <Grid size={10} />
+                </button>
+            </div>
+
+            {showBuiltin && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-zinc-900 border border-zinc-700 rounded shadow-xl p-2 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="text-[9px] font-bold text-zinc-500 uppercase mb-2 px-1">{t("Built-in Textures")}</div>
+                    <div className="grid grid-cols-3 gap-1 max-h-[150px] overflow-y-auto custom-scrollbar">
+                        {BUILTIN_TEXTURES.map(res => (
+                            <button
+                                key={res.id}
+                                onClick={() => {
+                                    onChange(res.id);
+                                    setShowBuiltin(false);
+                                }}
+                                className="aspect-square bg-black/50 rounded border border-zinc-800 hover:border-blue-500 overflow-hidden relative group"
+                                title={res.label}
+                            >
+                                <img src={res.url} className="w-full h-full object-cover" alt={res.label} />
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <span className="text-[8px] text-white text-center px-1 leading-tight">{res.label}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

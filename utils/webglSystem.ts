@@ -188,7 +188,7 @@ class WebGLSystem {
         let id = typeof value === 'string' ? value : value.id;
         
         // Is it an asset reference?
-        if (typeof value === 'string' && value.startsWith('asset://')) {
+        if (typeof value === 'string' && (value.startsWith('asset://') || value.startsWith('builtin://'))) {
             const asset = assetManager.getSync(value);
             if (!asset) return null; // Asset not loaded yet
             

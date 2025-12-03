@@ -1,0 +1,33 @@
+{
+  "id": "PNG_REPAIR",
+  "label": "PNG Repair",
+  "category": "Utility",
+  "icon": "Image",
+  "description": "Multiplies RGB channels by Alpha channel (Premultiply Alpha). Useful for fixing artifacts in transparent PNGs.",
+  "locales": {
+    "zh": {
+      "PNG Repair": "PNG 修复 (预乘Alpha)",
+      "Input": "输入",
+      "Output": "输出",
+      "Red": "红 (R)",
+      "Green": "绿 (G)",
+      "Blue": "蓝 (B)",
+      "Alpha": "透明度 (A)"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 color, out vec4 result, out float r, out float g, out float b, out float a) {\n    vec4 p = vec4(color.rgb * color.a, color.a);\n    result = p;\n    r = p.r;\n    g = p.g;\n    b = p.b;\n    a = p.a;\n}\n\nvoid run(vec2 uv, sampler2D tex, out vec4 result, out float r, out float g, out float b, out float a) {\n    vec4 color = texture(tex, uv);\n    vec4 p = vec4(color.rgb * color.a, color.a);\n    result = p;\n    r = p.r;\n    g = p.g;\n    b = p.b;\n    a = p.a;\n}",
+    "autoType": true,
+    "inputs": [
+      { "id": "color", "name": "Input", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "vec4" },
+      { "id": "r", "name": "Red", "type": "float" },
+      { "id": "g", "name": "Green", "type": "float" },
+      { "id": "b", "name": "Blue", "type": "float" },
+      { "id": "a", "name": "Alpha", "type": "float" }
+    ]
+  }
+}
