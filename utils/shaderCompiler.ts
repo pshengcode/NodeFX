@@ -8,7 +8,7 @@ import { stripComments } from './glslParser';
 // Helper to sanitize types
 const sanitizeType = (type: string): GLSLType => {
   if (type === 'vec1') return 'float';
-  const validTypes = ['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D'];
+  const validTypes = ['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'vec2[]'];
   return validTypes.includes(type) ? (type as GLSLType) : 'float';
 };
 
@@ -22,6 +22,10 @@ const getDefaultGLSLValue = (type: GLSLType): string => {
     case 'vec3': return 'vec3(0.0)';
     case 'vec4': return 'vec4(0.0, 0.0, 0.0, 1.0)';
     case 'sampler2D': return 'u_empty_tex'; 
+    case 'vec2[]': {
+        const zeros = Array(16).fill('vec2(0.0)').join(', ');
+        return `vec2[16](${zeros})`;
+    }
     default: return '0.0';
   }
 };
@@ -30,6 +34,10 @@ const getUniformValue = (type: GLSLType, val: UniformValueType) => {
   if (type === 'vec3' && Array.isArray(val)) return new Float32Array(val);
   if (type === 'vec4' && Array.isArray(val)) return new Float32Array(val);
   if (type === 'vec2' && Array.isArray(val)) return new Float32Array(val);
+  if (type === 'vec2[]' && Array.isArray(val)) {
+      const flat = val.flat();
+      return new Float32Array(flat as number[]);
+  }
   return val;
 };
 
@@ -75,7 +83,13 @@ const generateFunctionSignature = (
 ): string => {
     const args = ['vec2 uv'];
     
-    inputs.forEach(i => args.push(`${i.type} ${i.id}`));
+    inputs.forEach(i => {
+        if (i.type === 'vec2[]') {
+            args.push(`vec2 ${i.id}[16]`);
+        } else {
+            args.push(`${i.type} ${i.id}`);
+        }
+    });
     outputs.forEach(o => args.push(`out ${o.type} ${o.id}`));
     
     return `void ${funcName}(${args.join(', ')})`;
@@ -487,7 +501,11 @@ uniform sampler2D u_empty_tex;
                  
                  if (globalUniforms[uniformName]) return;
 
-                 header += `uniform ${safeType} ${uniformName};\n`;
+                 if (safeType === 'vec2[]') {
+                     header += `uniform vec2 ${uniformName}[16];\n`;
+                 } else {
+                     header += `uniform ${safeType} ${uniformName};\n`;
+                 }
                  
                  let val = getUniformValue(safeType, uVal.value);
                  
@@ -501,7 +519,13 @@ uniform sampler2D u_empty_tex;
                         );
                     } else if (uVal.widget === 'curve' && uVal.widgetConfig?.curvePoints) {
                         const w = n.data.resolution?.w || 512;
-                        val = generateCurveTexture(uVal.widgetConfig.curvePoints, w);
+                        val = generateCurveTexture(
+                            uVal.widgetConfig.curvePoints, 
+                            w,
+                            uVal.widgetConfig.curvePointsR,
+                            uVal.widgetConfig.curvePointsG,
+                            uVal.widgetConfig.curvePointsB
+                        );
                     }
                  }
                  
@@ -511,7 +535,13 @@ uniform sampler2D u_empty_tex;
                      if (uVal.widget === 'gradient' && uVal.widgetConfig?.gradientStops) {
                          textureData = generateGradientTexture(uVal.widgetConfig.gradientStops, w, uVal.widgetConfig.alphaStops);
                      } else if (uVal.widget === 'curve' && uVal.widgetConfig?.curvePoints) {
-                         textureData = generateCurveTexture(uVal.widgetConfig.curvePoints, w);
+                         textureData = generateCurveTexture(
+                             uVal.widgetConfig.curvePoints, 
+                             w,
+                             uVal.widgetConfig.curvePointsR,
+                             uVal.widgetConfig.curvePointsG,
+                             uVal.widgetConfig.curvePointsB
+                         );
                      }
 
                      if (textureData) {

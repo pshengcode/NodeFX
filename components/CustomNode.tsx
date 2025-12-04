@@ -2,7 +2,7 @@ import React, { useState, useCallback, memo, useMemo, useRef, useEffect } from '
 import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps, useReactFlow, useEdges, useStore } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory } from '../types';
-import { Code, X, Settings2, Eye, AlertTriangle, ChevronDown, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers } from 'lucide-react';
 import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { getNodeDefinition } from '../nodes/registry';
 import { useProject } from '../context/ProjectContext';
+import ShaderPreview from './ShaderPreview';
 
 // --- NODE EDITOR MODAL ---
 const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (newData: Partial<NodeData>) => void, onClose: () => void }) => {
@@ -499,9 +500,10 @@ const SUPPORTED_WIDGETS: Partial<Record<GLSLType, WidgetMode[]>> = {
     float: ['default', 'slider', 'number', 'toggle', 'enum', 'hidden'],
     int: ['default', 'slider', 'number', 'toggle', 'enum', 'hidden'],
     vec2: ['default', 'pad', 'range', 'hidden'],
-    vec3: ['default', 'color', 'hidden'],
-    vec4: ['default', 'color', 'hidden'],
-    sampler2D: ['default', 'image', 'gradient', 'curve', 'hidden']
+    vec3: ['default', 'color', 'gradient', 'curve', 'hidden'],
+    vec4: ['default', 'color', 'gradient', 'curve', 'hidden'],
+    sampler2D: ['default', 'image', 'gradient', 'curve', 'hidden'],
+    'vec2[]': ['bezier_grid', 'hidden']
 };
 
 // --- UNIFORM CONTROL WRAPPER ---
@@ -513,7 +515,9 @@ const UniformControlWrapper = ({
     onUpdateConfig,
     isConnected,
     typeColor,
-    t
+    t,
+    compiledData,
+    definitionId
 }: { 
     input: NodeInput; 
     uniform: UniformVal; 
@@ -523,6 +527,8 @@ const UniformControlWrapper = ({
     isConnected: boolean;
     typeColor: string;
     t: (s: string) => string;
+    compiledData?: any;
+    definitionId?: string;
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const mode = uniform.widget || 'default';
@@ -666,6 +672,24 @@ const UniformControlWrapper = ({
                 </div>
              );
         }
+
+        if (type === 'vec2[]') {
+            if (mode === 'bezier_grid') {
+                return (
+                    <div className="w-full aspect-square relative border border-zinc-800 rounded overflow-hidden bg-black">
+                         <ShaderPreview 
+                            data={compiledData}
+                            className="w-full h-full"
+                            uniforms={allUniforms}
+                            onUpdateUniform={(k, v) => { if(k === input.id) onUpdateValue(v); }}
+                            activeUniformId={input.id}
+                            definitionId={definitionId}
+                        />
+                    </div>
+                );
+            }
+        }
+
         return <div className="text-[9px] text-red-500">{t("Unknown Type")}</div>;
     };
 
@@ -793,7 +817,7 @@ const UniformControlWrapper = ({
 // ... CustomNode implementation (Wrapper) ...
 const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { setNodes, deleteElements, setEdges, getNodes, getEdges } = useReactFlow();
-  const { enterGroup, addToLibrary } = useProject();
+  const { enterGroup, addToLibrary, compiledData } = useProject();
   const edges = useEdges(); 
   const { t: tGlobal } = useTranslation();
   
@@ -845,6 +869,17 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       })
     );
   }, [id, setNodes]);
+
+  const handleUpdateUniform = useCallback((key: string, value: any) => {
+      updateNodeData((curr) => {
+          const next = { ...curr.uniforms };
+          if (next[key]) {
+              next[key] = { ...next[key], value };
+              return { uniforms: next };
+          }
+          return {};
+      });
+  }, [updateNodeData]);
 
   const handleSelectSignature = useCallback((index: number) => {
       if (index < 0 || index >= signatures.length || index === currentSignatureIndex) return;
@@ -1055,6 +1090,12 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       ? 'bg-zinc-900/95 border-cyan-600/50 shadow-[0_0_15px_rgba(8,145,178,0.2)]'
       : 'bg-zinc-900';
 
+  // Check if we have an active Bezier Grid widget
+  const hasBezierGrid = useMemo(() => {
+      if (!data.uniforms) return false;
+      return Object.values(data.uniforms).some(u => u && u.widget === 'bezier_grid');
+  }, [data.uniforms]);
+
   return (
     <>
         <div className={`relative shadow-xl rounded-lg border transition-all duration-200 min-w-[280px] ${nodeBgClass} ${borderClass}`}>
@@ -1106,6 +1147,8 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                                 t={t}
                                 onUpdateValue={(val) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next['value'] = { ...next['value'], value: val }; return { uniforms: next }; })}
                                 onUpdateConfig={(widget, config) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next['value'] = { ...next['value'], widget, widgetConfig: config || next['value'].widgetConfig }; return { uniforms: next }; })}
+                                compiledData={compiledData}
+                                definitionId={data.definitionId}
                             />
                         </div>
                     </div>
@@ -1123,6 +1166,8 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                                     <UniformControlWrapper input={input} uniform={data.uniforms[input.id]} allUniforms={data.uniforms} isConnected={isConnected} typeColor={typeColor} t={t}
                                         onUpdateValue={(val) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next[input.id] = { ...next[input.id], value: val }; return { uniforms: next }; })}
                                         onUpdateConfig={(widget, config) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next[input.id] = { ...next[input.id], widget, widgetConfig: config || next[input.id].widgetConfig }; return { uniforms: next }; })}
+                                        compiledData={compiledData}
+                                        definitionId={data.definitionId}
                                     />
                                 ) : (
                                     <div className="flex items-center justify-between min-h-[16px]"><span className="text-xs font-medium" style={{ color: isConnected ? typeColor : '#a1a1aa' }}>{t(input.name)}</span>{isConnected && <span className="text-[9px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1 rounded">{tGlobal("LINKED")}</span>}</div>
@@ -1145,6 +1190,9 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 })}
             </div>
         </div>
+        
+
+
         {showCode && !isFloatingCode && (
             <div className="p-2 border-t border-zinc-800 bg-zinc-950 flex flex-col gap-2 animate-in slide-in-from-top-2">
                 <div className="flex items-center justify-between text-zinc-500 px-1"><span className="text-[10px] uppercase font-bold tracking-wider">{tGlobal("GLSL Source")}</span><button onClick={() => setIsFloatingCode(true)} className="p-1 hover:text-blue-400 hover:bg-zinc-800 rounded"><Maximize2 size={12}/></button></div>

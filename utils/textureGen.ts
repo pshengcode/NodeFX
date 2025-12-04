@@ -76,7 +76,7 @@ export const generateGradientTexture = (
       for(let i=0; i<width; i++) {
           const t = i / (width - 1);
           const alphaVal = getAlpha(t);
-          px[i*4 + 3] = Math.floor(alphaVal * 255);
+          px[i*4 + 3] = Math.round(alphaVal * 255);
       }
   }
 
@@ -87,55 +87,79 @@ export const generateGradientTexture = (
     data,
     width,
     height,
-    id: generateId('grad', width, { stops, alphaStops })
+    id: generateId('grad', width, { stops, alphaStops }),
+    wrapClamp: true
   };
 };
 
-export const generateCurveTexture = (points: Array<{ x: number; y: number }>, width: number = 512): RawTextureData => {
+export const generateCurveTexture = (
+  points: Array<{ x: number; y: number }>, 
+  width: number = 512,
+  pointsR?: Array<{ x: number; y: number }>,
+  pointsG?: Array<{ x: number; y: number }>,
+  pointsB?: Array<{ x: number; y: number }>
+): RawTextureData => {
   const height = 1;
   const data = new Uint8ClampedArray(width * height * 4);
   
-  const sorted = [...points].sort((a, b) => a.x - b.x);
-  
-  if (sorted.length === 0) {
-     return { isRaw: true, data, width, height, id: generateId('curve', width, points) };
-  }
+  // Helper for curve interpolation
+  const getValue = (pts: Array<{ x: number; y: number }>, t: number) => {
+      if (!pts || pts.length === 0) return t; // Default to identity if missing
+      
+      // Sort if needed (though we expect them sorted from UI)
+      // We assume sorted for performance in this tight loop, or we sort once outside.
+      // Let's do a simple linear scan as N is small.
+      
+      // Handle boundaries
+      if (t <= pts[0].x) return pts[0].y;
+      if (t >= pts[pts.length-1].x) return pts[pts.length-1].y;
+      
+      // Find segment
+      for (let i = 0; i < pts.length - 1; i++) {
+          if (t >= pts[i].x && t < pts[i+1].x) {
+              const p0 = pts[i];
+              const p1 = pts[i+1];
+              const range = p1.x - p0.x;
+              if (range === 0) return p0.y;
+              const ratio = (t - p0.x) / range;
+              return p0.y + (p1.y - p0.y) * ratio;
+          }
+      }
+      return pts[pts.length-1].y;
+  };
 
-  // Clamp start/end
-  const fullPoints = [...sorted];
-  if (fullPoints[0].x > 0) fullPoints.unshift({ x: 0, y: fullPoints[0].y });
-  if (fullPoints[fullPoints.length - 1].x < 1) fullPoints.push({ x: 1, y: fullPoints[fullPoints.length - 1].y });
+  // Prepare points (sort and clamp)
+  const prepare = (pts?: Array<{ x: number; y: number }>) => {
+      if (!pts) return null;
+      const sorted = [...pts].sort((a, b) => a.x - b.x);
+      if (sorted.length === 0) return null;
+      if (sorted[0].x > 0) sorted.unshift({ x: 0, y: sorted[0].y });
+      if (sorted[sorted.length - 1].x < 1) sorted.push({ x: 1, y: sorted[sorted.length - 1].y });
+      return sorted;
+  };
 
-  let pIndex = 0;
-  
+  const masterPts = prepare(points);
+  const rPts = prepare(pointsR);
+  const gPts = prepare(pointsG);
+  const bPts = prepare(pointsB);
+
   for (let i = 0; i < width; i++) {
       const t = i / (width - 1);
       
-      // Find segment
-      while (pIndex < fullPoints.length - 1 && fullPoints[pIndex + 1].x < t) {
-          pIndex++;
-      }
+      // 1. Apply Master Curve
+      const tm = masterPts ? getValue(masterPts, t) : t;
       
-      const p0 = fullPoints[pIndex];
-      const p1 = fullPoints[pIndex + 1] || p0;
-      
-      let val = p0.y;
-      if (p1.x > p0.x) {
-          const range = p1.x - p0.x;
-          const dist = t - p0.x;
-          const ratio = dist / range;
-          // Linear interpolation
-          val = p0.y + (p1.y - p0.y) * ratio;
-      }
-      
-      val = Math.max(0, Math.min(1, val));
-      const byteVal = Math.floor(val * 255);
+      // 2. Apply Channel Curves (or identity if not present)
+      // If channel curve is missing, it maps tm -> tm (identity)
+      const r = rPts ? getValue(rPts, tm) : tm;
+      const g = gPts ? getValue(gPts, tm) : tm;
+      const b = bPts ? getValue(bPts, tm) : tm;
       
       const idx = i * 4;
-      data[idx] = byteVal;     // R
-      data[idx + 1] = byteVal; // G
-      data[idx + 2] = byteVal; // B
-      data[idx + 3] = 255;     // A
+      data[idx] = Math.round(Math.max(0, Math.min(1, r)) * 255);
+      data[idx + 1] = Math.round(Math.max(0, Math.min(1, g)) * 255);
+      data[idx + 2] = Math.round(Math.max(0, Math.min(1, b)) * 255);
+      data[idx + 3] = 255;
   }
 
   return {
@@ -143,6 +167,7 @@ export const generateCurveTexture = (points: Array<{ x: number; y: number }>, wi
     data,
     width,
     height,
-    id: generateId('curve', width, points)
+    id: generateId('curve', width, { points, pointsR, pointsG, pointsB }),
+    wrapClamp: true
   };
 };

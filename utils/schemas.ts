@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
 // Basic Types
-export const GLSLTypeSchema = z.enum(['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'bool']);
+export const GLSLTypeSchema = z.enum(['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'bool', 'vec2[]']);
 
 export const WidgetModeSchema = z.enum([
     'default', 'slider', 'number', 'angle', 'pad', 'color', 
-    'curve', 'gradient', 'image', 'toggle', 'enum', 'range', 'hidden'
+    'curve', 'gradient', 'image', 'toggle', 'enum', 'range', 'bezier_grid', 'hidden'
 ]);
 
 export const NodeCategorySchema = z.enum([
@@ -52,6 +52,7 @@ export const WidgetConfigSchema = z.object({
 export const UniformValueSchema = z.union([
     z.number(),
     z.array(z.number()),
+    z.array(z.array(z.number())), // Support for vec2[] (array of arrays)
     z.string(),
     z.null()
 ]);

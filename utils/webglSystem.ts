@@ -1,5 +1,5 @@
 
-import { CompilationResult, GLSLType, RawTextureData } from '../types';
+import { CompilationResult, GLSLType, RawTextureData, UniformVal } from '../types';
 import { assetManager } from './assetManager';
 
 // Shared Shaders
@@ -235,8 +235,9 @@ class WebGLSystem {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         }
 
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        const wrap = (typeof value !== 'string' && value.wrapClamp) ? gl.CLAMP_TO_EDGE : gl.REPEAT;
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
 
         this.textureCache.set(id, tex);
         return tex;
@@ -251,7 +252,8 @@ class WebGLSystem {
         onError?: (passId: string, err: string) => void,
         tiling: boolean = false,
         zoom: number = 1.0,
-        pan: { x: number, y: number } = { x: 0, y: 0 }
+        pan: { x: number, y: number } = { x: 0, y: 0 },
+        uniformOverrides?: Record<string, UniformVal>
     ) {
         if (!data || data.error || !this.displayProgram) return;
 
@@ -290,6 +292,11 @@ class WebGLSystem {
                     const info = gl.getActiveUniform(prog, i);
                     if (info) {
                         uniformCache.set(info.name, gl.getUniformLocation(prog, info.name));
+                        // Handle array names: "u_offsets[0]" -> "u_offsets"
+                        if (info.name.endsWith('[0]')) {
+                            const baseName = info.name.slice(0, -3);
+                            uniformCache.set(baseName, gl.getUniformLocation(prog, info.name));
+                        }
                     }
                 }
 
@@ -354,7 +361,27 @@ class WebGLSystem {
                 // Use cached location instead of getUniformLocation
                 const loc = uniforms.get(name) || null;
                 if (loc) {
-                    const u = val as { type: GLSLType; value: any };
+                    let u = val as { type: GLSLType; value: any };
+                    
+                    // Apply Overrides if available (match by uniform name suffix)
+                    // pass.uniforms keys are like "u_nodeId_uniformId"
+                    // uniformOverrides keys are like "uniformId" (but we don't know nodeId easily here)
+                    // Actually, uniformOverrides passed from ShaderPreview are raw node uniforms: { "u_offsets": { ... } }
+                    // But the shader uses "u_grid_warp_1_u_offsets".
+                    // We need a way to map them.
+                    // However, for the PREVIEW node (which is the one being dragged), its uniforms are usually direct?
+                    // No, shaderCompiler renames everything.
+                    
+                    // Simple heuristic: check if name ends with `_${overrideKey}`
+                    if (uniformOverrides) {
+                        for (const [key, overrideVal] of Object.entries(uniformOverrides)) {
+                            if (name.endsWith(`_${key}`)) {
+                                u = { type: overrideVal.type, value: overrideVal.value };
+                                break;
+                            }
+                        }
+                    }
+
                     if (u.type === 'sampler2D' && u.value) {
                         const tex = this.getTexture(u.value);
                         if (tex) {
@@ -373,6 +400,14 @@ class WebGLSystem {
                     else if (u.type === 'vec3') gl.uniform3fv(loc, u.value);
                     else if (u.type === 'vec4') gl.uniform4fv(loc, u.value);
                     else if (u.type === 'int') gl.uniform1i(loc, u.value);
+                    else if (u.type === 'vec2[]') {
+                        // Flatten array of arrays or use Float32Array directly
+                        let data = u.value;
+                        if (Array.isArray(data) && Array.isArray(data[0])) {
+                            data = new Float32Array(data.flat());
+                        }
+                        gl.uniform2fv(loc, data);
+                    }
                 }
             });
 

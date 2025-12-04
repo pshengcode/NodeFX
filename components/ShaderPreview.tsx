@@ -1,7 +1,7 @@
 
-import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
-import { CompilationResult } from '../types';
-import { AlertCircle, Grid, Maximize, RotateCcw, Code, X, Copy, Check } from 'lucide-react';
+import React, { useRef, useEffect, useImperativeHandle, forwardRef, useState, useMemo } from 'react';
+import { CompilationResult, UniformVal } from '../types';
+import { Grid, RotateCcw, Code, X, Copy, Check } from 'lucide-react';
 import { webglSystem } from '../utils/webglSystem';
 import { assetManager } from '../utils/assetManager';
 import { useTranslation } from 'react-i18next';
@@ -13,11 +13,15 @@ interface Props {
   width?: number;
   height?: number;
   onNodeError?: (nodeId: string, error: string | null) => void;
+  uniforms?: Record<string, UniformVal>;
+  onUpdateUniform?: (key: string, value: any) => void;
+  definitionId?: string;
+  activeUniformId?: string;
 }
 
 type ChannelMode = 0 | 1 | 2 | 3 | 4; // RGBA, R, G, B, A
 
-const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, paused, width, height, onNodeError }, ref) => {
+const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, paused, width, height, onNodeError, uniforms, onUpdateUniform, definitionId, activeUniformId }, ref) => {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,9 +36,42 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   const [lastError, setLastError] = useState<string | null>(null);
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  const [draggedPoint, setDraggedPoint] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // Find the uniform that uses the 'bezier_grid' widget
+  const gridUniformKey = useMemo(() => {
+      if (activeUniformId) return activeUniformId;
+      if (!uniforms) return null;
+      return Object.keys(uniforms).find(k => uniforms[k].widget === 'bezier_grid') || null;
+  }, [uniforms, activeUniformId]);
+
+  // Helper to get grid size from array length
+  const getGridSize = (offsets: any[]) => {
+      if (!Array.isArray(offsets) || offsets.length === 0) return 4;
+      const size = Math.sqrt(offsets.length);
+      return Number.isInteger(size) ? size : 4;
+  };
 
   // Expose canvas ref
   useImperativeHandle(ref, () => canvasRef.current as HTMLCanvasElement);
+
+  // Track container size for accurate grid overlay
+  useEffect(() => {
+      if (!containerRef.current) return;
+      const observer = new ResizeObserver(entries => {
+          for (let entry of entries) {
+              setDimensions({
+                  width: Math.floor(entry.contentRect.width),
+                  height: Math.floor(entry.contentRect.height)
+              });
+          }
+      });
+      observer.observe(containerRef.current);
+      return () => observer.disconnect();
+  }, []);
 
   // Preload Assets
   useEffect(() => {
@@ -52,8 +89,9 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   useEffect(() => {
       const render = () => {
           if (!paused && canvasRef.current && data && !data.error) {
-             const w = width || canvasRef.current.clientWidth || 512;
-             const h = height || canvasRef.current.clientHeight || 512;
+             // Use prop width/height if provided (fixed resolution), otherwise use container dimensions
+             const w = width || dimensions.width || canvasRef.current.clientWidth || 512;
+             const h = height || dimensions.height || canvasRef.current.clientHeight || 512;
              
              let hasRenderError = false;
 
@@ -74,12 +112,11 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
                  },
                  tiling,
                  zoom,
-                 pan
+                 pan,
+                 uniforms // Pass current uniforms override
              );
              
              // LOOP FIX: Only clear the error if the current frame rendered SUCCESSFULLY.
-             // Previously this cleared error solely based on valid compiled data, which caused
-             // a loop if the runtime WebGL error persisted.
              if (!hasRenderError && lastError && !data.error) {
                  setLastError(null);
                  if (onNodeError) onNodeError("CLEAR_ALL", null);
@@ -125,6 +162,7 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+      if (draggedPoint !== null) return; // Don't pan if dragging point
       if (e.button === 0 || e.button === 1) { // Left or Middle click
           setIsDragging(true);
           setLastMousePos({ x: e.clientX, y: e.clientY });
@@ -133,16 +171,68 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-      if (isDragging) {
+      if (draggedPoint !== null && uniforms && onUpdateUniform && gridUniformKey) {
+          // Handle Grid Point Drag
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          
+          // Use actual displayed size for interaction mapping
+          // MUST match the dimensions used in gridPoints calculation to avoid drift
+          const w = dimensions.width || rect.width;
+          const h = dimensions.height || rect.height;
+          
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          
+          // Apply drag offset to maintain relative position
+          const adjustedMx = mx - dragOffset.x;
+          const adjustedMy = my - dragOffset.y;
+          
+          // Convert Screen to UV
+          // Inverse of: sx = ((uv.x + pan.x/w - 0.5) * zoom + 0.5) * w
+          // sx/w = (uv.x + pan.x/w - 0.5) * zoom + 0.5
+          // (sx/w - 0.5) / zoom = uv.x + pan.x/w - 0.5
+          // uv.x = (sx/w - 0.5) / zoom + 0.5 - pan.x/w
+          
+          const nx = adjustedMx / w;
+          const ny = 1.0 - adjustedMy / h; // Flip Y
+          
+          const uvX = (nx - 0.5) / zoom + 0.5 - pan.x / w;
+          const uvY = (ny - 0.5) / zoom + 0.5 + pan.y / h; // pan.y is inverted in shader
+          
+          // Update Uniform
+          const currentOffsets = [...(uniforms[gridUniformKey]?.value as number[][] || [])];
+          const gridSize = getGridSize(currentOffsets);
+          const totalPoints = gridSize * gridSize;
+
+          // Ensure array exists and has correct length
+          while(currentOffsets.length < totalPoints) currentOffsets.push([0,0]);
+
+          // Calculate Offset
+          const row = Math.floor(draggedPoint / gridSize);
+          const col = draggedPoint % gridSize;
+          const defaultU = col / (gridSize - 1);
+          const defaultV = row / (gridSize - 1);
+          
+          const offsetX = uvX - defaultU;
+          const offsetY = uvY - defaultV;
+          
+          currentOffsets[draggedPoint] = [offsetX, offsetY];
+          onUpdateUniform(gridUniformKey, currentOffsets);
+          
+      } else if (isDragging) {
           const dx = e.clientX - lastMousePos.x;
           const dy = e.clientY - lastMousePos.y;
-          setPan(p => ({ x: p.x + dx, y: p.y + dy }));
+          // Adjust pan by zoom level to ensure 1:1 mouse movement
+          setPan(p => ({ x: p.x + dx / zoom, y: p.y + dy / zoom }));
           setLastMousePos({ x: e.clientX, y: e.clientY });
       }
   };
 
   const handleMouseUp = () => {
       setIsDragging(false);
+      setDraggedPoint(null);
+      setDragOffset({ x: 0, y: 0 });
   };
 
   const resetView = () => {
@@ -150,10 +240,47 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       setPan({ x: 0, y: 0 });
   };
 
+  // Grid Warp Overlay Calculation
+  const gridPoints = useMemo(() => {
+      if (!gridUniformKey || !uniforms) return null;
+      
+      // Use tracked dimensions for overlay positioning
+      const w = dimensions.width || width || 512;
+      const h = dimensions.height || height || 512;
+      
+      const offsets = uniforms[gridUniformKey]?.value as number[][] || [];
+      const gridSize = getGridSize(offsets);
+      const totalPoints = gridSize * gridSize;
+
+      const points = [];
+      
+      for(let i=0; i<totalPoints; i++) {
+          const offset = offsets[i] || [0,0];
+          const row = Math.floor(i / gridSize);
+          const col = i % gridSize;
+          const defaultU = col / (gridSize - 1);
+          const defaultV = row / (gridSize - 1);
+          
+          const u = defaultU + (Array.isArray(offset) ? offset[0] : 0);
+          const v = defaultV + (Array.isArray(offset) ? offset[1] : 0);
+
+          // Screen Pos
+          const baseX = (u + pan.x/w - 0.5) * zoom + 0.5;
+          const baseY = (v - pan.y/h - 0.5) * zoom + 0.5;
+          
+          points.push({
+              x: baseX * w,
+              y: (1.0 - baseY) * h,
+              i
+          });
+      }
+      return { points, gridSize };
+  }, [gridUniformKey, uniforms, width, height, zoom, pan, dimensions]);
+
   return (
     <div 
         ref={containerRef}
-        className={`relative group overflow-hidden ${className} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`} 
+        className={`relative group overflow-hidden ${className} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} nodrag`} 
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -185,11 +312,89 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
           
           <canvas 
             ref={canvasRef} 
-            className="w-full h-full block relative z-10 pointer-events-none"
+            className="absolute inset-0 w-full h-full block z-10 pointer-events-none"
           />
+          
+          {/* Grid Warp Overlay */}
+          {gridPoints && (
+              <svg className="absolute inset-0 w-full h-full z-30 pointer-events-none overflow-visible">
+                  {(() => {
+                      const { points, gridSize } = gridPoints;
+                      const range = Array.from({length: gridSize}, (_, i) => i);
+                      
+                      const renderLine = (pts: any[], key: string) => {
+                          // Linear Path (Control Polygon)
+                          const dLinear = `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')}`;
+                          
+                          // Smooth Path (Bezier)
+                          let dSmooth = '';
+                          if (gridSize === 4) {
+                              // Cubic Bezier: M p0 C p1 p2 p3
+                              dSmooth = `M ${pts[0].x},${pts[0].y} C ${pts[1].x},${pts[1].y} ${pts[2].x},${pts[2].y} ${pts[3].x},${pts[3].y}`;
+                          } else if (gridSize === 3) {
+                              // Quadratic Bezier: M p0 Q p1 p2
+                              dSmooth = `M ${pts[0].x},${pts[0].y} Q ${pts[1].x},${pts[1].y} ${pts[2].x},${pts[2].y}`;
+                          } else {
+                              // Fallback: Linear
+                              dSmooth = dLinear;
+                          }
+
+                          return (
+                              <g key={key}>
+                                  <path d={dLinear} stroke="rgba(6, 182, 212, 0.2)" strokeWidth="1" fill="none" />
+                                  <path d={dSmooth} stroke="rgba(6, 182, 212, 0.6)" strokeWidth="1.5" fill="none" />
+                              </g>
+                          );
+                      };
+
+                      return (
+                          <>
+                              {/* Horizontal Lines */}
+                              {range.map(row => {
+                                  const rowPoints = [];
+                                  for(let c=0; c<gridSize; c++) rowPoints.push(points[row*gridSize + c]);
+                                  return renderLine(rowPoints, `h-${row}`);
+                              })}
+                              
+                              {/* Vertical Lines */}
+                              {range.map(col => {
+                                  const colPoints = [];
+                                  for(let r=0; r<gridSize; r++) colPoints.push(points[r*gridSize + col]);
+                                  return renderLine(colPoints, `v-${col}`);
+                              })}
+                              
+                              {/* Control Points */}
+                              {points.map(p => (
+                                  <circle 
+                                    key={p.i} 
+                                    cx={p.x} 
+                                    cy={p.y} 
+                                    r={4} 
+                                    className={`pointer-events-auto cursor-move hover:fill-cyan-300 transition-colors ${draggedPoint === p.i ? 'fill-cyan-400 stroke-white' : 'fill-cyan-500 stroke-black'}`}
+                                    strokeWidth="1"
+                                    onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        const rect = containerRef.current?.getBoundingClientRect();
+                                        if (!rect) return;
+                                        
+                                        const mx = e.clientX - rect.left;
+                                        const my = e.clientY - rect.top;
+                                        
+                                        // Calculate offset from mouse to point center
+                                        setDragOffset({ x: mx - p.x, y: my - p.y });
+                                        setDraggedPoint(p.i);
+                                    }}
+                                  />
+                              ))}
+                          </>
+                      );
+                  })()}
+              </svg>
+          )}
       </div>
 
       {/* OVERLAY CONTROLS */}
+      {!gridPoints && (
       <div className="absolute top-2 right-2 flex flex-col gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity items-end">
           {/* Channel Selector */}
           <div className="flex bg-zinc-800/90 rounded border border-zinc-700 p-0.5 backdrop-blur-sm shadow-lg">
@@ -238,10 +443,13 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
              </button>
           </div>
       </div>
+      )}
 
+      {!gridPoints && (
       <button onClick={handleDownload} className="absolute bottom-4 right-4 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity border border-zinc-600 z-20 shadow-lg">
         {t("Save Image")}
       </button>
+      )}
 
       {/* Code View Modal */}
       {showCode && data && (

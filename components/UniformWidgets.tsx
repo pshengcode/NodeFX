@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Upload, X, Settings, MousePointer2, Scan, ChevronUp, ChevronDown } from 'lucide-react';
+import { Upload, X, Settings, MousePointer2, Scan, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { WidgetConfig } from '../types';
 import { generateGradientTexture } from '../utils/textureGen';
 import { useTranslation } from 'react-i18next';
@@ -781,13 +781,28 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
     onConfigChange: (cfg: WidgetConfig) => void 
 }) => {
     const { t } = useTranslation();
-    const points = config.curvePoints || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+    const [activeChannel, setActiveChannel] = useState<'master'|'r'|'g'|'b'>('master');
+    
+    const getPoints = (channel: string) => {
+        if (channel === 'r') return config.curvePointsR || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+        if (channel === 'g') return config.curvePointsG || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+        if (channel === 'b') return config.curvePointsB || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+        return config.curvePoints || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+    };
+
+    const points = getPoints(activeChannel);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [hoverIndex, setHoverIndex] = useState<number>(-1);
 
     const update = (newPoints: typeof points) => {
-        onConfigChange({ ...config, curvePoints: newPoints });
+        const updateObj: Partial<WidgetConfig> = {};
+        if (activeChannel === 'r') updateObj.curvePointsR = newPoints;
+        else if (activeChannel === 'g') updateObj.curvePointsG = newPoints;
+        else if (activeChannel === 'b') updateObj.curvePointsB = newPoints;
+        else updateObj.curvePoints = newPoints;
+        
+        onConfigChange({ ...config, ...updateObj });
     };
 
     useEffect(() => {
@@ -919,54 +934,97 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
         ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h);
         ctx.stroke();
 
-        // Draw Curve
-        const sorted = [...points].sort((a, b) => a.x - b.x);
+        // Helper to draw a curve
+        const drawCurve = (pts: typeof points, color: string, width: number, dashed = false) => {
+            const sorted = [...pts].sort((a, b) => a.x - b.x);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            if (dashed) ctx.setLineDash([2, 4]);
+            else ctx.setLineDash([]);
+            
+            ctx.beginPath();
+            if (sorted.length > 0) {
+                ctx.moveTo(0, h - sorted[0].y * h);
+                sorted.forEach(p => {
+                    ctx.lineTo(p.x * w, h - p.y * h);
+                });
+                const last = sorted[sorted.length - 1];
+                ctx.lineTo(w, h - last.y * h);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        };
+
+        // Draw Inactive Curves Faintly
+        if (activeChannel !== 'master') drawCurve(getPoints('master'), '#555', 1, true);
+        if (activeChannel !== 'r') drawCurve(getPoints('r'), '#522', 1);
+        if (activeChannel !== 'g') drawCurve(getPoints('g'), '#252', 1);
+        if (activeChannel !== 'b') drawCurve(getPoints('b'), '#225', 1);
+
+        // Draw Active Curve
+        let activeColor = '#fff';
+        if (activeChannel === 'r') activeColor = '#ef4444';
+        if (activeChannel === 'g') activeColor = '#22c55e';
+        if (activeChannel === 'b') activeColor = '#3b82f6';
         
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        
-        if (sorted.length > 0) {
-            ctx.moveTo(0, h - sorted[0].y * h);
-            sorted.forEach(p => {
-                ctx.lineTo(p.x * w, h - p.y * h);
-            });
-            const last = sorted[sorted.length - 1];
-            ctx.lineTo(w, h - last.y * h);
-        }
-        ctx.stroke();
+        drawCurve(points, activeColor, 2);
 
         // Draw Points
         points.forEach((p, i) => {
             const isHover = i === hoverIndex;
             const r = isHover ? 6 : 4;
             
-            ctx.fillStyle = isHover ? '#60a5fa' : '#fff';
+            ctx.fillStyle = isHover ? activeColor : '#18181b';
             ctx.beginPath();
             ctx.arc(p.x * w, h - p.y * h, r, 0, Math.PI * 2);
             ctx.fill();
             
-            ctx.strokeStyle = isHover ? '#fff' : '#000';
+            ctx.strokeStyle = activeColor;
             ctx.lineWidth = isHover ? 2 : 1;
             ctx.stroke();
         });
 
-    }, [points, hoverIndex]);
+    }, [points, hoverIndex, activeChannel, config]);
 
     return (
-        <div 
-            ref={containerRef}
-            className="nodrag w-full h-24 bg-zinc-900 border border-zinc-700 rounded cursor-crosshair relative group select-none"
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onDoubleClick={onDoubleClick}
-            onMouseLeave={() => setHoverIndex(-1)}
-            onContextMenu={(e) => { e.preventDefault(); }}
-        >
-             <canvas ref={canvasRef} width={250} height={100} className="w-full h-full block pointer-events-none" />
-             <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-[8px] bg-black/50 px-1 rounded pointer-events-none text-zinc-400 border border-zinc-800">
-                 {t("Double-click to Del")}
-             </div>
+        <div className="flex flex-col gap-1 w-full">
+            <div className="flex gap-1">
+                {[
+                    { id: 'master', label: 'RGB', color: 'text-zinc-200' },
+                    { id: 'r', label: 'R', color: 'text-red-400' },
+                    { id: 'g', label: 'G', color: 'text-green-400' },
+                    { id: 'b', label: 'B', color: 'text-blue-400' }
+                ].map(c => (
+                    <button 
+                        key={c.id}
+                        onClick={() => setActiveChannel(c.id as any)}
+                        className={`flex-1 py-0.5 text-[9px] font-bold uppercase rounded border transition-colors ${activeChannel === c.id ? 'bg-zinc-700 border-zinc-500' : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800'} ${c.color}`}
+                    >
+                        {c.label}
+                    </button>
+                ))}
+                <button 
+                    onClick={() => update([{ x: 0, y: 0 }, { x: 1, y: 1 }])}
+                    className="px-2 py-0.5 rounded border bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                    title={t("Reset Channel")}
+                >
+                    <RotateCcw size={10} />
+                </button>
+            </div>
+            <div 
+                ref={containerRef}
+                className="nodrag w-full h-24 bg-zinc-900 border border-zinc-700 rounded cursor-crosshair relative group select-none"
+                onMouseDown={onMouseDown}
+                onMouseMove={onMouseMove}
+                onDoubleClick={onDoubleClick}
+                onMouseLeave={() => setHoverIndex(-1)}
+                onContextMenu={(e) => { e.preventDefault(); }}
+            >
+                 <canvas ref={canvasRef} width={250} height={100} className="w-full h-full block pointer-events-none" />
+                 <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-[8px] bg-black/50 px-1 rounded pointer-events-none text-zinc-400 border border-zinc-800">
+                     {t("Double-click to Del")}
+                 </div>
+            </div>
         </div>
     );
 };

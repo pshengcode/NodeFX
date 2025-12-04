@@ -1,4 +1,4 @@
-export type GLSLType = 'float' | 'int' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D';
+export type GLSLType = 'float' | 'int' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D' | 'vec2[]';
 
 export type WidgetMode = 
   | 'default' 
@@ -13,6 +13,7 @@ export type WidgetMode =
   | 'toggle' // Checkbox 0/1
   | 'enum'   // Dropdown Select
   | 'range'  // Vec2 Min/Max Slider
+  | 'bezier_grid' // 4x4 Bezier Grid Editor
   | 'hidden'; // Hides the UI widget
 
 export interface WidgetConfig {
@@ -27,6 +28,9 @@ export interface WidgetConfig {
   gradientStops?: Array<{ pos: number; color: string }>;
   alphaStops?: Array<{ pos: number; value: number }>;
   curvePoints?: Array<{ x: number; y: number }>;
+  curvePointsR?: Array<{ x: number; y: number }>;
+  curvePointsG?: Array<{ x: number; y: number }>;
+  curvePointsB?: Array<{ x: number; y: number }>;
   // Configuration for Enum options
   enumOptions?: Array<{ label: string; value: number }>;
   
@@ -44,6 +48,7 @@ export interface RawTextureData {
   width: number;
   height: number;
   id: string; // Unique hash for caching
+  wrapClamp?: boolean; // If true, use CLAMP_TO_EDGE
 }
 
 export type UniformValueType = number | number[] | Float32Array | string | RawTextureData | null;

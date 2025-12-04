@@ -1,0 +1,36 @@
+{
+  "id": "TINT",
+  "label": "Tint",
+  "category": "Color",
+  "description": "Multiplies the input image with a specific color.",
+  "locales": {
+    "zh": {
+      "Tint": "染色 (Tint)",
+      "Color": "颜色"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 inputColor, vec4 tintColor, out vec4 result) {\n    result = inputColor * tintColor;\n}",
+    "inputs": [
+      {
+        "id": "inputColor",
+        "name": "Input",
+        "type": "vec4"
+      },
+      {
+        "id": "tintColor",
+        "name": "Color",
+        "type": "vec4"
+      }
+    ],
+    "uniforms": {
+      "tintColor": {
+        "type": "vec4",
+        "value": [1.0, 1.0, 1.0, 1.0],
+        "widget": "color",
+        "label": "Color"
+      }
+    },
+    "outputType": "vec4"
+  }
+}

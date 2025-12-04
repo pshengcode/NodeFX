@@ -1,0 +1,108 @@
+{
+  "id": "grid_warp",
+  "label": "Grid Warp",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "Grid Warp": "网格扭曲",
+      "Input": "输入",
+      "Offsets": "偏移",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "// Cubic Bezier Basis Functions\nfloat B0(float t) { return (1.0-t)*(1.0-t)*(1.0-t); }\nfloat B1(float t) { return 3.0*(1.0-t)*(1.0-t)*t; }\nfloat B2(float t) { return 3.0*(1.0-t)*t*t; }\nfloat B3(float t) { return t*t*t; }\n\nvec2 getBezierOffset(vec2 uv, vec2 offsets[16]) {\n    // Calculate basis functions for U and V\n    float bu0 = B0(uv.x); float bu1 = B1(uv.x); float bu2 = B2(uv.x); float bu3 = B3(uv.x);\n    float bv0 = B0(uv.y); float bv1 = B1(uv.y); float bv2 = B2(uv.y); float bv3 = B3(uv.y);\n    \n    // Interpolate rows first\n    vec2 r0 = offsets[0]*bu0 + offsets[1]*bu1 + offsets[2]*bu2 + offsets[3]*bu3;\n    vec2 r1 = offsets[4]*bu0 + offsets[5]*bu1 + offsets[6]*bu2 + offsets[7]*bu3;\n    vec2 r2 = offsets[8]*bu0 + offsets[9]*bu1 + offsets[10]*bu2 + offsets[11]*bu3;\n    vec2 r3 = offsets[12]*bu0 + offsets[13]*bu1 + offsets[14]*bu2 + offsets[15]*bu3;\n    \n    // Interpolate columns\n    return r0*bv0 + r1*bv1 + r2*bv2 + r3*bv3;\n}\n\nvoid run(vec2 uv, sampler2D input_tex, vec2 u_offsets[16], out vec4 result) {\n    vec2 offset = getBezierOffset(uv, u_offsets);\n    result = texture(input_tex, uv - offset);\n}",
+    "inputs": [
+      {
+        "id": "input_tex",
+        "name": "Input",
+        "type": "sampler2D"
+      },
+      {
+        "id": "u_offsets",
+        "name": "Offsets",
+        "type": "vec2[]"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "result",
+        "name": "Output",
+        "type": "vec4"
+      }
+    ],
+    "uniforms": {
+      "u_offsets": {
+        "type": "vec2[]",
+        "value": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "widget": "bezier_grid"
+      }
+    },
+    "outputType": "vec4"
+  }
+}

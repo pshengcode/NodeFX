@@ -1,0 +1,38 @@
+{
+  "id": "curves",
+  "label": "Curves",
+  "category": "Color",
+  "description": "Adjust color channels using curves",
+  "locales": {
+    "zh": {
+      "Curves": "曲线调整",
+      "Color": "颜色",
+      "Curve": "曲线",
+      "Result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec4 color, sampler2D curve, out vec4 result) {\n    // Sample the curve texture for each channel independently\n    // The texture contains pre-calculated curve values: R channel holds R-curve, etc.\n    float r = texture(curve, vec2(color.r, 0.5)).r;\n    float g = texture(curve, vec2(color.g, 0.5)).g;\n    float b = texture(curve, vec2(color.b, 0.5)).b;\n    \n    result = vec4(r, g, b, color.a);\n}",
+    "inputs": [
+      { "id": "color", "name": "Color", "type": "vec4" },
+      { "id": "curve", "name": "Curve", "type": "sampler2D" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "curve": {
+        "type": "sampler2D",
+        "value": null,
+        "widget": "curve",
+        "widgetConfig": {
+          "curvePoints": [
+            { "x": 0, "y": 0 },
+            { "x": 1, "y": 1 }
+          ]
+        }
+      }
+    },
+    "outputType": "vec4"
+  }
+}

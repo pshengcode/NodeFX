@@ -1,0 +1,35 @@
+{
+  "id": "GRID_TIME",
+  "label": "Grid Time (Sprite Sheet)",
+  "category": "Utility",
+  "description": "Generates tiled UVs and time offsets for creating sprite sheets.",
+  "locales": {
+    "zh": {
+      "Grid Time (Sprite Sheet)": "序列帧网格 (Grid Time)",
+      "Rows": "行数",
+      "Cols": "列数",
+      "Duration": "总时长",
+      "Tiled UV": "网格 UV",
+      "Time": "时间偏移"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec2 uv_in, float rows, float cols, float duration, out vec2 tiled_uv, out float time_offset) {\n    vec2 p = (uv_in == vec2(0.0)) ? uv : uv_in;\n    // Invert Y for top-to-bottom reading order\n    vec2 cell = floor(p * vec2(cols, rows));\n    // Calculate index: Left->Right, Top->Bottom\n    // UV (0,0) is Bottom-Left in GLSL usually, so Top is y=1\n    // Row 0 is Top. \n    float row_idx = (rows - 1.0) - cell.y;\n    float col_idx = cell.x;\n    \n    float index = row_idx * cols + col_idx;\n    float total_frames = rows * cols;\n    \n    // Normalized time (0.0 to 1.0) across the sheet\n    float t_norm = index / max(1.0, total_frames - 1.0);\n    \n    time_offset = t_norm * duration;\n    tiled_uv = fract(p * vec2(cols, rows));\n}",
+    "inputs": [
+      { "id": "uv_in", "name": "UV", "type": "vec2" },
+      { "id": "rows", "name": "Rows", "type": "float" },
+      { "id": "cols", "name": "Cols", "type": "float" },
+      { "id": "duration", "name": "Duration", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "tiled_uv", "name": "Tiled UV", "type": "vec2" },
+      { "id": "time_offset", "name": "Time", "type": "float" }
+    ],
+    "uniforms": {
+      "rows": { "type": "float", "value": 4, "widget": "number", "widgetConfig": { "step": 1, "min": 1, "max": 16 } },
+      "cols": { "type": "float", "value": 4, "widget": "number", "widgetConfig": { "step": 1, "min": 1, "max": 16 } },
+      "duration": { "type": "float", "value": 6.28, "widget": "number", "label": "Duration" }
+    },
+    "outputType": "vec2"
+  }
+}

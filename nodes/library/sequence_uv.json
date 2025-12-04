@@ -1,0 +1,37 @@
+﻿{
+  "id": "SEQUENCE_UV",
+  "label": "Sequence UV",
+  "category": "Utility",
+  "icon": "Film",
+  "description": "Generates UV coordinates for sprite sheet animation.",
+  "locales": {
+    "zh": {
+      "Sequence UV": "序列帧 UV",
+      "Rows": "行数",
+      "Cols": "列数",
+      "Time": "时间",
+      "Duration": "总时长",
+      "UV Out": "输出 UV"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec2 uv_in, float rows, float cols, float time, float duration, out vec2 uv_out) {\n    vec2 p = (uv_in == vec2(0.0)) ? uv : uv_in;\n    float total_frames = rows * cols;\n    float safe_duration = max(duration, 0.001);\n    float frame = floor(fract(time / safe_duration) * total_frames);\n    float col_idx = mod(frame, cols);\n    float row_idx = floor(frame / cols);\n    vec2 size = vec2(1.0 / cols, 1.0 / rows);\n    vec2 offset = vec2(col_idx * size.x, 1.0 - (row_idx + 1.0) * size.y);\n    uv_out = offset + fract(p) * size;\n}",
+    "outputType": "vec2",
+    "inputs": [
+      { "id": "uv_in", "name": "UV", "type": "vec2" },
+      { "id": "rows", "name": "Rows", "type": "float" },
+      { "id": "cols", "name": "Cols", "type": "float" },
+      { "id": "time", "name": "Time", "type": "float" },
+      { "id": "duration", "name": "Duration", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "uv_out", "name": "UV Out", "type": "vec2" }
+    ],
+    "uniforms": {
+      "rows": { "type": "float", "value": 4.0, "widget": "number", "widgetConfig": { "step": 1, "min": 1, "max": 64 } },
+      "cols": { "type": "float", "value": 4.0, "widget": "number", "widgetConfig": { "step": 1, "min": 1, "max": 64 } },
+      "time": { "type": "float", "value": 0.0 },
+      "duration": { "type": "float", "value": 1.0, "widget": "number", "widgetConfig": { "min": 0.01, "max": 60.0 } }
+    }
+  }
+}
