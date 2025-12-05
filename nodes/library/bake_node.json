@@ -1,0 +1,18 @@
+{
+  "id": "BAKE_NODE",
+  "label": "Bake / Export",
+  "type": "bakeNode",
+  "category": "Output",
+  "description": "Export texture as Video, GIF, or Sprite Sheet",
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D image, out vec4 preview) { preview = texture(image, uv); }",
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" }
+    ],
+    "outputs": [
+      { "id": "preview", "name": "Preview", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "parameters": {}
+  }
+}

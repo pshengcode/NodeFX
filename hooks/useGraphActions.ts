@@ -229,6 +229,8 @@ export function useGraphActions(
         let type = 'customShader';
         if (def.category === 'Network') type = 'networkNode';
         if (def.id === 'PAINT') type = 'paintNode'; 
+        if (def.id === 'FLUID_SIM') type = 'fluidSimulationNode';
+        if (def.type === 'bakeNode') type = 'bakeNode';
     
         const newNode: Node<NodeData> = {
           id,

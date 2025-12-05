@@ -9,9 +9,20 @@ import { useTranslation } from 'react-i18next';
 
 const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
-  const { setNodes, deleteElements } = useReactFlow();
+  const { setNodes, deleteElements, setEdges } = useReactFlow();
   const nodes = useNodes<NodeData>();
   const edges = useEdges();
+
+  const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
+      if (e.altKey) {
+          e.stopPropagation();
+          e.preventDefault();
+          setEdges((edges) => edges.filter((edge) => {
+              if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
+              else return !(edge.source === id && edge.sourceHandle === handleId);
+          }));
+      }
+  }, [id, setEdges]);
 
   // Check connection status
   const isConnected = edges.some(e => e.target === id && e.targetHandle === 'in_1');
@@ -31,7 +42,22 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   
   // Params
   const [serverUrl, setServerUrl] = useState(data.serverUrl || 'http://127.0.0.1:8080/upload');
-  const [debounceMs, setDebounceMs] = useState(1000);
+  const [debounceMs, setDebounceMs] = useState(data.settings?.debounceMs ?? 1000);
+  
+  // Sync settings to Node Data
+  useEffect(() => {
+      const settings = { debounceMs };
+      const timer = setTimeout(() => {
+          setNodes(nds => nds.map(n => {
+              if (n.id === id) {
+                  if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
+                  return { ...n, data: { ...n.data, settings } };
+              }
+              return n;
+          }));
+      }, 500);
+      return () => clearTimeout(timer);
+  }, [debounceMs, id, setNodes]);
   
   // ID Editing State
   const [localId, setLocalId] = useState(data.customId ?? '');
@@ -241,6 +267,7 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 position={Position.Left}
                 id="in_1"
                 className={`!w-3 !h-3 !left-1 !top-1/2 !-mt-1.5 !transform-none hover:scale-125 transition-all !opacity-100 ${colorStyle}`}
+                onClick={(e) => handleDisconnect(e, 'in_1', 'target')}
             />
         </div>
 

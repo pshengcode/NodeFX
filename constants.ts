@@ -17,7 +17,8 @@ export const TYPE_COLORS: Record<GLSLType, string> = {
   vec2: '#22c55e',     // green-500
   vec3: '#a855f7',     // purple-500
   vec4: '#ec4899',     // pink-500
-  sampler2D: '#f97316' // orange-500
+  sampler2D: '#f97316', // orange-500
+  'vec2[]': '#15803d'   // green-700
 };
 
 export const GLSL_BUILTINS = new Set([

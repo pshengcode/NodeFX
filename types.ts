@@ -128,6 +128,9 @@ export interface NodeData {
   isGlobalVar?: boolean;
   globalName?: string;
   value?: any;
+
+  // Custom Node Settings (Persistence)
+  settings?: Record<string, any>;
 }
 
 export interface RenderPass {

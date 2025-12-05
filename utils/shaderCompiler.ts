@@ -910,7 +910,7 @@ uniform sampler2D u_empty_tex;
           vertexShader: DEFAULT_VERTEX_SHADER,
           fragmentShader: header + functionsCode + mainBodyCode,
           uniforms: globalUniforms,
-          outputTo: currentNodeId === targetNodeId ? 'SCREEN' : 'FBO',
+          outputTo: 'FBO', // Always render to specific FBO so it can be referenced by other nodes (like BakeNode)
           inputTextureUniforms
       });
 

@@ -1,0 +1,364 @@
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Handle, Position, NodeProps, useReactFlow } from 'reactflow';
+import { webglSystem } from '../utils/webglSystem';
+import { CompilationResult } from '../types';
+import GIF from 'gif.js';
+import { useTranslation } from 'react-i18next';
+
+import { useProject } from '../context/ProjectContext';
+
+const PASS_THROUGH_VERT = `#version 300 es
+in vec2 position;
+out vec2 vUv;
+void main() {
+    vUv = position * 0.5 + 0.5;
+    gl_Position = vec4(position, 0.0, 1.0);
+}`;
+
+const BakeNode: React.FC<NodeProps> = ({ data, id }) => {
+    const { t } = useTranslation();
+    const { edges } = useProject();
+    const { setNodes } = useReactFlow();
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [recording, setRecording] = useState(false);
+    const [progress, setProgress] = useState(0);
+    
+    // Settings with Persistence
+    const [width, setWidth] = useState(data.settings?.width || 512);
+    const [height, setHeight] = useState(data.settings?.height || 512);
+    const [fps, setFps] = useState(data.settings?.fps || 30);
+    const [duration, setDuration] = useState(data.settings?.duration || 2);
+    const [columns, setColumns] = useState(data.settings?.columns || 3);
+    const [rows, setRows] = useState(data.settings?.rows || 3);
+    const [mode, setMode] = useState<'video' | 'sprite' | 'gif'>(data.settings?.mode || 'video');
+
+    // Sync settings to Node Data
+    useEffect(() => {
+        const settings = { width, height, fps, duration, columns, rows, mode };
+        // Only update if changed to avoid loop (though setNodes handles identity check usually)
+        // We use a timeout to debounce slightly if needed, but direct update is safer for "save on unload"
+        const timer = setTimeout(() => {
+            setNodes(nds => nds.map(n => {
+                if (n.id === id) {
+                    // Deep check to avoid unnecessary updates?
+                    if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
+                    return { ...n, data: { ...n.data, settings } };
+                }
+                return n;
+            }));
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [width, height, fps, duration, columns, rows, mode, id, setNodes]);
+
+    // Internal State
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+    const spriteCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const gifRef = useRef<GIF | null>(null);
+    const frameCountRef = useRef(0);
+    const startTimeRef = useRef(0);
+    const rafRef = useRef<number>();
+
+    // Input Texture ID
+    const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'image');
+    const inputTexture = inputEdge ? inputEdge.source : null;
+
+    // Render Loop
+    const renderFrame = useCallback(() => {
+        if (!canvasRef.current || !inputTexture) return;
+
+        // Use raw ID for FBO lookup (do not replace hyphens)
+        const fboUrl = `fbo://${inputTexture}`;
+        
+        const frag = `#version 300 es
+precision mediump float;
+uniform sampler2D u_tex;
+in vec2 vUv;
+out vec4 fragColor;
+void main() {
+    fragColor = texture(u_tex, vUv);
+}`;
+
+        // Construct a dummy compilation result to render the input texture
+        const compResult: CompilationResult = {
+            passes: [{
+                id: `bake_${id}`,
+                vertexShader: PASS_THROUGH_VERT,
+                fragmentShader: frag,
+                uniforms: {
+                    u_tex: { type: 'sampler2D', value: fboUrl }
+                },
+                inputTextureUniforms: {},
+                outputTo: null // Screen
+            }],
+            error: null
+        };
+
+        // Prevent cleanup to avoid deleting the source FBO
+        // Also, ensure we are not passing undefined for optional params if we want to reach preventCleanup
+        webglSystem.render(
+            compResult, 
+            canvasRef.current, 
+            width, 
+            height, 
+            0, 
+            undefined, 
+            false, 
+            1.0, 
+            {x:0,y:0}, 
+            undefined, 
+            true // preventCleanup
+        );
+
+        if (recording) {
+            // Calculate total frames based on mode
+            let totalFrames = Math.floor(duration * fps);
+            if (mode === 'sprite') {
+                totalFrames = columns * rows;
+            }
+
+            const currentFrame = frameCountRef.current;
+
+            if (currentFrame >= totalFrames) {
+                stopRecording();
+                return;
+            }
+
+            if (mode === 'sprite' && spriteCanvasRef.current) {
+                const ctx = spriteCanvasRef.current.getContext('2d');
+                if (ctx) {
+                    const col = currentFrame % columns;
+                    const row = Math.floor(currentFrame / columns);
+                    ctx.drawImage(canvasRef.current, col * width, row * height, width, height);
+                }
+            } else if (mode === 'gif' && gifRef.current) {
+                gifRef.current.addFrame(canvasRef.current, { delay: 1000 / fps, copy: true });
+            }
+            
+            // For video, MediaRecorder handles it automatically if stream is active
+            // But we need to ensure we are pacing the frames correctly?
+            // Actually, for real-time recording, we just record what we see.
+            // If we want exact FPS, we might need to captureStream(fps).
+            
+            setProgress((currentFrame / totalFrames) * 100);
+            frameCountRef.current++;
+        }
+
+        rafRef.current = requestAnimationFrame(renderFrame);
+    }, [inputTexture, width, height, recording, mode, duration, fps, columns, rows, id]);
+
+    useEffect(() => {
+        rafRef.current = requestAnimationFrame(renderFrame);
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+    }, [renderFrame]);
+
+    const startRecording = () => {
+        if (!canvasRef.current) return;
+        
+        setRecording(true);
+        setProgress(0);
+        frameCountRef.current = 0;
+        startTimeRef.current = Date.now();
+
+        if (mode === 'video') {
+            const stream = canvasRef.current.captureStream(fps);
+            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            
+            chunksRef.current = [];
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+            recorder.onstop = saveVideo;
+            recorder.start();
+            mediaRecorderRef.current = recorder;
+        } else if (mode === 'sprite') {
+            // Total frames determined by grid
+            const totalFrames = columns * rows;
+            
+            const sc = document.createElement('canvas');
+            sc.width = width * columns;
+            sc.height = height * rows;
+            spriteCanvasRef.current = sc;
+        } else if (mode === 'gif') {
+            const gif = new GIF({
+                workers: 2,
+                quality: 10,
+                width: width,
+                height: height,
+                workerScript: '/gif.worker.js'
+            });
+            gif.on('finished', (blob: Blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bake_${Date.now()}.gif`;
+                a.click();
+                setRecording(false); // Ensure UI updates
+                setProgress(0);
+            });
+            gifRef.current = gif;
+        }
+    };
+
+    const stopRecording = () => {
+        // Don't setRecording(false) immediately for GIF, wait for render
+        if (mode !== 'gif') {
+            setRecording(false);
+        }
+
+        if (mode === 'video' && mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        } else if (mode === 'sprite') {
+            saveSprite();
+        } else if (mode === 'gif' && gifRef.current) {
+            gifRef.current.render();
+        }
+    };
+
+    const saveVideo = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bake_${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const saveSprite = () => {
+        if (!spriteCanvasRef.current) return;
+        const url = spriteCanvasRef.current.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sprite_${Date.now()}.png`;
+        a.click();
+    };
+
+    return (
+        <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden w-80">
+            <div className="bg-zinc-800 px-3 py-2 border-b border-zinc-700 flex justify-between items-center">
+                <span className="text-zinc-200 font-semibold text-sm">{t("Bake / Export")}</span>
+            </div>
+
+            <div className="p-3 space-y-3">
+                {/* Preview */}
+                <div className="relative aspect-square bg-black rounded border border-zinc-700 overflow-hidden">
+                    <canvas 
+                        ref={canvasRef} 
+                        width={width} 
+                        height={height} 
+                        className="w-full h-full object-contain"
+                    />
+                    {!inputTexture && (
+                        <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-xs">
+                            {t("No Input")}
+                        </div>
+                    )}
+                </div>
+
+                {/* Controls */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <label className="block text-zinc-400 mb-1">{t("Width")}</label>
+                        <input 
+                            type="number" 
+                            value={width} 
+                            onChange={e => setWidth(Number(e.target.value))}
+                            className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-zinc-400 mb-1">{t("Height")}</label>
+                        <input 
+                            type="number" 
+                            value={height} 
+                            onChange={e => setHeight(Number(e.target.value))}
+                            className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-zinc-400 mb-1">{t("FPS")}</label>
+                        <input 
+                            type="number" 
+                            value={fps} 
+                            onChange={e => setFps(Number(e.target.value))}
+                            className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600"
+                        />
+                    </div>
+                    {mode !== 'sprite' && (
+                        <div>
+                            <label className="block text-zinc-400 mb-1">{t("Duration (s)")}</label>
+                            <input 
+                                type="number" 
+                                value={duration} 
+                                onChange={e => setDuration(Number(e.target.value))}
+                                className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600"
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Mode Selection */}
+                <div>
+                    <label className="block text-zinc-400 mb-1 text-xs">{t("Mode")}</label>
+                    <select 
+                        value={mode} 
+                        onChange={e => setMode(e.target.value as any)}
+                        className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600 text-xs"
+                    >
+                        <option value="video">{t("Video (WebM)")}</option>
+                        <option value="sprite">{t("Sprite Sheet (Grid)")}</option>
+                        <option value="gif">{t("GIF Animation")}</option>
+                    </select>
+                </div>
+
+                {mode === 'sprite' && (
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="block text-zinc-400 mb-1 text-xs">{t("Columns")}</label>
+                            <input 
+                                type="number" 
+                                value={columns} 
+                                onChange={e => setColumns(Number(e.target.value))}
+                                className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600 text-xs"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-zinc-400 mb-1 text-xs">{t("Rows")}</label>
+                            <input 
+                                type="number" 
+                                value={rows} 
+                                onChange={e => setRows(Number(e.target.value))}
+                                className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600 text-xs"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Action Button */}
+                <button
+                    onClick={recording ? stopRecording : startRecording}
+                    disabled={!inputTexture}
+                    className={`nodrag w-full py-2 rounded text-sm font-medium transition-colors ${
+                        recording 
+                            ? 'bg-red-600 hover:bg-red-700 text-white' 
+                            : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+                    }`}
+                >
+                    {recording ? `${t("Stop")} (${Math.round(progress)}%)` : t("Start Bake")}
+                </button>
+            </div>
+
+            <Handle 
+                type="target" 
+                position={Position.Left} 
+                id="image" 
+                style={{ top: '20%', background: '#6366f1' }} 
+            />
+        </div>
+    );
+};
+
+export default BakeNode;

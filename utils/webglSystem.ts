@@ -1,6 +1,7 @@
 
 import { CompilationResult, GLSLType, RawTextureData, UniformVal } from '../types';
 import { assetManager } from './assetManager';
+import { getDynamicTexture } from './dynamicRegistry';
 
 // Shared Shaders
 const DISPLAY_VERT = `#version 300 es
@@ -187,6 +188,31 @@ class WebGLSystem {
         const gl = this.gl;
         let id = typeof value === 'string' ? value : value.id;
         
+        // Check Dynamic Registry
+        if (typeof value === 'string' && value.startsWith('dynamic://')) {
+             const canvas = getDynamicTexture(value);
+             if (!canvas) return null;
+             
+             // We need a persistent texture object for this ID
+             if (!this.textureCache.has(id)) {
+                 const t = gl.createTexture();
+                 if(!t) return null;
+                 this.textureCache.set(id, t);
+             }
+             const tex = this.textureCache.get(id)!;
+             
+             gl.bindTexture(gl.TEXTURE_2D, tex);
+             // Upload current canvas state
+             gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+             
+             return tex;
+        }
+
         // Is it an asset reference?
         if (typeof value === 'string' && (value.startsWith('asset://') || value.startsWith('builtin://'))) {
             const asset = assetManager.getSync(value);
@@ -204,6 +230,22 @@ class WebGLSystem {
                  id = value;
                  value = asset; // treat as data url
             }
+        }
+
+        if (typeof value === 'string' && value.startsWith('fbo://')) {
+            const targetId = value.replace('fbo://', '');
+            // console.log(`[WebGL] Looking for FBO: ${targetId}`);
+            // console.log(`[WebGL] Cache Keys:`, Array.from(this.fboCache.keys()));
+            
+            // Find FBO in cache by ID prefix
+            for (const [key, fboData] of this.fboCache.entries()) {
+                if (key.startsWith(`${targetId}_`)) {
+                    // console.log(`[WebGL] Found FBO for ${targetId}: ${key}`);
+                    return fboData.tex;
+                }
+            }
+            // console.warn(`[WebGL] FBO not found for ${targetId}`);
+            return null;
         }
 
         if (this.textureCache.has(id)) return this.textureCache.get(id)!;
@@ -253,7 +295,8 @@ class WebGLSystem {
         tiling: boolean = false,
         zoom: number = 1.0,
         pan: { x: number, y: number } = { x: 0, y: 0 },
-        uniformOverrides?: Record<string, UniformVal>
+        uniformOverrides?: Record<string, UniformVal>,
+        preventCleanup: boolean = false
     ) {
         if (!data || data.error || !this.displayProgram) return;
 
@@ -332,8 +375,10 @@ class WebGLSystem {
                 const obj = this.getFBO('__FINAL__', width, height, false);
                 fbo = obj.fbo;
                 currentTex = obj.tex;
-                lastTex = obj.tex;
             }
+
+            // Always track the latest output texture as the potential final result
+            lastTex = currentTex;
 
             gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
             gl.viewport(0, 0, width, height);
@@ -512,7 +557,9 @@ class WebGLSystem {
         }
 
         // Perform Cleanup (Garbage Collection)
-        this.cleanup(activePassIds);
+        if (!preventCleanup) {
+            this.cleanup(activePassIds);
+        }
     }
 }
 

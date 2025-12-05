@@ -10,8 +10,24 @@ import { useTranslation } from 'react-i18next';
 
 const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
-  const { setNodes } = useReactFlow();
+  const { setNodes, deleteElements, setEdges } = useReactFlow();
   const edges = useEdges();
+
+  const handleDeleteNode = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteElements({ nodes: [{ id }] });
+  }, [id, deleteElements]);
+
+  const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
+      if (e.altKey) {
+          e.stopPropagation();
+          e.preventDefault();
+          setEdges((edges) => edges.filter((edge) => {
+              if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
+              else return !(edge.source === id && edge.sourceHandle === handleId);
+          }));
+      }
+  }, [id, setEdges]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -21,13 +37,28 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const [compiledBg, setCompiledBg] = useState<CompilationResult | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Brush State
-  const [color, setColor] = useState('#ffffff');
-  const [brushSize, setBrushSize] = useState(20);
-  const [opacity, setOpacity] = useState(1.0);
-  const [softness, setSoftness] = useState(0.0); 
-  const [mode, setMode] = useState<'paint' | 'eraser'>('paint');
-  const [bgOpacity, setBgOpacity] = useState(0.5);
+  // Brush State with Persistence
+  const [color, setColor] = useState(data.settings?.color ?? '#ffffff');
+  const [brushSize, setBrushSize] = useState(data.settings?.brushSize ?? 20);
+  const [opacity, setOpacity] = useState(data.settings?.opacity ?? 1.0);
+  const [softness, setSoftness] = useState(data.settings?.softness ?? 0.0); 
+  const [mode, setMode] = useState<'paint' | 'eraser'>(data.settings?.mode ?? 'paint');
+  const [bgOpacity, setBgOpacity] = useState(data.settings?.bgOpacity ?? 0.5);
+
+  // Sync settings to Node Data
+  useEffect(() => {
+      const settings = { color, brushSize, opacity, softness, mode, bgOpacity };
+      const timer = setTimeout(() => {
+          setNodes(nds => nds.map(n => {
+              if (n.id === id) {
+                  if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
+                  return { ...n, data: { ...n.data, settings } };
+              }
+              return n;
+          }));
+      }, 500);
+      return () => clearTimeout(timer);
+  }, [color, brushSize, opacity, softness, mode, bgOpacity, id, setNodes]);
 
   const width = data.resolution?.w || 512;
   const height = data.resolution?.h || 512;
@@ -225,16 +256,17 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 <button onClick={() => setMode('paint')} className={`p-1.5 rounded ${mode === 'paint' ? 'bg-pink-500/20 text-pink-400' : 'text-zinc-500'}`}><PenTool size={12}/></button>
                 <button onClick={() => setMode('eraser')} className={`p-1.5 rounded ${mode === 'eraser' ? 'bg-zinc-700 text-white' : 'text-zinc-500'}`}><Eraser size={12}/></button>
                 <button onClick={() => setShowSettings(!showSettings)} className={`p-1.5 rounded ${showSettings ? 'text-blue-400' : 'text-zinc-500'}`}><Settings size={12}/></button>
-                <button onClick={clearCanvas} className="p-1.5 rounded text-zinc-500 hover:text-red-400"><Trash2 size={12}/></button>
+                <button onClick={clearCanvas} className="p-1.5 rounded text-zinc-500 hover:text-red-400" title={t("Clear Canvas")}><Trash2 size={12}/></button>
+                <button onClick={handleDeleteNode} className="p-1.5 rounded text-zinc-500 hover:text-red-400" title={t("Delete Node")}><X size={12}/></button>
             </div>
         </div>
 
         <div className="relative w-full aspect-square">
             <div className="absolute top-1/2 -left-3 -translate-y-1/2 z-20">
-                <Handle type="target" position={Position.Left} id="bg" className="!w-3 !h-3 !bg-blue-500 !border-2 !border-zinc-900"/>
+                <Handle type="target" position={Position.Left} id="bg" className="!w-3 !h-3 !bg-blue-500 !border-2 !border-zinc-900" onClick={(e) => handleDisconnect(e, 'bg', 'target')}/>
             </div>
             <div className="absolute top-1/2 -right-3 -translate-y-1/2 z-20">
-                <Handle type="source" position={Position.Right} id="result" className="!w-3 !h-3 !bg-pink-500 !border-2 !border-zinc-900"/>
+                <Handle type="source" position={Position.Right} id="result" className="!w-3 !h-3 !bg-pink-500 !border-2 !border-zinc-900" onClick={(e) => handleDisconnect(e, 'result', 'source')}/>
             </div>
 
             <div className="w-full h-full bg-[#050505] group nodrag rounded-b-lg overflow-hidden relative" ref={containerRef}>

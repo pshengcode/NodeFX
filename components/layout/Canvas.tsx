@@ -8,6 +8,8 @@ import CustomNode from '../CustomNode';
 import GroupNode from '../GroupNode';
 import NetworkNode from '../NetworkNode';
 import PaintNode from '../PaintNode';
+import FluidSimulationNode from '../FluidSimulationNode';
+import BakeNode from '../BakeNode';
 import SmartEdge from '../SmartEdge';
 import ContextMenu from '../ContextMenu';
 import ShaderPreview from '../ShaderPreview';
@@ -19,6 +21,8 @@ const nodeTypes: NodeTypes = {
   group: GroupNode,
   networkNode: NetworkNode, 
   paintNode: PaintNode,
+  fluidSimulationNode: FluidSimulationNode,
+  bakeNode: BakeNode,
   graphInput: GraphInputNode,
   graphOutput: GraphOutputNode
 };

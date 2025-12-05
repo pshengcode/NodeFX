@@ -1,0 +1,49 @@
+{
+  "id": "FLUID_SIM",
+  "label": "Fluid Sim",
+  "category": "Generator",
+  "locales": {
+    "zh": {
+      "Fluid Sim": "流体模拟",
+      "Real-time fluid simulation": "实时流体模拟"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D image, sampler2D flow, out vec4 out_image, out vec4 out_flow) { \n    out_image = texture(image, uv);\n    out_flow = texture(flow, uv);\n}",
+    "inputs": [
+      {
+        "id": "image",
+        "name": "Image Input",
+        "type": "sampler2D"
+      },
+      {
+        "id": "flow",
+        "name": "Flow Input",
+        "type": "sampler2D"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "image",
+        "name": "Image",
+        "type": "vec4"
+      },
+      {
+        "id": "flow",
+        "name": "Flow",
+        "type": "vec4"
+      }
+    ],
+    "uniforms": {
+      "image": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "flow": {
+        "type": "sampler2D",
+        "value": null
+      }
+    },
+    "outputType": "vec4"
+  }
+}
