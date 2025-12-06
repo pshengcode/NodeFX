@@ -1,0 +1,9 @@
+{
+  "appName": "NodeFX",
+  "version": "1.0.19",
+  "author": "pshengcode",
+  "email": "ersanhd98@gmail.com",
+  "github": "",
+  "license": "Proprietary",
+  "description": "A professional, node-based image processing tool where every node is a customizable GLSL shader."
+}

@@ -5,6 +5,8 @@ import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '../package.json');
+const appConfigPath = path.join(__dirname, '../appConfig.json');
+const changelogPath = path.join(__dirname, '../CHANGELOG.md');
 const commitMsgFile = process.argv[2];
 
 if (!commitMsgFile) {
@@ -13,45 +15,76 @@ if (!commitMsgFile) {
 
 try {
     let msg = fs.readFileSync(commitMsgFile, 'utf8');
+    
+    // --- 1. Version Handling ---
     const versionRegex = /\[v(\d+\.\d+\.\d+)\]/;
     const match = msg.match(versionRegex);
+    let currentVersion = '0.0.0';
 
     if (match) {
-        // Case 1: User manually specified version in log (e.g. "fix [v2.0.0]")
-        const manualVersion = match[1];
-        console.log(`\x1b[36mManual version detected in commit message: ${manualVersion}\x1b[0m`);
+        // Case 1: User manually specified version
+        currentVersion = match[1];
+        console.log(`\x1b[36mManual version detected: ${currentVersion}\x1b[0m`);
 
-        // Update package.json to match
+        // Sync package.json
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-        if (packageJson.version !== manualVersion) {
-            packageJson.version = manualVersion;
+        if (packageJson.version !== currentVersion) {
+            packageJson.version = currentVersion;
             fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-            
-            // Stage the file again so it's included in the commit
-            try {
-                execSync(`git add "${packageJsonPath}"`);
-                console.log(`\x1b[32mUpdated package.json to ${manualVersion} and staged.\x1b[0m`);
-            } catch (e) {
-                console.error('Failed to stage package.json:', e);
+            execSync(`git add "${packageJsonPath}"`);
+        }
+        // Sync appConfig.json
+        if (fs.existsSync(appConfigPath)) {
+            const appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+            if (appConfig.version !== currentVersion) {
+                appConfig.version = currentVersion;
+                fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2) + '\n');
+                execSync(`git add "${appConfigPath}"`);
             }
         }
     } else {
-        // Case 2: No version in log, append the current (auto-bumped) version
+        // Case 2: Use existing version (bumped by pre-commit)
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-        const version = packageJson.version;
+        currentVersion = packageJson.version;
 
-        // Avoid appending if already present (e.g. amend)
-        if (!msg.includes(`[v${version}]`)) {
+        // Append version to commit message if missing
+        if (!msg.includes(`[v${currentVersion}]`)) {
             const lines = msg.split('\n');
-            if (lines.length > 0) {
-                 // Append to first line if not a comment
-                 if (!lines[0].startsWith('#')) {
-                     lines[0] = `${lines[0].trim()} [v${version}]`;
-                     fs.writeFileSync(commitMsgFile, lines.join('\n'));
-                 }
+            if (lines.length > 0 && !lines[0].startsWith('#')) {
+                 lines[0] = `${lines[0].trim()} [v${currentVersion}]`;
+                 msg = lines.join('\n'); // Update local msg var
+                 fs.writeFileSync(commitMsgFile, msg);
             }
         }
     }
+
+    // --- 2. Changelog Update ---
+    // Extract clean message (remove comments and empty lines)
+    const cleanLines = msg.split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('#'));
+    
+    const commitContent = cleanLines.length > 0 ? cleanLines.join('\n') : "Version Update (See commit details)";
+
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0];
+    
+    const entry = `## [${currentVersion}] - ${dateStr} ${timeStr}\n\n${commitContent}\n\n---\n\n`;
+
+    let currentChangelog = '';
+    if (fs.existsSync(changelogPath)) {
+        currentChangelog = fs.readFileSync(changelogPath, 'utf8');
+    }
+    
+    // Avoid duplicate entries if script runs multiple times (e.g. amend)
+    // Simple check: if the top of the file already has this version and date? 
+    // It's hard to be perfect, but let's just prepend.
+    
+    fs.writeFileSync(changelogPath, entry + currentChangelog);
+    execSync(`git add "${changelogPath}"`);
+    console.log(`\x1b[32mUpdated CHANGELOG.md and staged.\x1b[0m`);
+
 } catch (error) {
     console.error('Failed to process commit message:', error);
 }

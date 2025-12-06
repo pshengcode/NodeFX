@@ -1,9 +1,13 @@
 import React, { useCallback, useState, useRef } from 'react';
-import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
 import { useTranslation } from 'react-i18next';
+import appConfig from '../../appConfig.json';
+// @ts-ignore
+import changelogContent from '../../CHANGELOG.md?raw';
 
 interface SidebarItemProps {
     node: ShaderNodeDefinition;
@@ -116,6 +120,8 @@ export const Sidebar: React.FC = () => {
     } = useProject();
 
     const [expandedCategory, setExpandedCategory] = useState<string | null>('Generator');
+    const [showAbout, setShowAbout] = useState(false);
+    const [showChangelog, setShowChangelog] = useState(false);
     const libraryImportRef = useRef<HTMLInputElement>(null);
 
     const handleLibraryImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,7 +177,16 @@ export const Sidebar: React.FC = () => {
                         <circle cx="19" cy="5" r="3.5" fill="#22d3ee" className="drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"/>
                     </svg>
                 </div>
-                <h2 className="font-bold text-zinc-100 leading-none text-xl tracking-wide">NodeFX</h2>
+                <div className="flex items-center gap-2">
+                    <h2 className="font-bold text-zinc-100 leading-none text-xl tracking-wide">NodeFX</h2>
+                    <button 
+                        onClick={() => setShowAbout(true)}
+                        className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                        title={t("About")}
+                    >
+                        <Info size={14} />
+                    </button>
+                </div>
             </div>
 
             <div className="px-2 mb-4 flex gap-1 shrink-0">
@@ -228,6 +243,79 @@ export const Sidebar: React.FC = () => {
                     );
                 })}
             </div>
+
+            {showAbout && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={() => setShowAbout(false)}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setShowAbout(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
+                            <X size={16} />
+                        </button>
+                        
+                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <Info size={20} className="text-blue-500"/>
+                            {t("About")}
+                        </h2>
+                        
+                        <div className="space-y-4 text-zinc-300 text-sm">
+                            <div className="text-sm text-zinc-400 italic">
+                                {appConfig.description}
+                            </div>
+
+                            <div className="p-3 bg-zinc-800/50 rounded border border-zinc-800">
+                                <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">{t("Created by")}</div>
+                                <div className="font-medium text-white">{appConfig.author}</div>
+                            </div>
+                            
+                            <div className="p-3 bg-zinc-800/50 rounded border border-zinc-800">
+                                <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">{t("Contact")}</div>
+                                <a href={`mailto:${appConfig.email}`} className="text-blue-400 hover:text-blue-300 transition-colors block mb-1">
+                                    {appConfig.email}
+                                </a>
+                                <div className="flex gap-4 mt-2 pt-2 border-t border-zinc-700/50 items-center justify-between">
+                                    {appConfig.github && (
+                                        <a href={appConfig.github} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors text-xs flex items-center gap-1">
+                                            GitHub
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="text-xs text-zinc-500 pt-2 border-t border-zinc-800 flex justify-between items-center">
+                                <span>{appConfig.appName}</span>
+                                <button 
+                                    onClick={() => setShowChangelog(true)}
+                                    className="text-blue-500 hover:text-blue-400 transition-colors cursor-pointer font-medium"
+                                    title={t("Click to view changelog")}
+                                >
+                                    {t("Version")} {appConfig.version}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {showChangelog && createPortal(
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={() => setShowChangelog(false)}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setShowChangelog(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
+                            <X size={16} />
+                        </button>
+                        
+                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2 shrink-0">
+                            {t("Changelog")}
+                        </h2>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-950/50 rounded p-4 border border-zinc-800">
+                            <pre className="text-zinc-300 text-sm font-mono whitespace-pre-wrap font-sans">
+                                {changelogContent}
+                            </pre>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

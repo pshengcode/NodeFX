@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-    MousePointer2, Undo, Redo, Settings, RefreshCw, FolderOpen, Save, Share2, ChevronRight, Home 
+    MousePointer2, Undo, Redo, Settings, RefreshCw, FolderOpen, Save, Share2 
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '../../context/ProjectContext';
@@ -12,8 +12,7 @@ export const Toolbar: React.FC = () => {
         resolution, setResolution, 
         resetCanvas, loadProject, saveProject, copyShareLink,
         nodes, edges, previewNodeId,
-        projectFileInputRef,
-        currentScope, navigateToScope, getBreadcrumbs
+        projectFileInputRef
     } = useProject();
 
     const [showResDropdown, setShowResDropdown] = useState(false);

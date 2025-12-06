@@ -1,2 +1,3 @@
 node scripts/bumpVersion.js
 git add package.json
+git add appConfig.json
