@@ -86,10 +86,36 @@ export function useFileOperations(
       }
     }, [setNodes, setEdges, setPreviewNodeId, clearPersistence, initialNodes, initialEdges, t]);
 
+    const loadExampleProject = useCallback(async () => {
+        try {
+            const response = await fetch('/example.nodefxs');
+            if (!response.ok) {
+                console.warn("Example project not found");
+                return false;
+            }
+            const project = await response.json();
+            if (project.nodes && project.edges) {
+                const nodesWithZ = project.nodes.map((n: Node) => ({
+                    ...n,
+                    zIndex: n.type === 'group' ? -10 : 10,
+                    data: { ...n.data, resolution } 
+                }));
+                setNodes(nodesWithZ);
+                setEdges(project.edges);
+                setPreviewNodeId(null);
+                return true;
+            }
+        } catch (err) {
+            console.error("Failed to load example project", err);
+        }
+        return false;
+    }, [resolution, setNodes, setEdges, setPreviewNodeId]);
+
     return {
         saveProject,
         loadProject,
         importNodeFromJson,
-        resetCanvas
+        resetCanvas,
+        loadExampleProject
     };
 }

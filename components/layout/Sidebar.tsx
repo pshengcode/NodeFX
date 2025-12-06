@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X } from 'lucide-react';
+import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
@@ -116,13 +116,35 @@ export const Sidebar: React.FC = () => {
         importNodeFromJson, 
         nodeImportInputRef,
         exportLibrary,
-        importLibrary
+        importLibrary,
+        loadExampleProject,
+        nodes
     } = useProject();
 
     const [expandedCategory, setExpandedCategory] = useState<string | null>('Generator');
     const [showAbout, setShowAbout] = useState(false);
     const [showChangelog, setShowChangelog] = useState(false);
+    const [showExampleConfirm, setShowExampleConfirm] = useState(false);
     const libraryImportRef = useRef<HTMLInputElement>(null);
+
+    const handleLoadExample = async () => {
+        if (nodes.length > 1 || (nodes.length === 1 && nodes[0].id !== '1')) {
+            setShowExampleConfirm(true);
+            return;
+        }
+        const success = await loadExampleProject();
+        if (!success) {
+            alert(t("Example project not found."));
+        }
+    };
+
+    const confirmLoadExample = async () => {
+        setShowExampleConfirm(false);
+        const success = await loadExampleProject();
+        if (!success) {
+            alert(t("Example project not found."));
+        }
+    };
 
     const handleLibraryImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -192,6 +214,13 @@ export const Sidebar: React.FC = () => {
             <div className="px-2 mb-4 flex gap-1 shrink-0">
                 <input type="file" ref={nodeImportInputRef} onChange={importNodeFromJson} className="hidden" accept=".nodefx,.json" />
                 <input type="file" ref={libraryImportRef} onChange={handleLibraryImport} className="hidden" accept=".json" />
+                <button 
+                    onClick={handleLoadExample}
+                    className="flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
+                    title={t("Load Example Project")}
+                >
+                    <BookOpen size={14} /> {t('Example')}
+                </button>
                 <button 
                     onClick={() => nodeImportInputRef.current?.click()}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
@@ -311,6 +340,30 @@ export const Sidebar: React.FC = () => {
                             <pre className="text-zinc-300 text-sm font-mono whitespace-pre-wrap font-sans">
                                 {changelogContent}
                             </pre>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {showExampleConfirm && createPortal(
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={() => setShowExampleConfirm(false)}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-white mb-2">{t("Load Example Project")}</h2>
+                        <p className="text-zinc-400 text-sm mb-6">{t("This will overwrite your current project. Continue?")}</p>
+                        <div className="flex justify-end gap-2">
+                            <button 
+                                onClick={() => setShowExampleConfirm(false)}
+                                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors"
+                            >
+                                {t("Cancel")}
+                            </button>
+                            <button 
+                                onClick={confirmLoadExample}
+                                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors"
+                            >
+                                {t("Confirm")}
+                            </button>
                         </div>
                     </div>
                 </div>,

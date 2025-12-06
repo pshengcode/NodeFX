@@ -1,14 +1,52 @@
 
-import React, { memo, useState, useCallback } from 'react';
-import { NodeProps, NodeResizer, useReactFlow } from 'reactflow';
+import React, { memo, useState, useCallback, useEffect } from 'react';
+import { NodeProps, NodeResizer, useReactFlow, useViewport } from 'reactflow';
 import { NodeData } from '../types';
 import { useTranslation } from 'react-i18next';
 
 const GroupNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
-  const [isEditing, setIsEditing] = useState(false);
-  const [label, setLabel] = useState(data.label || t('Group'));
+  const { zoom } = useViewport();
   const { setNodes } = useReactFlow();
+
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [isHoveringTitle, setIsHoveringTitle] = useState(false);
+  
+  const [label, setLabel] = useState(data.label || t('Group'));
+  const [description, setDescription] = useState(data.description || '');
+
+  // Sync with data changes (e.g. undo/redo)
+  useEffect(() => {
+    setLabel(data.label || t('Group'));
+    setDescription(data.description || '');
+  }, [data.label, data.description, t]);
+
+  const commitChanges = useCallback((newLabel: string, newDesc: string) => {
+    setNodes((nds) => nds.map((n) => {
+      if (n.id === id) {
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            label: newLabel,
+            description: newDesc
+          }
+        };
+      }
+      return n;
+    }));
+  }, [id, setNodes]);
+
+  const onLabelBlur = () => {
+      setIsEditingLabel(false);
+      commitChanges(label, description);
+  };
+
+  const onDescBlur = () => {
+      setIsEditingDesc(false);
+      commitChanges(label, description);
+  };
 
   const onResizeEnd = useCallback((_event: any, params: { x: number; y: number; width: number; height: number }) => {
     const { x, y, width, height } = params;
@@ -62,27 +100,61 @@ const GroupNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         onResizeEnd={onResizeEnd}
       />
       
-      {/* Clean Background Frame */}
+      {/* Title - Outside Above, Fixed Scale */}
+      <div 
+        className="absolute left-0"
+        style={{
+            bottom: '100%',
+            transformOrigin: 'bottom left',
+            transform: `scale(${(1 / zoom).toFixed(5)}) translate(0, -8px)`,
+            width: 'max-content',
+        }}
+        onMouseEnter={() => setIsHoveringTitle(true)}
+        onMouseLeave={() => setIsHoveringTitle(false)}
+      >
+         {isEditingLabel ? (
+             <input 
+                className="bg-transparent text-2xl font-bold text-zinc-200 outline-none w-full border-b border-blue-500/50"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                onKeyDown={(e) => { e.stopPropagation(); if(e.key === 'Enter') onLabelBlur(); }}
+                onBlur={onLabelBlur}
+                autoFocus
+                style={{ fontSize: '24px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
+             />
+         ) : (
+            <div 
+                onDoubleClick={() => setIsEditingLabel(true)} 
+                className="text-2xl font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-text select-none truncate"
+                style={{ fontSize: '24px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
+            >
+                {label}
+            </div>
+         )}
+      </div>
+
+      {/* Main Box */}
       <div className={`relative w-full h-full rounded transition-all duration-300 ${selected ? 'bg-zinc-800/20 ring-1 ring-blue-500/30' : 'bg-zinc-900/20'}`}>
         
-        {/* Label Container - Embedded look */}
-        <div className="absolute top-2 left-2 max-w-[90%] z-10">
-             {isEditing ? (
-                 <input 
-                    className="bg-zinc-800 text-xl font-bold px-2 py-1 rounded border border-blue-500/40 outline-none text-zinc-200 w-full"
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    onKeyDown={(e) => { e.stopPropagation(); if(e.key === 'Enter') setIsEditing(false); }}
-                    onBlur={() => setIsEditing(false)}
-                    placeholder={t("Group Name")}
+        {/* Description - Inside */}
+        <div className="absolute top-2 left-2 right-2">
+             {isEditingDesc ? (
+                 <textarea 
+                    className="bg-zinc-800/80 text-sm text-zinc-300 p-2 rounded border border-blue-500/40 outline-none w-full resize-none"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onKeyDown={(e) => { e.stopPropagation(); if(e.key === 'Enter' && !e.shiftKey) onDescBlur(); }}
+                    onBlur={onDescBlur}
+                    placeholder={t("Add description...")}
                     autoFocus
+                    rows={3}
                 />
              ) : (
                 <div 
-                    onDoubleClick={() => setIsEditing(true)} 
-                    className="text-xl font-bold text-zinc-500 hover:text-blue-400 transition-colors uppercase tracking-widest cursor-text select-none px-2 py-1"
+                    onDoubleClick={() => setIsEditingDesc(true)} 
+                    className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors cursor-text select-none p-1 min-h-[20px] whitespace-pre-wrap text-left"
                 >
-                    {label}
+                    {description || (isHoveringTitle && <span className="italic opacity-50">{t("Double click to add description")}</span>)}
                 </div>
              )}
         </div>

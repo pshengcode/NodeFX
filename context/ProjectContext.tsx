@@ -99,6 +99,8 @@ interface ProjectContextType {
   // Share handling
   pendingShareData: { nodes: Node<NodeData>[], edges: Edge[], previewNodeId?: string | null } | null;
   handleShareAction: (action: 'overwrite' | 'merge' | 'cancel') => void;
+  
+  loadExampleProject: () => Promise<boolean>;
 
   // Scope Management
   currentScope: string;
@@ -368,10 +370,23 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       saveProject, 
       loadProject, 
       importNodeFromJson, 
-      resetCanvas 
+      resetCanvas,
+      loadExampleProject
   } = useFileOperations(
       nodes, edges, setNodes, setEdges, setPreviewNodeId, resolution, addNode, clearPersistence, initialNodes, initialEdges, projectFileInputRef, nodeImportInputRef
   );
+
+  // Auto-load Example Project on First Visit
+  useEffect(() => {
+      const hasVisited = localStorage.getItem('hasVisited');
+      if (!hasVisited) {
+          loadExampleProject().then((success) => {
+              if (success) {
+                  localStorage.setItem('hasVisited', 'true');
+              }
+          });
+      }
+  }, [loadExampleProject]);
 
   // Keep a ref to nodes for event listeners
   const nodesRef = useRef(nodes);
@@ -559,7 +574,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     onConnect, addNode, onNodeClick, onNodeDragStop, onNodesDelete, onDragOver, onDrop,
     undo, redo, canUndo, canRedo, takeSnapshot,
     copyShareLink,
-    saveProject, loadProject, importNodeFromJson, resetCanvas,
+    saveProject, loadProject, importNodeFromJson, resetCanvas, loadExampleProject,
     userNodes, addToLibrary, removeFromLibrary, importLibrary, exportLibrary,
     nodesByCategory: allNodesByCategory, fullRegistry: allFullRegistry, nodeRegistryList,
     currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs,
