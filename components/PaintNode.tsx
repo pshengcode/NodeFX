@@ -6,6 +6,7 @@ import { Eraser, Trash2, PenTool, Layers, Settings, X } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { assetManager } from '../utils/assetManager';
+import { registerDynamicTexture, unregisterDynamicTexture } from '../utils/dynamicRegistry';
 import { useTranslation } from 'react-i18next';
 
 const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
@@ -32,6 +33,7 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  const lastSavedIdRef = useRef<string | null>(null);
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [compiledBg, setCompiledBg] = useState<CompilationResult | null>(null);
@@ -47,12 +49,17 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
 
   // Sync settings to Node Data
   useEffect(() => {
-      const settings = { color, brushSize, opacity, softness, mode, bgOpacity };
       const timer = setTimeout(() => {
           setNodes(nds => nds.map(n => {
               if (n.id === id) {
-                  if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
-                  return { ...n, data: { ...n.data, settings } };
+                  const currentSettings = n.data.settings || {};
+                  const newSettings = { 
+                      ...currentSettings, 
+                      color, brushSize, opacity, softness, mode, bgOpacity 
+                  };
+                  
+                  if (JSON.stringify(currentSettings) === JSON.stringify(newSettings)) return n;
+                  return { ...n, data: { ...n.data, settings: newSettings } };
               }
               return n;
           }));
@@ -86,13 +93,43 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
     }
   }, [nodes, edges, id]);
 
-  const saveCanvas = useCallback(async () => {
+  // Dynamic Registry & Output Setup
+  useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const dynamicId = `dynamic://${id}`;
+      registerDynamicTexture(dynamicId, canvas);
+
+      // Ensure output uniform points to dynamic texture
+      setNodes((nds) => nds.map((node) => {
+          if (node.id === id) {
+              if (node.data.uniforms?.tex?.value === dynamicId) return node;
+              return {
+                  ...node,
+                  data: {
+                      ...node.data,
+                      uniforms: {
+                          ...node.data.uniforms,
+                          tex: { type: 'sampler2D', value: dynamicId }
+                      }
+                  }
+              };
+          }
+          return node;
+      }));
+
+      return () => {
+          unregisterDynamicTexture(dynamicId);
+      };
+  }, [id, setNodes]);
+
+  const persistCanvas = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Create optimized RawTextureData
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const rawTex: RawTextureData = {
         isRaw: true,
@@ -102,9 +139,8 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         id: `paint_${id}`
     };
 
-    // SAVE TO ASSET MANAGER (IndexedDB)
-    // Instead of putting the giant object in React State, we put a reference ID
     const assetId = assetManager.createId('paint');
+    lastSavedIdRef.current = assetId;
     await assetManager.save(assetId, rawTex);
 
     setNodes((nds) => nds.map((node) => {
@@ -113,9 +149,9 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 ...node,
                 data: {
                     ...node.data,
-                    uniforms: {
-                        ...node.data.uniforms,
-                        tex: { type: 'sampler2D', value: assetId } // REFERENCE ONLY
+                    settings: {
+                        ...node.data.settings,
+                        persistenceId: assetId
                     }
                 }
             };
@@ -132,15 +168,23 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) return;
 
-        let savedValue = data.uniforms?.tex?.value;
+        // Check persistenceId first, then fallback to old uniform value (migration)
+        let savedValue = data.settings?.persistenceId || data.uniforms?.tex?.value;
 
-        // If reference ID, load it
+        // Skip if we just saved this ID (prevent overwrite)
+        if (savedValue === lastSavedIdRef.current) return;
+
+        // If it's the dynamic ID, we can't load from it. Try persistenceId explicitly.
+        if (typeof savedValue === 'string' && savedValue.startsWith('dynamic://')) {
+             savedValue = data.settings?.persistenceId;
+        }
+
         if (typeof savedValue === 'string' && savedValue.startsWith('asset://')) {
             const asset = await assetManager.get(savedValue);
             if (asset) savedValue = asset;
         }
 
-        if (savedValue) {
+        if (savedValue && typeof savedValue !== 'string') {
             if ((savedValue as any).isRaw) {
                 const raw = savedValue as RawTextureData;
                 if (raw.width !== width || raw.height !== height) {
@@ -166,7 +210,7 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         }
     }
     init();
-  }, [width, height, data.uniforms?.tex?.value]);
+  }, [width, height, data.settings?.persistenceId]);
 
   // --- Drawing Handlers (Unchanged logic, simplified for brevity) ---
   const getCoords = (e: React.MouseEvent) => {
@@ -232,7 +276,7 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
               ctx.globalCompositeOperation = 'source-over';
           }
           setIsDrawing(false);
-          saveCanvas(); 
+          persistCanvas(); 
       }
   };
 
@@ -240,7 +284,7 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
       ctx.clearRect(0, 0, width, height);
-      saveCanvas();
+      persistCanvas();
   };
 
   const borderClass = selected ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700';
