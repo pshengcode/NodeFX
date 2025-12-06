@@ -1,4 +1,10 @@
-export type GLSLType = 'float' | 'int' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D' | 'vec2[]';
+export type GLSLType = 
+  | 'float' | 'int' | 'bool' | 'uint'
+  | 'vec2' | 'vec3' | 'vec4' 
+  | 'uvec2' | 'uvec3' | 'uvec4'
+  | 'mat2' | 'mat3' | 'mat4'
+  | 'sampler2D' | 'samplerCube'
+  | 'vec2[]';
 
 export type WidgetMode = 
   | 'default' 

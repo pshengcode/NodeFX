@@ -1,0 +1,46 @@
+{
+  "id": "ALL_TYPES_TEST",
+  "label": "All Types Test",
+  "category": "Debug",
+  "description": "A node containing all supported input types for testing UI and compilation.",
+  "data": {
+    "inputs": [
+      { "id": "f", "name": "Float", "type": "float" },
+      { "id": "i", "name": "Int", "type": "int" },
+      { "id": "b", "name": "Bool", "type": "bool" },
+      { "id": "u", "name": "UInt", "type": "uint" },
+      { "id": "v2", "name": "Vec2", "type": "vec2" },
+      { "id": "v3", "name": "Vec3", "type": "vec3" },
+      { "id": "v4", "name": "Vec4", "type": "vec4" },
+      { "id": "uv2", "name": "UVec2", "type": "uvec2" },
+      { "id": "uv3", "name": "UVec3", "type": "uvec3" },
+      { "id": "uv4", "name": "UVec4", "type": "uvec4" },
+      { "id": "m2", "name": "Mat2", "type": "mat2" },
+      { "id": "m3", "name": "Mat3", "type": "mat3" },
+      { "id": "m4", "name": "Mat4", "type": "mat4" },
+      { "id": "s2d", "name": "Sampler2D", "type": "sampler2D" },
+      { "id": "sc", "name": "SamplerCube", "type": "samplerCube" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "f": { "type": "float", "value": 0.5 },
+      "i": { "type": "int", "value": 1 },
+      "b": { "type": "bool", "value": true },
+      "u": { "type": "uint", "value": 1 },
+      "v2": { "type": "vec2", "value": [0, 0] },
+      "v3": { "type": "vec3", "value": [0, 0, 0] },
+      "v4": { "type": "vec4", "value": [0, 0, 0, 1] },
+      "uv2": { "type": "uvec2", "value": [0, 0] },
+      "uv3": { "type": "uvec3", "value": [0, 0, 0] },
+      "uv4": { "type": "uvec4", "value": [0, 0, 0, 0] },
+      "m2": { "type": "mat2", "value": [1, 0, 0, 1] },
+      "m3": { "type": "mat3", "value": [1, 0, 0, 0, 1, 0, 0, 0, 1] },
+      "m4": { "type": "mat4", "value": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] },
+      "s2d": { "type": "sampler2D", "value": null },
+      "sc": { "type": "samplerCube", "value": null }
+    },
+    "glsl": "void run(vec2 uv, float f, int i, bool b, uint u, vec2 v2, vec3 v3, vec4 v4, uvec2 uv2, uvec3 uv3, uvec4 uv4, mat2 m2, mat3 m3, mat4 m4, sampler2D s2d, samplerCube sc, out vec4 result) {\n    // Combine inputs to verify they are bound correctly\n    float val = f + float(i) + float(u);\n    val += v2.x + v3.x + v4.x;\n    val += float(uv2.x) + float(uv3.x) + float(uv4.x);\n    val += m2[0][0] + m3[0][0] + m4[0][0];\n    \n    vec4 tex = texture(s2d, uv);\n    // vec4 cube = texture(sc, vec3(uv, 0.0)); // Skip cube sampling to avoid crash if not bound\n    \n    result = vec4(val * 0.01, tex.r, b ? 1.0 : 0.0, 1.0);\n}"
+  }
+}

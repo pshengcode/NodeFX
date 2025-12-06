@@ -8,7 +8,14 @@ import { stripComments } from './glslParser';
 // Helper to sanitize types
 const sanitizeType = (type: string): GLSLType => {
   if (type === 'vec1') return 'float';
-  const validTypes = ['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'vec2[]'];
+  const validTypes = [
+      'float', 'int', 'bool', 'uint',
+      'vec2', 'vec3', 'vec4', 
+      'uvec2', 'uvec3', 'uvec4',
+      'mat2', 'mat3', 'mat4',
+      'sampler2D', 'samplerCube', 
+      'vec2[]'
+  ];
   return validTypes.includes(type) ? (type as GLSLType) : 'float';
 };
 
@@ -18,10 +25,19 @@ const getDefaultGLSLValue = (type: GLSLType): string => {
   switch (safeType) {
     case 'float': return '0.0';
     case 'int': return '0';
+    case 'uint': return '0u';
+    case 'bool': return 'false';
     case 'vec2': return 'vec2(0.0)';
     case 'vec3': return 'vec3(0.0)';
     case 'vec4': return 'vec4(0.0, 0.0, 0.0, 1.0)';
+    case 'uvec2': return 'uvec2(0u)';
+    case 'uvec3': return 'uvec3(0u)';
+    case 'uvec4': return 'uvec4(0u, 0u, 0u, 1u)';
+    case 'mat2': return 'mat2(1.0)'; // Identity matrix
+    case 'mat3': return 'mat3(1.0)';
+    case 'mat4': return 'mat4(1.0)';
     case 'sampler2D': return 'u_empty_tex'; 
+    case 'samplerCube': return 'u_empty_cube'; // We might need to define this uniform
     case 'vec2[]': {
         const zeros = Array(16).fill('vec2(0.0)').join(', ');
         return `vec2[16](${zeros})`;
@@ -34,6 +50,12 @@ const getUniformValue = (type: GLSLType, val: UniformValueType) => {
   if (type === 'vec3' && Array.isArray(val)) return new Float32Array(val);
   if (type === 'vec4' && Array.isArray(val)) return new Float32Array(val);
   if (type === 'vec2' && Array.isArray(val)) return new Float32Array(val);
+  if (type === 'uvec3' && Array.isArray(val)) return new Uint32Array(val);
+  if (type === 'uvec4' && Array.isArray(val)) return new Uint32Array(val);
+  if (type === 'uvec2' && Array.isArray(val)) return new Uint32Array(val);
+  if ((type === 'mat2' || type === 'mat3' || type === 'mat4') && Array.isArray(val)) {
+      return new Float32Array(val);
+  }
   if (type === 'vec2[]' && Array.isArray(val)) {
       const flat = val.flat();
       return new Float32Array(flat as number[]);
@@ -44,17 +66,30 @@ const getUniformValue = (type: GLSLType, val: UniformValueType) => {
 // Type Casting Logic
 const castGLSLVariable = (varName: string, fromType: GLSLType, toType: GLSLType): string => {
     if (fromType === toType) return varName;
+    
+    // Bool conversions
+    if (fromType === 'bool') {
+        if (toType === 'int') return `int(${varName})`;
+        if (toType === 'float') return `float(${varName})`;
+    }
+    if (toType === 'bool') {
+        if (fromType === 'int') return `bool(${varName})`;
+        if (fromType === 'float') return `bool(${varName})`;
+    }
+
     if (fromType === 'float') {
         if (toType === 'vec2') return `vec2(${varName})`;
         if (toType === 'vec3') return `vec3(${varName})`;
         if (toType === 'vec4') return `vec4(vec3(${varName}), 1.0)`; 
         if (toType === 'int') return `int(${varName})`;
+        if (toType === 'bool') return `bool(${varName})`;
     }
     if (fromType === 'int') {
         if (toType === 'float') return `float(${varName})`;
         if (toType === 'vec2') return `vec2(float(${varName}))`;
         if (toType === 'vec3') return `vec3(float(${varName}))`;
         if (toType === 'vec4') return `vec4(vec3(float(${varName})), 1.0)`;
+        if (toType === 'bool') return `bool(${varName})`;
     }
     if (fromType === 'vec2') {
         if (toType === 'float') return `${varName}.x`;

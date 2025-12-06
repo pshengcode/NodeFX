@@ -499,10 +499,19 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
 const SUPPORTED_WIDGETS: Partial<Record<GLSLType, WidgetMode[]>> = {
     float: ['default', 'slider', 'number', 'toggle', 'enum', 'hidden'],
     int: ['default', 'slider', 'number', 'toggle', 'enum', 'hidden'],
+    uint: ['default', 'slider', 'number', 'hidden'],
+    bool: ['default', 'toggle', 'hidden'],
     vec2: ['default', 'pad', 'range', 'hidden'],
     vec3: ['default', 'color', 'gradient', 'curve', 'hidden'],
     vec4: ['default', 'color', 'gradient', 'curve', 'hidden'],
+    uvec2: ['default', 'hidden'],
+    uvec3: ['default', 'hidden'],
+    uvec4: ['default', 'hidden'],
+    mat2: ['default', 'hidden'],
+    mat3: ['default', 'hidden'],
+    mat4: ['default', 'hidden'],
     sampler2D: ['default', 'image', 'gradient', 'curve', 'hidden'],
+    samplerCube: ['default', 'image', 'hidden'],
     'vec2[]': ['bezier_grid', 'hidden']
 };
 
@@ -613,7 +622,7 @@ const UniformControlWrapper = ({
              );
         }
 
-        if (type === 'float' || type === 'int') {
+        if (type === 'float' || type === 'int' || type === 'uint') {
             if (mode === 'toggle') {
                 const isChecked = Math.abs(Number(uniform.value)) >= 0.5;
                 return (
@@ -641,13 +650,21 @@ const UniformControlWrapper = ({
                 );
             }
             if (mode === 'number') {
-                 return <SmartNumberInput step={type==='int'?1:0.01} className="nodrag w-full h-5 bg-zinc-800 text-[10px] px-1 rounded border border-zinc-700"
-                    value={uniform.value} onChange={onUpdateValue} />;
+                 return <SmartNumberInput step={type==='float'?0.01:1} className="nodrag w-full h-5 bg-zinc-800 text-[10px] px-1 rounded border border-zinc-700"
+                    value={uniform.value} onChange={v => {
+                        if(type==='uint') v = Math.max(0, Math.round(v));
+                        else if(type==='int') v = Math.round(v);
+                        onUpdateValue(v);
+                    }} />;
             }
             const min = config.min !== undefined ? config.min : 0;
             const max = config.max !== undefined ? config.max : 1;
-            const step = config.step !== undefined ? config.step : (type === 'int' ? 1 : 0.01);
-            return <SliderWidget value={uniform.value} onChange={onUpdateValue} min={min} max={max} step={step} />;
+            const step = config.step !== undefined ? config.step : (type === 'float' ? 0.01 : 1);
+            return <SliderWidget value={uniform.value} onChange={v => {
+                        if(type==='uint') v = Math.max(0, Math.round(v));
+                        else if(type==='int') v = Math.round(v);
+                        onUpdateValue(v);
+            }} min={min} max={max} step={step} />;
         }
         
         if (type === 'vec2') {
@@ -671,6 +688,127 @@ const UniformControlWrapper = ({
                     <SmartNumberInput step={0.1} className="nodrag w-full h-5 bg-zinc-800 text-[10px] px-1 rounded border border-zinc-700" value={v[1]} onChange={val => onUpdateValue([v[0], val])} />
                 </div>
              );
+        }
+
+        if (type === 'uvec2') {
+             const v = Array.isArray(uniform.value) ? uniform.value : [0,0];
+             return (
+                <div className="flex gap-1">
+                    {[0,1].map(i => (
+                        <SmartNumberInput 
+                            key={i} 
+                            step={1} 
+                            className="nodrag w-full h-5 bg-zinc-800 text-[10px] px-1 rounded border border-zinc-700" 
+                            value={v[i]} 
+                            onChange={val => { const n=[...v]; n[i]=Math.max(0, Math.round(val)); onUpdateValue(n); }} 
+                        />
+                    ))}
+                </div>
+             );
+        }
+
+        if (type === 'uvec3') {
+             const v = Array.isArray(uniform.value) ? uniform.value : [0,0,0];
+             return (
+                <div className="flex gap-1">
+                    {[0,1,2].map(i => (
+                        <SmartNumberInput 
+                            key={i} 
+                            step={1} 
+                            className="nodrag w-full h-5 bg-zinc-800 text-[10px] px-1 rounded border border-zinc-700" 
+                            value={v[i]} 
+                            onChange={val => { const n=[...v]; n[i]=Math.max(0, Math.round(val)); onUpdateValue(n); }} 
+                        />
+                    ))}
+                </div>
+             );
+        }
+
+        if (type === 'uvec4') {
+             const v = Array.isArray(uniform.value) ? uniform.value : [0,0,0,0];
+             return (
+                 <div className="grid grid-cols-2 gap-1">
+                     {['x','y','z','w'].map((l, i) => (
+                         <div key={l} className="relative">
+                             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-zinc-500 font-bold uppercase">{l}</span>
+                             <SmartNumberInput 
+                                step={1} 
+                                className="nodrag w-full h-5 bg-zinc-800 text-[9px] pl-3 pr-1 rounded border border-zinc-700" 
+                                value={v[i]} 
+                                onChange={val => { const n=[...v]; n[i]=Math.max(0, Math.round(val)); onUpdateValue(n); }} 
+                             />
+                         </div>
+                     ))}
+                 </div>
+             );
+        }
+
+        if (type === 'bool') {
+            const isChecked = Boolean(uniform.value);
+            return (
+                <button 
+                    className={`nodrag flex items-center gap-2 w-full px-2 py-1 rounded border transition-colors ${isChecked ? 'bg-blue-900/30 border-blue-500/50' : 'bg-zinc-900 border-zinc-700'}`}
+                    onClick={() => onUpdateValue(!isChecked)}
+                >
+                        {isChecked ? <CheckSquare size={12} className="text-blue-400"/> : <Square size={12} className="text-zinc-600"/>}
+                        <span className={`text-[10px] ${isChecked ? 'text-blue-200' : 'text-zinc-500'}`}>{isChecked ? 'True' : 'False'}</span>
+                </button>
+            );
+        }
+
+        if (type === 'mat2') {
+            const v = Array.isArray(uniform.value) ? uniform.value : [1,0,0,1];
+            return (
+                <div className="grid grid-cols-2 gap-1">
+                    {[0,1,2,3].map(i => (
+                        <SmartNumberInput 
+                            key={i} 
+                            step={0.1} 
+                            className="nodrag w-full h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700" 
+                            value={v[i]} 
+                            onChange={val => { const n=[...v]; n[i]=val; onUpdateValue(n); }} 
+                        />
+                    ))}
+                </div>
+            );
+        }
+
+        if (type === 'mat3') {
+            const v = Array.isArray(uniform.value) ? uniform.value : [1,0,0, 0,1,0, 0,0,1];
+            return (
+                <div className="grid grid-cols-3 gap-1">
+                    {[0,1,2,3,4,5,6,7,8].map(i => (
+                        <SmartNumberInput 
+                            key={i} 
+                            step={0.1} 
+                            className="nodrag w-full h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700" 
+                            value={v[i]} 
+                            onChange={val => { const n=[...v]; n[i]=val; onUpdateValue(n); }} 
+                        />
+                    ))}
+                </div>
+            );
+        }
+
+        if (type === 'mat4') {
+            const v = Array.isArray(uniform.value) ? uniform.value : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+            return (
+                <div className="grid grid-cols-4 gap-1">
+                    {[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(i => (
+                        <SmartNumberInput 
+                            key={i} 
+                            step={0.1} 
+                            className="nodrag w-full h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700" 
+                            value={v[i]} 
+                            onChange={val => { const n=[...v]; n[i]=val; onUpdateValue(n); }} 
+                        />
+                    ))}
+                </div>
+            );
+        }
+
+        if (type === 'samplerCube') {
+             return <ImageUploadWidget value={uniform.value} onChange={onUpdateValue} />;
         }
 
         if (type === 'vec2[]') {

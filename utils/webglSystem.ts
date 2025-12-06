@@ -445,6 +445,14 @@ class WebGLSystem {
                     else if (u.type === 'vec3') gl.uniform3fv(loc, u.value);
                     else if (u.type === 'vec4') gl.uniform4fv(loc, u.value);
                     else if (u.type === 'int') gl.uniform1i(loc, u.value);
+                    else if (u.type === 'uint') gl.uniform1ui(loc, u.value);
+                    else if (u.type === 'uvec2') gl.uniform2uiv(loc, u.value);
+                    else if (u.type === 'uvec3') gl.uniform3uiv(loc, u.value);
+                    else if (u.type === 'uvec4') gl.uniform4uiv(loc, u.value);
+                    else if (u.type === 'bool') gl.uniform1i(loc, u.value ? 1 : 0);
+                    else if (u.type === 'mat2') gl.uniformMatrix2fv(loc, false, u.value);
+                    else if (u.type === 'mat3') gl.uniformMatrix3fv(loc, false, u.value);
+                    else if (u.type === 'mat4') gl.uniformMatrix4fv(loc, false, u.value);
                     else if (u.type === 'vec2[]') {
                         // Flatten array of arrays or use Float32Array directly
                         let data = u.value;
