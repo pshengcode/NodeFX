@@ -62,16 +62,24 @@ try {
     const headerPrefix = `## [${currentVersion}] - ${dateStr}`;
 
     if (!currentChangelog.includes(headerPrefix)) {
-        const cleanLines = msg.split('\n')
-            .map(l => l.replace(/\[.*?\]/g, '').trim())
+        // Remove [content] blocks, even if they span multiple lines
+        // We must process the full message string, not line by line
+        const cleanMsg = msg.replace(/\[[\s\S]*?\]/g, '');
+        
+        const cleanLines = cleanMsg.split('\n')
+            .map(l => l.trim())
             .filter(l => l && !l.startsWith('#'));
         
-        const commitContent = cleanLines.join('\n') || "Version Update";
-        const entry = `## [${currentVersion}] - ${dateStr}\n\n${commitContent}\n\n`;
-        
-        fs.writeFileSync(changelogPath, entry + currentChangelog);
-        console.log(`Updated CHANGELOG.md`);
-        filesChanged = true;
+        if (cleanLines.length > 0) {
+            const commitContent = cleanLines.join('\n');
+            const entry = `## [${currentVersion}] - ${dateStr}\n\n${commitContent}\n\n`;
+            
+            fs.writeFileSync(changelogPath, entry + currentChangelog);
+            console.log(`Updated CHANGELOG.md`);
+            filesChanged = true;
+        } else {
+            console.log('Commit message empty after filtering, skipping CHANGELOG update.');
+        }
     }
 
     // 6. Amend Commit if needed
