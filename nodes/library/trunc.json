@@ -1,0 +1,21 @@
+{
+  "id": "TRUNC",
+  "label": "Trunc",
+  "category": "Math",
+  "description": "Returns the nearest integer not larger in absolute value than the parameter.",
+  "locales": {
+    "zh": {
+      "Trunc": "截断 (Trunc)",
+      "Returns the nearest integer not larger in absolute value than the parameter.": "返回绝对值不大于参数的最近整数（向零取整）。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = trunc(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res) { res = trunc(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res) { res = trunc(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res) { res = trunc(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

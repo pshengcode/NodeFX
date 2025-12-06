@@ -1,0 +1,27 @@
+{
+  "id": "MOD",
+  "label": "Mod",
+  "category": "Math",
+  "description": "Compute value of one parameter modulo another.",
+  "locales": {
+    "zh": {
+      "Mod": "取模",
+      "Compute value of one parameter modulo another.": "计算参数 A 对参数 B 取模的值。",
+      "A": "值",
+      "B": "模数"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, float b, out float res) { res = mod(a, b); }\nvoid run(vec2 uv, vec2 a, vec2 b, out vec2 res) { res = mod(a, b); }\nvoid run(vec2 uv, vec3 a, vec3 b, out vec3 res) { res = mod(a, b); }\nvoid run(vec2 uv, vec4 a, vec4 b, out vec4 res) { res = mod(a, b); }",
+    "inputs": [
+      { "id": "a", "name": "A", "type": "vec4" },
+      { "id": "b", "name": "B", "type": "vec4" }
+    ],
+    "uniforms": {
+      "b": { "type": "float", "value": 1.0 }
+    },
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

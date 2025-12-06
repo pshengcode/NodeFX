@@ -1,0 +1,21 @@
+{
+  "id": "LOG",
+  "label": "Log",
+  "category": "Math",
+  "description": "Returns the natural logarithm of the parameter.",
+  "locales": {
+    "zh": {
+      "Log": "对数 (Log)",
+      "Returns the natural logarithm of the parameter.": "返回参数的自然对数。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = log(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res) { res = log(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res) { res = log(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res) { res = log(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

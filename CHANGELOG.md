@@ -1,3 +1,23 @@
+## [1.0.22] - 2025-12-06
+
+完善基础节点:
+1.  **`mod.json`** (取模): 支持 float/vec2/vec3/vec4 重载。
+2.  **`refract.json`** (折射): 核心光照函数，支持 vec2/vec3。
+3.  **`texture_size.json`** (纹理尺寸): 获取纹理像素大小 (vec2)。
+4.  **`texture_lod.json`** (纹理 LOD 采样): 指定 Mipmap 级别进行采样。
+5.  **`exp.json`** (指数): $e^x$。
+6.  **`log.json`** (对数): $\ln(x)$。
+7.  **`inversesqrt.json`** (平方根倒数): $1/\sqrt{x}$，常用于向量归一化。
+8.  **`trunc.json`** (截断): 向零取整。
+9.  **`radians.json`** (角度转弧度)。
+10. **`degrees.json`** (弧度转角度)。
+[新增功能：增强提交信息处理并添加新的数学节点
+- 更新了 processCommitMsg.js，如果未指定版本号，则将 package.json 中的当前版本号添加到提交信息中。
+- 引入了提交后脚本，用于同步 package.json 和 appConfig.json 中的版本号，并更新 CHANGELOG.md。
+- 添加了新的数学节点：Degrees（度）、Exp（指数）、Inverse Sqrt（反平方根）、Log（对数）、Mod（模）、Radians（弧度）、Trunc（截断）等，并提供了详细描述和本地化支持。
+- 在 vi​​te.config.ts 中集成了 rollup-plugin-obfuscator，用于生产环境构建，以增强代码安全性。
+- 创建了一个提交后钩子，用于自动更新版本和变更日志条目]
+
 ## [1.0.20] - 2025-12-06
 
 完善基础节点:

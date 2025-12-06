@@ -1,0 +1,21 @@
+{
+  "id": "INVERSESQRT",
+  "label": "Inverse Sqrt",
+  "category": "Math",
+  "description": "Returns the inverse of the square root of the parameter.",
+  "locales": {
+    "zh": {
+      "Inverse Sqrt": "平方根倒数",
+      "Returns the inverse of the square root of the parameter.": "返回参数平方根的倒数。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = inversesqrt(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res) { res = inversesqrt(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res) { res = inversesqrt(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res) { res = inversesqrt(a); }",
+    "inputs": [
+      { "id": "a", "name": "In", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": "TEXTURE_LOD",
+  "label": "Texture LOD",
+  "category": "Input",
+  "icon": "Image",
+  "description": "Sample a texture with explicit Level-of-Detail (LOD).",
+  "locales": {
+    "zh": {
+      "Texture LOD": "纹理采样 (LOD)",
+      "Sample a texture with explicit Level-of-Detail (LOD).": "使用显式 LOD 级别对纹理进行采样。",
+      "Texture": "纹理",
+      "UV": "UV 坐标",
+      "LOD": "LOD 级别"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, vec2 texUV, float lod, out vec4 res) { res = textureLod(tex, texUV, lod); }",
+    "inputs": [
+      { "id": "tex", "name": "Texture", "type": "sampler2D" },
+      { "id": "texUV", "name": "UV", "type": "vec2" },
+      { "id": "lod", "name": "LOD", "type": "float" }
+    ],
+    "uniforms": {
+      "lod": { "type": "float", "value": 0.0, "widget": "slider", "widgetConfig": { "min": 0.0, "max": 10.0 } }
+    },
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Color", "type": "vec4" }]
+  }
+}

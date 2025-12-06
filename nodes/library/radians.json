@@ -1,0 +1,21 @@
+{
+  "id": "RADIANS",
+  "label": "Radians",
+  "category": "Math",
+  "description": "Converts degrees to radians.",
+  "locales": {
+    "zh": {
+      "Radians": "弧度",
+      "Converts degrees to radians.": "将角度转换为弧度。"
+    }
+  },
+  "data": {
+    "autoType": true,
+    "glsl": "void run(vec2 uv, float a, out float res) { res = radians(a); }\nvoid run(vec2 uv, vec2 a, out vec2 res) { res = radians(a); }\nvoid run(vec2 uv, vec3 a, out vec3 res) { res = radians(a); }\nvoid run(vec2 uv, vec4 a, out vec4 res) { res = radians(a); }",
+    "inputs": [
+      { "id": "a", "name": "Deg", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "outputs": [{ "id": "res", "name": "Rad", "type": "vec4" }]
+  }
+}

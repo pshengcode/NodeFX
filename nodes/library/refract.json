@@ -1,0 +1,29 @@
+{
+  "id": "REFRACT",
+  "label": "Refract",
+  "category": "Vector",
+  "icon": "ArrowDownRight",
+  "description": "Calculate the refraction direction for an incident vector.",
+  "locales": {
+    "zh": {
+      "Refract": "折射",
+      "Calculate the refraction direction for an incident vector.": "计算入射向量的折射方向。",
+      "I": "入射向量",
+      "N": "法线",
+      "Eta": "折射率比"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, vec3 I, vec3 N, float eta, out vec3 res) { res = refract(I, N, eta); }\nvoid run(vec2 uv, vec2 I, vec2 N, float eta, out vec2 res) { res = refract(I, N, eta); }",
+    "inputs": [
+      { "id": "I", "name": "I", "type": "vec3" },
+      { "id": "N", "name": "N", "type": "vec3" },
+      { "id": "eta", "name": "Eta", "type": "float" }
+    ],
+    "uniforms": {
+      "eta": { "type": "float", "value": 0.66 }
+    },
+    "outputType": "vec3",
+    "outputs": [{ "id": "res", "name": "Out", "type": "vec3" }]
+  }
+}

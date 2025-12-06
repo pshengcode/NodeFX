@@ -1,0 +1,27 @@
+{
+  "id": "TEXTURE_SIZE",
+  "label": "Texture Size",
+  "category": "Input",
+  "icon": "Maximize",
+  "description": "Returns the dimensions of a texture at a given LOD.",
+  "locales": {
+    "zh": {
+      "Texture Size": "纹理尺寸",
+      "Returns the dimensions of a texture at a given LOD.": "返回指定 LOD 级别的纹理尺寸。",
+      "Texture": "纹理",
+      "LOD": "LOD 级别"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, float lod, out vec2 res) { res = vec2(textureSize(tex, int(lod))); }",
+    "inputs": [
+      { "id": "tex", "name": "Texture", "type": "sampler2D" },
+      { "id": "lod", "name": "LOD", "type": "float" }
+    ],
+    "uniforms": {
+      "lod": { "type": "int", "value": 0, "widget": "number", "widgetConfig": { "step": 1, "min": 0 } }
+    },
+    "outputType": "vec2",
+    "outputs": [{ "id": "res", "name": "Size", "type": "vec2" }]
+  }
+}
