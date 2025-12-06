@@ -1,7 +1,22 @@
-# Changelog
+## [1.0.20] - 2025-12-06
 
-All notable changes to this project will be documented in this file.
+完善基础节点:
+1.  **`mod.json`** (取模): 支持 float/vec2/vec3/vec4 重载。
+2.  **`refract.json`** (折射): 核心光照函数，支持 vec2/vec3。
+3.  **`texture_size.json`** (纹理尺寸): 获取纹理像素大小 (vec2)。
+4.  **`texture_lod.json`** (纹理 LOD 采样): 指定 Mipmap 级别进行采样。
+5.  **`exp.json`** (指数): $e^x$。
+6.  **`log.json`** (对数): $\ln(x)$。
+7.  **`inversesqrt.json`** (平方根倒数): $1/\sqrt{x}$，常用于向量归一化。
+8.  **`trunc.json`** (截断): 向零取整。
+9.  **`radians.json`** (角度转弧度)。
+10. **`degrees.json`** (弧度转角度)。
 
+## [1.0.19] - 2025-12-06 15:11:24
+
+* 完善前端关于功能 [v1.0.19]
+* 版本自动添加changelog
+----------------------------------------------
 ## [1.0.18] - 2025-12-05
 
 增加 流体模拟， 烘焙gif 视频 序列帧

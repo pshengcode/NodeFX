@@ -1,7 +1,7 @@
 {
   "name": "nodefx",
   "private": true,
-  "version": "1.0.19",
+  "version": "1.0.21",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -31,7 +31,9 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "husky": "^9.1.7",
+    "javascript-obfuscator": "^4.2.1",
     "jsdom": "^27.2.0",
+    "rollup-plugin-obfuscator": "^1.1.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^4.0.14"
