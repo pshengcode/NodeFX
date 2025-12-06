@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Handle, Position, NodeProps, useReactFlow, useNodes, useEdges } from 'reactflow';
+import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { Wifi, X, AlertCircle, CheckCircle, RefreshCw, Settings2, UploadCloud, Send, ShieldAlert, Download, Hash } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { SmartNumberInput } from './UniformWidgets';
 import { useTranslation } from 'react-i18next';
+import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+
+const edgesSelector = (state: any) => state.edges;
+
+// Deep compare for selector
+const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 
 const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
   const { setNodes, deleteElements, setEdges } = useReactFlow();
-  const nodes = useNodes<NodeData>();
-  const edges = useEdges();
+  
+  // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
+  const nodes = useOptimizedNodes();
+  const edges = useStore(edgesSelector, deepEqual);
 
   const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
       if (e.altKey) {

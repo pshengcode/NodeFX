@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps, useReactFlow, useNodes, useEdges } from 'reactflow';
+import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
 import { NodeData, CompilationResult, RawTextureData } from '../types';
 import { Eraser, Trash2, PenTool, Layers, Settings, X } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
@@ -8,11 +8,20 @@ import ShaderPreview from './ShaderPreview';
 import { assetManager } from '../utils/assetManager';
 import { registerDynamicTexture, unregisterDynamicTexture } from '../utils/dynamicRegistry';
 import { useTranslation } from 'react-i18next';
+import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+
+const edgesSelector = (state: any) => state.edges;
+
+// Deep compare for selector
+const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 
 const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
   const { setNodes, deleteElements, setEdges } = useReactFlow();
-  const edges = useEdges();
+  
+  // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
+  const nodes = useOptimizedNodes();
+  const edges = useStore(edgesSelector, deepEqual);
 
   const handleDeleteNode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -81,7 +90,7 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   // Need to pass nodes/edges from parent or context? 
   // PaintNode is memoized, hooks need full graph access. 
   // Using ReactFlow hooks is correct.
-  const nodes = useNodes<NodeData>();
+  // const nodes = useNodes<NodeData>(); // REMOVED: Using useStore instead
 
   useEffect(() => {
     const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'bg');

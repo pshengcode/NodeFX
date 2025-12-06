@@ -1,12 +1,18 @@
 
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow';
+import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { Play, Pause, Settings, RotateCcw, Download, Wind, MousePointer2, History, Square, Magnet, Trash2, X, Maximize2, Minimize2, RotateCw, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { registerDynamicTexture, unregisterDynamicTexture } from '../utils/dynamicRegistry';
 import { useTranslation } from 'react-i18next';
 import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
+import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+
+const edgesSelector = (state: any) => state.edges;
+
+// Deep compare for selector
+const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 
 interface ForceField {
     id: string;
@@ -517,6 +523,8 @@ class GPUFluidSolver {
     gl: WebGL2RenderingContext;
     width: number;
     height: number;
+    uniformCache: Map<WebGLProgram, Map<string, WebGLUniformLocation | null>>;
+    attribCache: Map<WebGLProgram, number>;
     
     // FBOs (Ping-Pong)
     velocity: { read: WebGLTexture, write: WebGLTexture, fboRead: WebGLFramebuffer, fboWrite: WebGLFramebuffer, swap: () => void };
@@ -534,6 +542,8 @@ class GPUFluidSolver {
         this.gl = gl;
         this.width = width;
         this.height = height;
+        this.uniformCache = new Map();
+        this.attribCache = new Map();
 
         if (!gl.getExtension('EXT_color_buffer_float')) console.warn("Float texture not supported");
         gl.getExtension('OES_texture_float_linear');
@@ -640,15 +650,34 @@ class GPUFluidSolver {
         gl.disable(gl.DEPTH_TEST);
         gl.disable(gl.SCISSOR_TEST);
         
-        const posLoc = gl.getAttribLocation(prog, "position");
+        let posLoc = this.attribCache.get(prog);
+        if (posLoc === undefined) {
+            posLoc = gl.getAttribLocation(prog, "position");
+            this.attribCache.set(prog, posLoc);
+        }
+
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
         gl.enableVertexAttribArray(posLoc);
         gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
         let texUnit = 0;
-        for (const [name, val] of Object.entries(uniforms)) {
-            const loc = gl.getUniformLocation(prog, name);
-            if (val === null || val === undefined) continue;
+        
+        // Get or create cache for this program
+        let progCache = this.uniformCache.get(prog);
+        if (!progCache) {
+            progCache = new Map();
+            this.uniformCache.set(prog, progCache);
+        }
+
+        for (const name in uniforms) {
+            const val = uniforms[name];
+            let loc = progCache.get(name);
+            if (loc === undefined) {
+                loc = gl.getUniformLocation(prog, name);
+                progCache.set(name, loc);
+            }
+            
+            if (val === null || val === undefined || loc === null) continue;
 
             if (val instanceof WebGLTexture) {
                 gl.activeTexture(gl.TEXTURE0 + texUnit);
@@ -1123,10 +1152,13 @@ class GPUFluidSolver {
 }
 
 const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
+    console.log('FluidSimulationNode render', id, Date.now());
     const { t } = useTranslation();
     const { setNodes, deleteElements, setEdges } = useReactFlow();
-    const edges = useEdges();
-    const nodes = useNodes<NodeData>();
+    
+    // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
+    const nodes = useOptimizedNodes();
+    const edges = useStore(edgesSelector, deepEqual);
     
     const handleDeleteNode = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -1655,21 +1687,21 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
                                                 <label className="text-xs text-zinc-400">{t("Force (Neg=Attract, Pos=Repel)")}</label>
                                                 <span className="text-xs text-zinc-500">{field.force.toFixed(1)}</span>
                                             </div>
-                                            <input type="range" min="-20.0" max="20.0" step="0.5" value={field.force} onChange={e => setForceFields(prev => prev.map(p => p.id === field.id ? {...p, force: parseFloat(e.target.value)} : p))} className="w-full"/>
+                                            <input type="range" min="-20.0" max="20.0" step="0.1" value={field.force} onChange={e => setForceFields(prev => prev.map(p => p.id === field.id ? {...p, force: parseFloat(e.target.value)} : p))} className="w-full"/>
                                         </div>
                                         <div className="flex flex-col gap-1">
                                             <div className="flex justify-between">
                                                 <label className="text-xs text-zinc-400">{t("Rotation (Neg=CCW, Pos=CW)")}</label>
                                                 <span className="text-xs text-zinc-500">{field.spin.toFixed(1)}</span>
                                             </div>
-                                            <input type="range" min="-20.0" max="20.0" step="0.5" value={field.spin} onChange={e => setForceFields(prev => prev.map(p => p.id === field.id ? {...p, spin: parseFloat(e.target.value)} : p))} className="w-full"/>
+                                            <input type="range" min="-20.0" max="20.0" step="0.1" value={field.spin} onChange={e => setForceFields(prev => prev.map(p => p.id === field.id ? {...p, spin: parseFloat(e.target.value)} : p))} className="w-full"/>
                                         </div>
                                         <div className="flex flex-col gap-1">
                                             <div className="flex justify-between">
                                                 <label className="text-xs text-zinc-400">{t("Wind Strength")}</label>
                                                 <span className="text-xs text-zinc-500">{field.windForce.toFixed(1)}</span>
                                             </div>
-                                            <input type="range" min="0.0" max="20.0" step="0.5" value={field.windForce} onChange={e => setForceFields(prev => prev.map(p => p.id === field.id ? {...p, windForce: parseFloat(e.target.value)} : p))} className="w-full"/>
+                                            <input type="range" min="0.0" max="20.0" step="0.1" value={field.windForce} onChange={e => setForceFields(prev => prev.map(p => p.id === field.id ? {...p, windForce: parseFloat(e.target.value)} : p))} className="w-full"/>
                                         </div>
                                         <div className="flex flex-col gap-1">
                                             <div className="flex justify-between items-center">
@@ -1830,7 +1862,7 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
                             <label className="text-xs text-zinc-400">{t("Force Intensity")}</label>
                             <span className="text-xs text-zinc-500">{splatForce.toFixed(1)}</span>
                         </div>
-                        <input type="range" min="1.0" max="20.0" step="0.5" value={splatForce} onChange={e => setSplatForce(parseFloat(e.target.value))} className="w-full"/>
+                        <input type="range" min="1.0" max="20.0" step="0.1" value={splatForce} onChange={e => setSplatForce(parseFloat(e.target.value))} className="w-full"/>
                     </div>
                     <div className="flex flex-col gap-1">
                         <div className="flex justify-between">

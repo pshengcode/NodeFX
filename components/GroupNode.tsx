@@ -143,7 +143,14 @@ const GroupNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     className="bg-zinc-800/80 text-sm text-zinc-300 p-2 rounded border border-blue-500/40 outline-none w-full resize-none"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    onKeyDown={(e) => { e.stopPropagation(); if(e.key === 'Enter' && !e.shiftKey) onDescBlur(); }}
+                    onKeyDown={(e) => { 
+                        e.stopPropagation(); 
+                        // Allow Enter for new line, Ctrl+Enter to save
+                        if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            onDescBlur(); 
+                        }
+                    }}
                     onBlur={onDescBlur}
                     placeholder={t("Add description...")}
                     autoFocus
