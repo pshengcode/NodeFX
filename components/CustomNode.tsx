@@ -542,6 +542,28 @@ const UniformControlWrapper = ({
     const [showMenu, setShowMenu] = useState(false);
     const mode = uniform.widget || 'default';
     const config = uniform.widgetConfig || {};
+    const menuRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                menuRef.current && 
+                !menuRef.current.contains(event.target as Node) &&
+                buttonRef.current &&
+                !buttonRef.current.contains(event.target as Node)
+            ) {
+                setShowMenu(false);
+            }
+        };
+
+        if (showMenu) {
+            document.addEventListener('mousedown', handleClickOutside, true);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside, true);
+        };
+    }, [showMenu]);
     
     // Check visibility condition
     if (config.visibleIf) {
@@ -567,7 +589,7 @@ const UniformControlWrapper = ({
             ];
         }
         onUpdateConfig(m, newConfig);
-        setShowMenu(false);
+        // setShowMenu(false); // Keep menu open to allow further configuration
     };
 
     const updateConfig = (key: keyof WidgetConfig, val: any) => {
@@ -846,15 +868,14 @@ const UniformControlWrapper = ({
                     {hasSettings && !isConnected && (
                         <div className="relative">
                              <button 
+                                ref={buttonRef}
                                 onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
                                 className={`p-0.5 hover:text-zinc-200 transition-all ${showMenu ? 'text-blue-400 opacity-100' : `opacity-0 group-hover/param:opacity-100 ${mode === 'hidden' ? 'text-blue-400' : 'text-zinc-600'}`}`}
                              >
                                  <Settings size={10} />
                              </button>
                              {showMenu && (
-                                 <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                                    <div className="nodrag absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl z-50 flex flex-col p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100 max-h-[300px] overflow-y-auto custom-scrollbar" onMouseDown={e => e.stopPropagation()}>
+                                    <div ref={menuRef} className="nodrag absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl z-50 flex flex-col p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100 max-h-[300px] overflow-y-auto custom-scrollbar" onMouseDown={e => e.stopPropagation()}>
                                         {supportedModes && supportedModes.length > 1 && (
                                             <div className="flex flex-col mb-2">
                                                 <span className="text-[8px] font-bold text-zinc-500 uppercase px-2 py-1">{t("Widget Type")}</span>
@@ -936,7 +957,6 @@ const UniformControlWrapper = ({
                                             </div>
                                         )}
                                     </div>
-                                 </>
                              )}
                         </div>
                     )}
@@ -1298,7 +1318,14 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     const typeColor = TYPE_COLORS[input.type] || '#a1a1aa';
                     return (
                         <div key={input.id} className="relative pl-6 pr-3 group">
-                            <Handle type="target" position={Position.Left} id={input.id} className="!w-3 !h-3 !left-1 !top-1.5 !transform-none hover:scale-125 transition-all" style={{ backgroundColor: isConnected ? typeColor : '#18181b', borderColor: typeColor, borderWidth: 2 }} onClick={(e) => handleDisconnect(e, input.id, 'target')}/>
+                            <Handle 
+                                type="target" 
+                                position={Position.Left} 
+                                id={input.id} 
+                                className="!w-6 !h-6 !-left-0.5 !top-0 !transform-none !bg-transparent !border-0 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:w-3 after:h-3 after:rounded-full after:border-2 after:transition-transform hover:after:scale-125 after:bg-[var(--handle-bg)] after:border-[var(--handle-color)]" 
+                                style={{ '--handle-bg': isConnected ? typeColor : '#18181b', '--handle-color': typeColor } as React.CSSProperties} 
+                                onClick={(e) => handleDisconnect(e, input.id, 'target')}
+                            />
                             <div className="flex flex-col gap-1">
                                 {data.uniforms[input.id] ? (
                                     <UniformControlWrapper input={input} uniform={data.uniforms[input.id]} allUniforms={data.uniforms} isConnected={isConnected} typeColor={typeColor} t={t}
@@ -1322,7 +1349,14 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                     return (
                         <div key={output.id} className="relative flex items-center h-5 pl-2 pr-5 group justify-end">
                             <span className="text-[10px] font-medium text-zinc-400 mr-1">{t(output.name)}</span>
-                            <Handle type="source" position={Position.Right} id={output.id} className="!w-3 !h-3 !right-1 !top-1/2 !-mt-1.5 !transform-none hover:scale-125 transition-all" style={{ backgroundColor: isConnected ? typeColor : '#18181b', borderColor: typeColor, borderWidth: 2 }} onClick={(e) => handleDisconnect(e, output.id, 'source')}/>
+                            <Handle 
+                                type="source" 
+                                position={Position.Right} 
+                                id={output.id} 
+                                className="!w-6 !h-6 !-right-0.5 !top-1/2 !-mt-3 !transform-none !bg-transparent !border-0 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:w-3 after:h-3 after:rounded-full after:border-2 after:transition-transform hover:after:scale-125 after:bg-[var(--handle-bg)] after:border-[var(--handle-color)]" 
+                                style={{ '--handle-bg': isConnected ? typeColor : '#18181b', '--handle-color': typeColor } as React.CSSProperties} 
+                                onClick={(e) => handleDisconnect(e, output.id, 'source')}
+                            />
                         </div>
                     );
                 })}

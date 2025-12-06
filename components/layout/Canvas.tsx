@@ -133,6 +133,7 @@ export const Canvas: React.FC = () => {
                     elevateNodesOnSelect={false} 
                     proOptions={{ hideAttribution: true }} 
                     deleteKeyCode={['Backspace', 'Delete']}
+                    nodeDragThreshold={10}
                 >
                     <Background color="#202022ff" gap={40} size={2} />
                     <Controls className="!bg-zinc-800 !border-zinc-700 !fill-zinc-400" />
