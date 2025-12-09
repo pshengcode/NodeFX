@@ -1,3 +1,33 @@
+## [1.1.0] - 2025-12-09
+
+feat: Add DraggableNumberWidget for intuitive number adjustments
+- Introduced DraggableNumberWidget component to allow users to drag and edit numeric values.
+- Implemented mouse event handlers for drag functionality and keyboard support for editing.
+- Enhanced user experience with custom spin buttons for incrementing and decrementing values.
+feat: Integrate ParticleSystemNode into Canvas layout
+- Registered ParticleSystemNode in the Canvas layout to support particle system functionality.
+- Updated nodeTypes to include the new particle system node.
+fix: Update useGraphActions to handle particle system node type
+- Modified useGraphActions to correctly identify and handle the new particle system node type.
+- Ensured compatibility with existing node definitions.
+feat: Add particle system node definition
+- Created particle_system.json to define the properties and behavior of the Particle System node.
+- Included inputs, outputs, and GLSL code for rendering particles.
+refactor: Enhance dynamic texture registry for better flexibility
+- Updated dynamicRegistry to accept both HTMLCanvasElement and Float32Array data sources.
+- Adjusted registerDynamicTexture function to accommodate new data types.
+perf: Optimize WebGLSystem for resource management
+- Added lastUsed timestamp to programs and FBO cache to manage resource cleanup effectively.
+- Implemented cleanup logic to remove unused programs and framebuffers based on last used time.
+- Enhanced texture handling to support both canvas and float data uploads.
+新增功能：添加 DraggableNumberWidget 组件并集成 ParticleSystemNode
+- 实现了 DraggableNumberWidget 组件，可通过拖拽和编辑实现直观的数字调整。
+- 增强了 Canvas 布局，将 ParticleSystemNode 包含在 nodeTypes 中。
+- 更新了 useGraphActions 以支持新的粒子系统节点类型。
+- 创建了 particle_system.json 文件，用于使用 GLSL 和输入/输出规范定义粒子系统节点。
+- 修改了 dynamicRegistry 以处理动态纹理源，同时支持 HTMLCanvasElement 和 Float32Array 数据。
+- 增强了 WebGLSystem，使用 lastUsed 时间戳管理程序和帧缓冲区生命周期，从而更好地进行资源管理。
+
 ## [1.0.33] - 2025-12-06
 
 优化节点选择器以减少拖动时的重新渲染，新增 useOptimizedNodes 自定义钩子；更新 GroupNode、NetworkNode、PaintNode 组件以使用新钩子；添加 GLSL 节点开发规范文档。

@@ -1152,7 +1152,7 @@ class GPUFluidSolver {
 }
 
 const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
-    console.log('FluidSimulationNode render', id, Date.now());
+    // console.log('FluidSimulationNode render', id, Date.now());
     const { t } = useTranslation();
     const { setNodes, deleteElements, setEdges } = useReactFlow();
     
@@ -1270,7 +1270,8 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
         const canvas = canvasRef.current;
         if (!canvas) return;
         
-        const gl = canvas.getContext('webgl2', { alpha: false, antialias: false });
+        // Fix: Enable preserveDrawingBuffer to prevent flickering when used as input texture
+        const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, preserveDrawingBuffer: true });
         if (!gl) return;
 
         solverRef.current = new GPUFluidSolver(gl, width, height);
@@ -1877,6 +1878,11 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
             )}
         </div>
     );
+}, (prev, next) => {
+    // Custom comparison to avoid re-renders on position changes (drag)
+    return prev.id === next.id && 
+           prev.selected === next.selected && 
+           prev.data === next.data;
 });
 
 export default FluidSimulationNode;

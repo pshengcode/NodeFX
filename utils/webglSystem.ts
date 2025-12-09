@@ -39,9 +39,9 @@ class WebGLSystem {
     private canvas: HTMLCanvasElement;
     private gl: WebGL2RenderingContext;
     
-    private programs: Map<string, { prog: WebGLProgram, uniforms: Map<string, WebGLUniformLocation | null> }> = new Map();
+    private programs: Map<string, { prog: WebGLProgram, uniforms: Map<string, WebGLUniformLocation | null>, lastUsed: number }> = new Map();
     private sourceCache: Map<string, { v: string; f: string }> = new Map();
-    private fboCache: Map<string, { fbo: WebGLFramebuffer, tex: WebGLTexture, w: number, h: number }> = new Map();
+    private fboCache: Map<string, { fbo: WebGLFramebuffer, tex: WebGLTexture, w: number, h: number, lastUsed: number }> = new Map();
     private textureCache: Map<string, WebGLTexture> = new Map();
     
     private displayProgram: WebGLProgram | null = null;
@@ -119,10 +119,12 @@ class WebGLSystem {
     public cleanup(activePassIds: string[]) {
         const gl = this.gl;
         const activeSet = new Set(activePassIds);
+        const now = Date.now();
+        const TIMEOUT = 5000; // 5 seconds retention
 
         // 1. Cleanup Unused Programs
         for (const [id, programData] of this.programs.entries()) {
-            if (!activeSet.has(id)) {
+            if (!activeSet.has(id) && (now - programData.lastUsed > TIMEOUT)) {
                 gl.deleteProgram(programData.prog);
                 this.programs.delete(id);
                 this.sourceCache.delete(id);
@@ -143,7 +145,7 @@ class WebGLSystem {
             const w = parts.pop();
             const passId = parts.join('_');
 
-            if (!activeSet.has(passId)) {
+            if (!activeSet.has(passId) && (now - fboData.lastUsed > TIMEOUT)) {
                 gl.deleteFramebuffer(fboData.fbo);
                 gl.deleteTexture(fboData.tex);
                 this.fboCache.delete(key);
@@ -156,7 +158,11 @@ class WebGLSystem {
         const gl = this.gl;
         const key = `${id}_${w}_${h}`; // Resize check
         
-        if (this.fboCache.has(key)) return this.fboCache.get(key)!;
+        if (this.fboCache.has(key)) {
+            const obj = this.fboCache.get(key)!;
+            obj.lastUsed = Date.now();
+            return obj;
+        }
 
         // Clean up old FBOs for this ID if size changed
         // (Simple implementation: just create new, key handles uniqueness. 
@@ -179,7 +185,7 @@ class WebGLSystem {
 
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
         
-        const obj = { fbo, tex, w, h };
+        const obj = { fbo, tex, w, h, lastUsed: Date.now() };
         this.fboCache.set(key, obj);
         return obj;
     }
@@ -190,8 +196,8 @@ class WebGLSystem {
         
         // Check Dynamic Registry
         if (typeof value === 'string' && value.startsWith('dynamic://')) {
-             const canvas = getDynamicTexture(value);
-             if (!canvas) return null;
+             const source = getDynamicTexture(value);
+             if (!source) return null;
              
              // We need a persistent texture object for this ID
              if (!this.textureCache.has(id)) {
@@ -201,14 +207,28 @@ class WebGLSystem {
              }
              const tex = this.textureCache.get(id)!;
              
+             const oldActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+             gl.activeTexture(gl.TEXTURE31); // Use the last unit for data uploads
              gl.bindTexture(gl.TEXTURE_2D, tex);
+             
              // Upload current canvas state
-             gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+             
+             if (source instanceof HTMLCanvasElement) {
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+             } else {
+                // Float Data (HDR) - from readPixels (Bottom-Up)
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, source.width, source.height, 0, gl.RGBA, gl.FLOAT, source.data);
+             }
+
              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+             
+             // Restore
+             gl.activeTexture(oldActive);
              
              return tex;
         }
@@ -343,7 +363,7 @@ class WebGLSystem {
                     }
                 }
 
-                this.programs.set(pass.id, { prog, uniforms: uniformCache });
+                this.programs.set(pass.id, { prog, uniforms: uniformCache, lastUsed: Date.now() });
                 this.sourceCache.set(pass.id, { v: pass.vertexShader, f: pass.fragmentShader });
             }
         }
@@ -356,6 +376,8 @@ class WebGLSystem {
             activePassIds.push(pass.id);
             const programData = this.programs.get(pass.id);
             if (!programData) continue;
+            
+            programData.lastUsed = Date.now();
 
             const { prog, uniforms } = programData;
             gl.useProgram(prog);

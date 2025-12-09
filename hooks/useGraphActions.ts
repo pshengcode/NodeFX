@@ -230,7 +230,9 @@ export function useGraphActions(
         if (def.category === 'Network') type = 'networkNode';
         if (def.id === 'PAINT') type = 'paintNode'; 
         if (def.id === 'FLUID_SIM') type = 'fluidSimulationNode';
-        if (def.type === 'bakeNode') type = 'bakeNode';
+        if (def.id === 'PARTICLE_SYSTEM') type = 'particleSystem';
+      //  if (def.id === 'FLOW_MAP') type = 'flowMapNode';
+        if ((def as any).type === 'bakeNode') type = 'bakeNode';
     
         const newNode: Node<NodeData> = {
           id,

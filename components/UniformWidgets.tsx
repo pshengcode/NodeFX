@@ -68,6 +68,130 @@ export const SmartNumberInput: React.FC<{ value: number, onChange: (v: number) =
     );
 };
 
+export const DraggableNumberWidget = ({ value, onChange, min, max, step = 0.1, sensitivity = 0.5 }: any) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [tempValue, setTempValue] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
+    const isDragging = useRef(false);
+    const startX = useRef(0);
+    const startValue = useRef(0);
+
+    const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+    const displayValue = isEditing ? tempValue : parseFloat(safeValue.toFixed(3)).toString();
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (isEditing) return; 
+        
+        e.stopPropagation();
+        e.preventDefault();
+        isDragging.current = false;
+        startX.current = e.clientX;
+        startValue.current = safeValue;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const dx = moveEvent.clientX - startX.current;
+            if (Math.abs(dx) > 3) {
+                isDragging.current = true;
+                document.body.style.cursor = 'ew-resize';
+            }
+
+            if (isDragging.current) {
+                const delta = dx * step * sensitivity;
+                let newValue = startValue.current + delta;
+                
+                if (min !== undefined) newValue = Math.max(min, newValue);
+                if (max !== undefined) newValue = Math.min(max, newValue);
+                
+                onChange(Math.round(newValue * 1000) / 1000);
+            }
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            
+            if (!isDragging.current) {
+                setIsEditing(true);
+                setTempValue(safeValue.toString());
+                setTimeout(() => inputRef.current?.focus(), 0);
+            }
+            isDragging.current = false;
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        if (tempValue === "" || tempValue === "-") return;
+        const num = parseFloat(tempValue);
+        if (!isNaN(num)) {
+            let finalVal = num;
+            if (min !== undefined) finalVal = Math.max(min, finalVal);
+            if (max !== undefined) finalVal = Math.min(max, finalVal);
+            onChange(finalVal);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            inputRef.current?.blur();
+        }
+    };
+
+    const updateValue = (delta: number) => {
+        let newValue = safeValue + delta;
+        if (min !== undefined) newValue = Math.max(min, newValue);
+        if (max !== undefined) newValue = Math.min(max, newValue);
+        onChange(Math.round(newValue * 1000) / 1000);
+    };
+
+    return (
+        <div 
+            className="nodrag relative w-full h-7 bg-zinc-800 rounded border border-zinc-700 hover:border-zinc-500 transition-colors cursor-ew-resize flex items-center px-2 group"
+            onMouseDown={handleMouseDown}
+            title="Click to edit, Drag to adjust"
+        >
+            {isEditing ? (
+                <input
+                    ref={inputRef}
+                    type="number"
+                    step={step}
+                    className="w-full bg-transparent border-none outline-none text-xs text-zinc-200 p-0 m-0 font-mono appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none -moz-appearance-textfield"
+                    value={tempValue}
+                    onChange={(e) => setTempValue(e.target.value)}
+                    onBlur={handleBlur}
+                    onKeyDown={handleKeyDown}
+                />
+            ) : (
+                <div className="w-full text-xs text-zinc-300 select-none truncate font-mono group-hover:text-white">
+                    {displayValue}
+                </div>
+            )}
+            
+            {/* Custom Spin Buttons (Black/Dark Theme) */}
+            <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-0 bottom-0 w-4 bg-zinc-900 border-l border-zinc-700 z-10">
+                <button 
+                    onMouseDown={(e) => { e.stopPropagation(); updateValue(step); }} 
+                    className="flex-1 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 flex items-center justify-center"
+                    tabIndex={-1}
+                >
+                    <ChevronUp size={8} />
+                </button>
+                <button 
+                    onMouseDown={(e) => { e.stopPropagation(); updateValue(-step); }} 
+                    className="flex-1 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 flex items-center justify-center"
+                    tabIndex={-1}
+                >
+                    <ChevronDown size={8} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const SliderWidget = ({ value, onChange, min = 0, max = 1, step = 0.001 }: any) => {
     const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
     const containerRef = useRef<HTMLDivElement>(null);

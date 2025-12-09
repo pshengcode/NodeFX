@@ -15,10 +15,12 @@ import ContextMenu from '../ContextMenu';
 import ShaderPreview from '../ShaderPreview';
 import { GraphInputNode, GraphOutputNode } from '../IOProxyNodes';
 import { useTranslation } from 'react-i18next';
+import ParticleSystemNode from '../ParticleSystemNode';
 
 const nodeTypes: NodeTypes = {
   customShader: CustomNode,
   group: GroupNode,
+  particleSystem: ParticleSystemNode,
   networkNode: NetworkNode, 
   paintNode: PaintNode,
   fluidSimulationNode: FluidSimulationNode,
