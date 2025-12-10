@@ -21,7 +21,10 @@
       "Soft Light": "柔光",
       "Hard Light": "强光",
       "Difference": "差值",
-      "Exclusion": "排除"
+      "Exclusion": "排除",
+      "Add": "相加",
+      "Subtract": "相减",
+      "Divide": "相除"
     }
   },
   "data": {
@@ -86,6 +89,12 @@
       "        outCol = abs(b - f);",
       "    } else if (mode == 11) { // Exclusion",
       "        outCol = b + f - 2.0 * b * f;",
+      "    } else if (mode == 12) { // Add",
+      "        outCol = b + f;",
+      "    } else if (mode == 13) { // Subtract",
+      "        outCol = b - f;",
+      "    } else if (mode == 14) { // Divide",
+      "        outCol = b / max(f, vec3(0.00001));",
       "    }",
       "    ",
       "    // Apply opacity to the foreground influence",
@@ -130,7 +139,10 @@
             { "label": "Soft Light", "value": 8 },
             { "label": "Hard Light", "value": 9 },
             { "label": "Difference", "value": 10 },
-            { "label": "Exclusion", "value": 11 }
+            { "label": "Exclusion", "value": 11 },
+            { "label": "Add", "value": 12 },
+            { "label": "Subtract", "value": 13 },
+            { "label": "Divide", "value": 14 }
           ]
         }
       }
