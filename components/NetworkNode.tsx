@@ -7,6 +7,7 @@ import ShaderPreview from './ShaderPreview';
 import { SmartNumberInput } from './UniformWidgets';
 import { useTranslation } from 'react-i18next';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+import { useNodeSettings } from '../hooks/useNodeSync';
 
 const edgesSelector = (state: any) => state.edges;
 
@@ -49,35 +50,18 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const [showConfig, setShowConfig] = useState(false);
   
   // Params
-  const [serverUrl, setServerUrl] = useState(data.serverUrl || 'http://127.0.0.1:8080/upload');
-  const [debounceMs, setDebounceMs] = useState(data.settings?.debounceMs ?? 1000);
-  
-  // Sync settings to Node Data
-  useEffect(() => {
-      const settings = { debounceMs };
-      const timer = setTimeout(() => {
-          setNodes(nds => nds.map(n => {
-              if (n.id === id) {
-                  if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
-                  return { ...n, data: { ...n.data, settings } };
-              }
-              return n;
-          }));
-      }, 500);
-      return () => clearTimeout(timer);
-  }, [debounceMs, id, setNodes]);
-  
-  // ID Editing State
-  const [localId, setLocalId] = useState(data.customId ?? '');
+  const [settings, updateSettings] = useNodeSettings(id, data, {
+      serverUrl: 'http://127.0.0.1:8080/upload',
+      debounceMs: 1000,
+      customId: ''
+  });
 
-  // Auto-generate ID if missing (5-digit Hex)
-  useEffect(() => {
-    if (!data.customId) {
-        // Generate random 5-digit hex (00000 to FFFFF)
-        const randomId = Math.floor(Math.random() * 0x100000).toString(16).padStart(5, '0').toUpperCase();
-        setNodes((nds) => nds.map(n => n.id === id ? { ...n, data: { ...n.data, customId: randomId } } : n));
-    }
-  }, [id, data.customId, setNodes]);
+  const { serverUrl, debounceMs, customId } = settings;
+
+  const setServerUrl = (v: any) => updateSettings({ serverUrl: v });
+  const setDebounceMs = (v: any) => updateSettings({ debounceMs: v });
+  const setLocalId = (v: any) => updateSettings({ customId: v });
+
 
   // Extract Resolution from passed Data (Propagated from App.tsx)
   const { resolution } = data;
@@ -94,16 +78,17 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const isHttpTarget = serverUrl.startsWith('http:');
   const potentialBlock = isHttps && isHttpTarget && isLocalTarget;
 
-  // Sync local ID state if data changes externally (e.g. undo/redo)
+  // Auto-generate ID if missing (5-digit Hex)
   useEffect(() => {
-    setLocalId(data.customId ?? '');
-  }, [data.customId]);
-
-  const commitId = () => {
-    if (localId !== data.customId) {
-        setNodes((nds) => nds.map(n => n.id === id ? { ...n, data: { ...n.data, customId: localId } } : n));
+    if (!customId) {
+        // Generate random 5-digit hex (00000 to FFFFF)
+        const randomId = Math.floor(Math.random() * 0x100000).toString(16).padStart(5, '0').toUpperCase();
+        setLocalId(randomId);
     }
-  };
+  }, [customId]);
+
+
+
 
   // 1. Independent Compilation Logic
   useEffect(() => {
@@ -287,13 +272,12 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             </div>
             <input 
                 className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-1.5 py-1 text-xs text-zinc-300 font-mono focus:border-blue-500 outline-none placeholder-zinc-700 transition-colors"
-                value={localId}
+                value={customId}
                 onChange={(e) => setLocalId(e.target.value)}
-                onBlur={commitId}
-                onKeyDown={(e) => { if(e.key === 'Enter') commitId(); }}
                 placeholder={data.customId || id}
                 title="Custom ID for server requests"
             />
+
         </div>
 
         {/* Dynamic Aspect Ratio Container */}

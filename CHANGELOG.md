@@ -1,3 +1,26 @@
+## [1.1.1] - 2025-12-10
+
+feat: Add new image processing nodes and enhance versioning system
+- Introduced new nodes for image processing:
+- Blend: Combines two images using various blend modes.
+- Height to Normal: Converts grayscale height maps into normal maps.
+- Inner Glow: Generates an inner glow effect based on alpha channel.
+- Refraction & Dispersion: Simulates glass refraction and chromatic aberration.
+- Updated package version to 1.1.1 and added happy-dom for testing.
+- Enhanced commit message processing to automatically update version in package.json and appConfig.json based on commit messages.
+- Added tests for useUndoRedo hook to ensure performance optimizations and structural hashing behavior.
+- Implemented a simple CRC32 hash utility for string processing.
+新增功能：新增图像处理节点并增强版本控制系统
+- 新增图像处理节点：
+- 混合：使用各种混合模式合并两张图像。
+- 高度转法线：将灰度高度图转换为法线贴图。
+- 内发光：基于 Alpha 通道生成内发光效果。
+- 折射与色散：模拟玻璃折射和色差。
+- 更新软件包版本至 1.1.1，并添加了 happy-dom 用于测试。
+- 增强了提交消息处理，可根据提交消息自动更新 package.json 和 appConfig.json 中的版本。
+- 为 useUndoRedo hook 添加了测试，以确保性能优化和结构化哈希行为。
+- 实现了一个简单的 CRC32 哈希工具，用于字符串处理。
+
 ## [1.1.0] - 2025-12-09
 
 feat: Add DraggableNumberWidget for intuitive number adjustments

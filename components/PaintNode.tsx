@@ -9,6 +9,7 @@ import { assetManager } from '../utils/assetManager';
 import { registerDynamicTexture, unregisterDynamicTexture } from '../utils/dynamicRegistry';
 import { useTranslation } from 'react-i18next';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+import { useNodeSettings } from '../hooks/useNodeSync';
 
 const edgesSelector = (state: any) => state.edges;
 
@@ -49,32 +50,24 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const [showSettings, setShowSettings] = useState(false);
 
   // Brush State with Persistence
-  const [color, setColor] = useState(data.settings?.color ?? '#ffffff');
-  const [brushSize, setBrushSize] = useState(data.settings?.brushSize ?? 20);
-  const [opacity, setOpacity] = useState(data.settings?.opacity ?? 1.0);
-  const [softness, setSoftness] = useState(data.settings?.softness ?? 0.0); 
-  const [mode, setMode] = useState<'paint' | 'eraser'>(data.settings?.mode ?? 'paint');
-  const [bgOpacity, setBgOpacity] = useState(data.settings?.bgOpacity ?? 0.5);
+  const [settings, updateSettings] = useNodeSettings(id, data, {
+      color: '#ffffff',
+      brushSize: 20,
+      opacity: 1.0,
+      softness: 0.0,
+      mode: 'paint',
+      bgOpacity: 0.5
+  });
 
-  // Sync settings to Node Data
-  useEffect(() => {
-      const timer = setTimeout(() => {
-          setNodes(nds => nds.map(n => {
-              if (n.id === id) {
-                  const currentSettings = n.data.settings || {};
-                  const newSettings = { 
-                      ...currentSettings, 
-                      color, brushSize, opacity, softness, mode, bgOpacity 
-                  };
-                  
-                  if (JSON.stringify(currentSettings) === JSON.stringify(newSettings)) return n;
-                  return { ...n, data: { ...n.data, settings: newSettings } };
-              }
-              return n;
-          }));
-      }, 500);
-      return () => clearTimeout(timer);
-  }, [color, brushSize, opacity, softness, mode, bgOpacity, id, setNodes]);
+  const { color, brushSize, opacity, softness, mode, bgOpacity } = settings;
+
+  const setColor = (v: any) => updateSettings({ color: v });
+  const setBrushSize = (v: any) => updateSettings({ brushSize: v });
+  const setOpacity = (v: any) => updateSettings({ opacity: v });
+  const setSoftness = (v: any) => updateSettings({ softness: v });
+  const setMode = (v: any) => updateSettings({ mode: v });
+  const setBgOpacity = (v: any) => updateSettings({ bgOpacity: v });
+
 
   const width = data.resolution?.w || 512;
   const height = data.resolution?.h || 512;

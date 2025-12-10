@@ -1,0 +1,151 @@
+{
+  "id": "INNER_GLOW",
+  "label": "Inner Glow",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "Inner Glow": "内发光",
+      "Generates an inner glow based on alpha channel.": "根据 Alpha 通道生成内发光效果。",
+      "Input": "输入",
+      "Color": "颜色",
+      "Radius": "宽度",
+      "Intensity": "强度",
+      "Samples": "采样率",
+      "Blend Mode": "混合模式",
+      "Glow Only": "仅显示发光",
+      "Normal": "正常",
+      "Add": "添加",
+      "Screen": "滤色",
+      "Multiply": "正片叠底"
+    }
+  },
+  "data": {
+    "glsl": [
+      "// Helper function for blend modes",
+      "vec3 blend(vec3 base, vec3 blend, int mode) {",
+      "    if (mode == 1) return base + blend; // Add",
+      "    if (mode == 2) return 1.0 - (1.0 - base) * (1.0 - blend); // Screen",
+      "    if (mode == 3) return base * blend; // Multiply",
+      "    return blend; // Normal (mode 0)",
+      "}",
+      "",
+      "void run(vec2 uv, sampler2D tex, vec3 color, float radius, float intensity, int samples, int blend_mode, int glow_only, out vec4 result) {",
+      "    vec4 original = texture(tex, uv);",
+      "    float alpha = original.a;",
+      "    ",
+      "    // Optimization: Skip if fully transparent",
+      "    if (alpha < 0.001) {",
+      "        result = original;",
+      "        return;",
+      "    }",
+      "",
+      "    float totalAlpha = 0.0;",
+      "    float totalWeight = 0.0;",
+      "    ",
+      "    // Spiral sampling for better quality with fewer samples",
+      "    // Similar to the approach in advanced_bloom",
+      "    int count = clamp(samples, 4, 1000);",
+      "    float aspect = 1.0;",
+      "    if (u_resolution.y > 0.0) aspect = u_resolution.x / u_resolution.y;",
+      "    ",
+      "    float r_scale = radius * 0.002;",
+      "    ",
+      "    for (int i = 0; i < 1000; i++) {",
+      "        if (i >= count) break;",
+      "        ",
+      "        // Golden angle sampling",
+      "        float t = float(i) / float(count);",
+      "        float theta = float(i) * 2.3999632;",
+      "        ",
+      "        // Distribution: concentrate more samples near the center for smoother falloff",
+      "        float r = sqrt(t) * r_scale;",
+      "        ",
+      "        vec2 offset = vec2(sin(theta), cos(theta)) * r;",
+      "        offset.x /= aspect;",
+      "        ",
+      "        float neighborAlpha = texture(tex, uv + offset).a;",
+      "        totalAlpha += neighborAlpha;",
+      "        totalWeight += 1.0;",
+      "    }",
+      "    ",
+      "    float blurredAlpha = totalAlpha / totalWeight;",
+      "    ",
+      "    // Inner glow logic: Glow is strong where neighbor alpha is low (near edge)",
+      "    // (1.0 - blurredAlpha) gives us the 'edge-ness'",
+      "    float glowFactor = (1.0 - blurredAlpha);",
+      "    ",
+      "    // Sharpen the curve slightly and apply intensity",
+      "    glowFactor = pow(glowFactor, 1.5) * intensity;",
+      "    glowFactor = clamp(glowFactor, 0.0, 1.0);",
+      "    ",
+      "    // Mask by original alpha so glow stays inside",
+      "    glowFactor *= alpha;",
+      "    ",
+      "    vec3 glowColor = color * glowFactor;",
+      "    ",
+      "    if (glow_only == 1) {",
+      "        result = vec4(glowColor, glowFactor);",
+      "    } else {",
+      "        // Apply blend mode",
+      "        // We only blend where the glow exists",
+      "        vec3 blended = blend(original.rgb, color, blend_mode);",
+      "        ",
+      "        // Mix original with blended color based on glow factor",
+      "        vec3 finalRGB = mix(original.rgb, blended, glowFactor);",
+      "        ",
+      "        result = vec4(finalRGB, original.a);",
+      "    }",
+      "}"
+    ],
+    "inputs": [
+      { "id": "tex", "name": "Input", "type": "sampler2D" },
+      { "id": "color", "name": "Color", "type": "vec3", "default": [1, 1, 0.5] },
+      { "id": "radius", "name": "Radius", "type": "float", "default": 10.0 },
+      { "id": "intensity", "name": "Intensity", "type": "float", "default": 2.0 },
+      { "id": "samples", "name": "Samples", "type": "int", "default": 16 },
+      { "id": "blend_mode", "name": "Blend Mode", "type": "int", "default": 0 },
+      { "id": "glow_only", "name": "Glow Only", "type": "int", "default": 0 }
+    ],
+    "uniforms": {
+      "color": { 
+        "type": "vec3", 
+        "value": [1.0, 0.9, 0.4], 
+        "widget": "color" 
+      },
+      "radius": { 
+        "type": "float", 
+        "value": 10.0, 
+        "widgetConfig": { "min": 0.0, "max": 100.0, "step": 0.1 } 
+      },
+      "intensity": { 
+        "type": "float", 
+        "value": 3.0, 
+        "widgetConfig": { "min": 0.0, "max": 10.0, "step": 0.1 } 
+      },
+      "samples": { 
+        "type": "int", 
+        "value": 16, 
+        "widgetConfig": { "min": 4, "max": 1000, "step": 1 } 
+      },
+      "blend_mode": { 
+        "type": "int", 
+        "value": 1, 
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            { "label": "Normal", "value": 0 },
+            { "label": "Add", "value": 1 },
+            { "label": "Screen", "value": 2 },
+            { "label": "Multiply", "value": 3 }
+          ]
+        }
+      },
+      "glow_only": { 
+        "type": "int", 
+        "value": 0, 
+        "widget": "toggle" 
+      }
+    },
+    "outputType": "vec4"
+  }
+}

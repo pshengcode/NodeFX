@@ -27,7 +27,7 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
     const [newLangCode, setNewLangCode] = useState('');
     const [editingVisibility, setEditingVisibility] = useState<number | null>(null);
 
-    const updateVisibleIf = (inputIndex: number, enabled: boolean, targetUniform?: string, mode?: 'equals' | 'notEquals', value?: number) => {
+    const updateVisibleIf = (inputIndex: number, enabled: boolean, targetUniform?: string, mode?: 'equals' | 'notEquals', value?: number | number[]) => {
         const inp = localData.inputs[inputIndex];
         const currentUniform = localData.uniforms[inp.id] || { type: inp.type, value: 0 };
         
@@ -261,10 +261,24 @@ const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (n
                                                                     <option value="notEquals">{t("Not Equals (!=)")}</option>
                                                                 </select>
                                                                 <input 
-                                                                    type="number"
+                                                                    type="text"
                                                                     className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 outline-none focus:border-blue-500"
-                                                                    value={visibleIf.notValue ?? visibleIf.value ?? 0}
-                                                                    onChange={(e) => updateVisibleIf(idx, true, visibleIf.uniform, visibleIf.notValue !== undefined ? 'notEquals' : 'equals', parseFloat(e.target.value))}
+                                                                    value={(() => {
+                                                                        const val = visibleIf.notValue ?? visibleIf.value ?? 0;
+                                                                        return Array.isArray(val) ? val.join(', ') : val;
+                                                                    })()}
+                                                                    onChange={(e) => {
+                                                                        const str = e.target.value;
+                                                                        let val: number | number[];
+                                                                        if (str.includes(',')) {
+                                                                            val = str.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+                                                                        } else {
+                                                                            val = parseFloat(str);
+                                                                            if (isNaN(val)) val = 0;
+                                                                        }
+                                                                        updateVisibleIf(idx, true, visibleIf.uniform, visibleIf.notValue !== undefined ? 'notEquals' : 'equals', val);
+                                                                    }}
+                                                                    title={t("Enter a value or comma-separated values (e.g. 1, 2)")}
                                                                 />
                                                             </div>
                                                         </div>
@@ -565,20 +579,8 @@ const UniformControlWrapper = ({
         };
     }, [showMenu]);
     
-    // Check visibility condition
-    if (config.visibleIf) {
-        const targetUniform = allUniforms[config.visibleIf.uniform];
-        if (targetUniform) {
-            // If value is defined, check for equality
-            if (config.visibleIf.value !== undefined && targetUniform.value !== config.visibleIf.value) {
-                return null;
-            }
-            // If notValue is defined, check for inequality
-            if (config.visibleIf.notValue !== undefined && targetUniform.value === config.visibleIf.notValue) {
-                return null;
-            }
-        }
-    }
+    // Check visibility condition - Logic handled by parent component (isInputVisible)
+
 
     const setMode = (m: WidgetMode) => {
         let newConfig = { ...config };
@@ -1090,11 +1092,19 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       const targetUniform = data.uniforms[config.visibleIf.uniform];
       
       if (targetUniform) {
-          if (config.visibleIf.value !== undefined && targetUniform.value !== config.visibleIf.value) {
-              return false;
+          if (config.visibleIf.value !== undefined) {
+              if (Array.isArray(config.visibleIf.value)) {
+                  if (!config.visibleIf.value.includes(targetUniform.value)) return false;
+              } else if (targetUniform.value !== config.visibleIf.value) {
+                  return false;
+              }
           }
-          if (config.visibleIf.notValue !== undefined && targetUniform.value === config.visibleIf.notValue) {
-              return false;
+          if (config.visibleIf.notValue !== undefined) {
+               if (Array.isArray(config.visibleIf.notValue)) {
+                  if (config.visibleIf.notValue.includes(targetUniform.value)) return false;
+               } else if (targetUniform.value === config.visibleIf.notValue) {
+                  return false;
+               }
           }
       }
       return true;

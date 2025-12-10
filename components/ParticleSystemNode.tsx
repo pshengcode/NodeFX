@@ -11,6 +11,7 @@ import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { webglSystem } from '../utils/webglSystem';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+import { useNodeSettings } from '../hooks/useNodeSync';
 
 const edgesSelector = (state: any) => state.edges;
 const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
@@ -2072,14 +2073,35 @@ class GPUParticleSystem {
 
 const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
     const { t } = useTranslation();
-    const { setNodes, deleteElements, getNode } = useReactFlow();
+    const { setNodes, deleteElements, getNode, setEdges } = useReactFlow();
     
     // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
     const nodes = useOptimizedNodes();
     const edges = useStore(edgesSelector, deepEqual);
+
+    const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
+        if (e.altKey) {
+            e.stopPropagation();
+            e.preventDefault();
+            setEdges((edges) => edges.filter((edge) => {
+                if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
+                else return !(edge.source === id && edge.sourceHandle === handleId);
+            }));
+        }
+    }, [id, setEdges]);
     
     // Initialize module data from node data or defaults
-    const [modules, setModules] = useState<ModuleData[]>(data.settings?.modules || DEFAULT_MODULE_DATA);
+    const [settings, updateSettings] = useNodeSettings(id, data, { 
+        modules: DEFAULT_MODULE_DATA 
+    });
+    
+    const modules = settings.modules;
+    const setModules = useCallback((newModules: ModuleData[] | ((prev: ModuleData[]) => ModuleData[])) => {
+        updateSettings(prev => ({ 
+            modules: typeof newModules === 'function' ? newModules(prev.modules) : newModules 
+        }));
+    }, [updateSettings]);
+
     const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({'main': true, 'renderer': true});
     const [isRunning, setIsRunning] = useState(true);
     const [isPerspective, setIsPerspective] = useState(data.settings?.camera?.isPerspective ?? true);
@@ -2838,19 +2860,8 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
     }, [isRunning, isPerspective, showGizmos, getSettings, id, setNodes, maxParticles]);
 
 
-    // Sync to Node Data Persistence
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setNodes(nds => nds.map(n => {
-                if (n.id === id) {
-                    if (JSON.stringify(n.data.settings?.modules) === JSON.stringify(modules)) return n;
-                    return { ...n, data: { ...n.data, settings: { ...n.data.settings, modules } } };
-                }
-                return n;
-            }));
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [modules, id, setNodes]);
+    // Sync to Node Data Persistence handled by useNodeSettings hook
+
 
     const toggleModule = (modId: string) => {
         setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));

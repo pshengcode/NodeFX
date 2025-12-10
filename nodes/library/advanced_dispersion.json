@@ -1,0 +1,173 @@
+{
+  "id": "ADVANCED_DISPERSION",
+  "label": "Refraction & Dispersion",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "Refraction & Dispersion": "折射与色散",
+      "Simulates refraction and chromatic aberration using a normal map or lens distortion.": "使用法线贴图或透镜畸变模拟折射和色散效果。",
+      "Input Image": "输入图像",
+      "Strength": "折射强度",
+      "Dispersion": "色散程度",
+      "Lens Mode": "畸变模式",
+      "Radius": "半径",
+      "Samples": "采样质量",
+      "Normal Map": "法线贴图",
+      "Radial": "径向 (透镜)",
+      "Swirl": "漩涡",
+      "Wave": "波纹",
+      "Linear": "线性 (棱镜)",
+      "Angle": "角度"
+    }
+  },
+  "data": {
+    "glsl": [
+      "// Helper to calculate spectral weight for a given t [0, 1]",
+      "// t=0 (Red), t=0.5 (Green), t=1 (Blue)",
+      "vec3 spectral_weight(float t) {",
+      "    vec3 w = vec3(0.0);",
+      "    // Gaussian curves for R, G, B",
+      "    float sigma = 0.2;",
+      "    w.r = exp(-pow(t - 0.0, 2.0) / (2.0 * sigma * sigma));",
+      "    w.g = exp(-pow(t - 0.5, 2.0) / (2.0 * sigma * sigma));",
+      "    w.b = exp(-pow(t - 1.0, 2.0) / (2.0 * sigma * sigma));",
+      "    return w;",
+      "}",
+      "",
+      "void run(vec2 uv, sampler2D tex, sampler2D normalMap, float strength, float dispersion, float radius, float angle, int samples, int lens_mode, out vec4 result) {",
+      "    vec2 distortion = vec2(0.0);",
+      "",
+      "    if (lens_mode == 1) {",
+      "        // Radial (Lens) Mode",
+      "        vec2 dir = uv - 0.5;",
+      "        float dist = length(dir);",
+      "        float mask = smoothstep(radius, radius * 0.5, dist);",
+      "        distortion = dir * (dist * strength) * mask;",
+      "    } else if (lens_mode == 2) {",
+      "        // Swirl Mode",
+      "        vec2 center = vec2(0.5);",
+      "        vec2 tc = uv - center;",
+      "        float dist = length(tc);",
+      "        if (dist < radius) {",
+      "            float percent = (radius - dist) / radius;",
+      "            float theta = percent * percent * strength * 10.0;",
+      "            float s = sin(theta);",
+      "            float c = cos(theta);",
+      "            vec2 rotated = vec2(tc.x * c - tc.y * s, tc.x * s + tc.y * c);",
+      "            distortion = rotated - tc;",
+      "        }",
+      "    } else if (lens_mode == 3) {",
+      "        // Wave Mode",
+      "        float freq = 20.0;",
+      "        distortion = vec2(",
+      "            sin(uv.y * freq) * 0.05 * strength,",
+      "            cos(uv.x * freq) * 0.05 * strength",
+      "        );",
+      "    } else if (lens_mode == 4) {",
+      "        // Linear (Prism) Mode",
+      "        float rad = radians(angle);",
+      "        vec2 dir = vec2(cos(rad), sin(rad));",
+      "        distortion = dir * strength * 0.05;",
+      "    } else {",
+      "        // Normal Map Mode (Default 0)",
+      "        vec4 normSample = texture(normalMap, uv);",
+      "        vec3 normal = normalize(normSample.rgb * 2.0 - 1.0);",
+      "        distortion = normal.xy * strength * 0.1;",
+      "    }",
+      "",
+      "    // Multi-sample Dispersion",
+      "    vec3 sumColor = vec3(0.0);",
+      "    vec3 sumWeight = vec3(0.0);",
+      "    ",
+      "    // Clamp samples to reasonable range",
+      "    int numSamples = clamp(samples, 3, 32);",
+      "    ",
+      "    for (int i = 0; i < 32; i++) {",
+      "        if (i >= numSamples) break;",
+      "        ",
+      "        float t = float(i) / float(numSamples - 1);",
+      "        ",
+      "        // Calculate offset for this spectral band",
+      "        // t goes from 0 (Red) to 1 (Blue)",
+      "        // We map this to dispersion range: [1.0 - disp, 1.0 + disp]",
+      "        float dispFactor = (1.0 - dispersion) + t * (2.0 * dispersion);",
+      "        vec2 offset = distortion * dispFactor;",
+      "        ",
+      "        vec3 col = texture(tex, clamp(uv - offset, 0.0, 1.0)).rgb;",
+      "        vec3 w = spectral_weight(t);",
+      "        ",
+      "        sumColor += col * w;",
+      "        sumWeight += w;",
+      "    }",
+      "    ",
+      "    // Normalize",
+      "    vec3 finalColor = sumColor / sumWeight;",
+      "    float alpha = texture(tex, clamp(uv - distortion, 0.0, 1.0)).a; // Use center alpha",
+      "",
+      "    result = vec4(finalColor, alpha);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "tex", "name": "Input Image", "type": "sampler2D" },
+      { "id": "normalMap", "name": "Normal Map", "type": "sampler2D" },
+      { "id": "strength", "name": "Strength", "type": "float", "default": 0.5 },
+      { "id": "dispersion", "name": "Dispersion", "type": "float", "default": 0.1 },
+      { "id": "radius", "name": "Radius", "type": "float", "default": 0.5 },
+      { "id": "angle", "name": "Angle", "type": "float", "default": 0.0 },
+      { "id": "samples", "name": "Samples", "type": "int", "default": 8 },
+      { "id": "lens_mode", "name": "Lens Mode", "type": "int", "default": 0 }
+    ],
+    "uniforms": {
+      "strength": { 
+        "type": "float", 
+        "value": 0.5, 
+        "widgetConfig": { "min": -2.0, "max": 2.0, "step": 0.01 } 
+      },
+      "dispersion": { 
+        "type": "float", 
+        "value": 0.2, 
+        "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01 } 
+      },
+      "radius": { 
+        "type": "float", 
+        "value": 0.5, 
+        "widgetConfig": { 
+          "min": 0.0, 
+          "max": 1.5, 
+          "step": 0.01,
+          "visibleIf": { "uniform": "lens_mode", "value": [1, 2] }
+        } 
+      },
+      "angle": { 
+        "type": "float", 
+        "value": 0.0, 
+        "widgetConfig": { 
+          "min": 0.0, 
+          "max": 360.0, 
+          "step": 1.0,
+          "visibleIf": { "uniform": "lens_mode", "value": 4 }
+        } 
+      },
+      "samples": { 
+        "type": "int", 
+        "value": 8, 
+        "widgetConfig": { "min": 3, "max": 32, "step": 1 } 
+      },
+      "lens_mode": { 
+        "type": "int", 
+        "value": 0, 
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            { "label": "Normal Map", "value": 0 },
+            { "label": "Radial", "value": 1 },
+            { "label": "Swirl", "value": 2 },
+            { "label": "Wave", "value": 3 },
+            { "label": "Linear", "value": 4 }
+          ]
+        }
+      }
+    },
+    "outputType": "vec4"
+  }
+}

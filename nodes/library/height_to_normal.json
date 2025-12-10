@@ -1,0 +1,58 @@
+{
+  "id": "HEIGHT_TO_NORMAL",
+  "label": "Height to Normal",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "Height to Normal": "高度转法线",
+      "Converts a grayscale height map into a normal map.": "将灰度高度图转换为法线贴图。",
+      "Height Map": "高度图",
+      "Strength": "强度"
+    }
+  },
+  "data": {
+    "glsl": [
+      "void run(vec2 uv, sampler2D tex, float strength, out vec4 result) {",
+      "    // Calculate texel size based on current resolution",
+      "    vec2 texel = 1.0 / u_resolution.xy;",
+      "    ",
+      "    // Sobel Operator for high quality gradients",
+      "    // Sample surrounding pixels",
+      "    float tl = texture(tex, uv + texel * vec2(-1, -1)).r;",
+      "    float t  = texture(tex, uv + texel * vec2( 0, -1)).r;",
+      "    float tr = texture(tex, uv + texel * vec2( 1, -1)).r;",
+      "    float l  = texture(tex, uv + texel * vec2(-1,  0)).r;",
+      "    float r  = texture(tex, uv + texel * vec2( 1,  0)).r;",
+      "    float bl = texture(tex, uv + texel * vec2(-1,  1)).r;",
+      "    float b  = texture(tex, uv + texel * vec2( 0,  1)).r;",
+      "    float br = texture(tex, uv + texel * vec2( 1,  1)).r;",
+      "    ",
+      "    // Compute gradients",
+      "    // X direction: Right - Left",
+      "    float dX = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);",
+      "    ",
+      "    // Y direction: Bottom - Top",
+      "    float dY = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);",
+      "    ",
+      "    // Construct normal vector",
+      "    // The strength parameter scales the slope",
+      "    vec3 normal = normalize(vec3(-dX * strength, -dY * strength, 1.0));",
+      "    ",
+      "    // Map [-1, 1] range to [0, 1] for texture storage",
+      "    result = vec4(normal * 0.5 + 0.5, 1.0);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "tex", "name": "Height Map", "type": "sampler2D" },
+      { "id": "strength", "name": "Strength", "type": "float", "default": 1.0 }
+    ],
+    "uniforms": {
+      "strength": { 
+        "type": "float", 
+        "value": 2.0, 
+        "widgetConfig": { "min": 0.1, "max": 10.0, "step": 0.1 } 
+      }
+    },
+    "outputType": "vec4"
+  }
+}

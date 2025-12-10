@@ -1,11 +1,14 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Handle, Position, NodeProps, useReactFlow } from 'reactflow';
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
 import { webglSystem } from '../utils/webglSystem';
 import { CompilationResult } from '../types';
 import GIF from 'gif.js';
 import { useTranslation } from 'react-i18next';
+import { useNodeSettings } from '../hooks/useNodeSync';
+import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 
-import { useProject } from '../context/ProjectContext';
+const edgesSelector = (state: any) => state.edges;
+const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 
 const PASS_THROUGH_VERT = `#version 300 es
 in vec2 position;
@@ -15,40 +18,50 @@ void main() {
     gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
-const BakeNode: React.FC<NodeProps> = ({ data, id }) => {
+const BakeNode = memo(({ data, id }: NodeProps) => {
     const { t } = useTranslation();
-    const { edges } = useProject();
-    const { setNodes } = useReactFlow();
+    const { setNodes, setEdges } = useReactFlow();
+    
+    // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
+    const nodes = useOptimizedNodes();
+    const edges = useStore(edgesSelector, deepEqual);
+
+    const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
+        if (e.altKey) {
+            e.stopPropagation();
+            e.preventDefault();
+            setEdges((edges) => edges.filter((edge) => {
+                if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
+                else return !(edge.source === id && edge.sourceHandle === handleId);
+            }));
+        }
+    }, [id, setEdges]);
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [recording, setRecording] = useState(false);
     const [progress, setProgress] = useState(0);
     
     // Settings with Persistence
-    const [width, setWidth] = useState(data.settings?.width || 512);
-    const [height, setHeight] = useState(data.settings?.height || 512);
-    const [fps, setFps] = useState(data.settings?.fps || 30);
-    const [duration, setDuration] = useState(data.settings?.duration || 2);
-    const [columns, setColumns] = useState(data.settings?.columns || 3);
-    const [rows, setRows] = useState(data.settings?.rows || 3);
-    const [mode, setMode] = useState<'video' | 'sprite' | 'gif'>(data.settings?.mode || 'video');
+    const [settings, updateSettings] = useNodeSettings(id, data, {
+        width: 512,
+        height: 512,
+        fps: 30,
+        duration: 2,
+        columns: 3,
+        rows: 3,
+        mode: 'video'
+    });
 
-    // Sync settings to Node Data
-    useEffect(() => {
-        const settings = { width, height, fps, duration, columns, rows, mode };
-        // Only update if changed to avoid loop (though setNodes handles identity check usually)
-        // We use a timeout to debounce slightly if needed, but direct update is safer for "save on unload"
-        const timer = setTimeout(() => {
-            setNodes(nds => nds.map(n => {
-                if (n.id === id) {
-                    // Deep check to avoid unnecessary updates?
-                    if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
-                    return { ...n, data: { ...n.data, settings } };
-                }
-                return n;
-            }));
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [width, height, fps, duration, columns, rows, mode, id, setNodes]);
+    const { width, height, fps, duration, columns, rows, mode } = settings;
+
+    const setWidth = (v: any) => updateSettings({ width: v });
+    const setHeight = (v: any) => updateSettings({ height: v });
+    const setFps = (v: any) => updateSettings({ fps: v });
+    const setDuration = (v: any) => updateSettings({ duration: v });
+    const setColumns = (v: any) => updateSettings({ columns: v });
+    const setRows = (v: any) => updateSettings({ rows: v });
+    const setMode = (v: any) => updateSettings({ mode: v });
+
 
     // Internal State
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -359,6 +372,6 @@ void main() {
             />
         </div>
     );
-};
+});
 
 export default BakeNode;

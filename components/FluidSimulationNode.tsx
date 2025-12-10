@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+import { useNodeSettings } from '../hooks/useNodeSync';
 
 const edgesSelector = (state: any) => state.edges;
 
@@ -1190,39 +1191,71 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
     const [compiledObstacle, setCompiledObstacle] = useState<CompilationResult | null>(null);
     
     // Settings with Persistence
-    const [viscosity, setViscosity] = useState(data.settings?.viscosity ?? 0.002);
-    const [fade, setFade] = useState(data.settings?.fade ?? 0.116);
-    const [dt, setDt] = useState(data.settings?.dt ?? 0.016);
-    const [speed, setSpeed] = useState(data.settings?.speed ?? 0.6);
-    const [interactionMode, setInteractionMode] = useState<'drag' | 'smoke' | 'wall' | 'field'>(data.settings?.interactionMode ?? 'drag');
-    const [emitters, setEmitters] = useState<{x: number, y: number}[]>(data.settings?.emitters ?? []);
-    const [forceFields, setForceFields] = useState<ForceField[]>(() => {
-        const saved = data.settings?.forceFields ?? [];
-        return saved.map((f: any) => ({
-            ...f,
-            id: f.id || Math.random().toString(36).substr(2, 9),
-            force: f.force ?? (f.type === 'attract' ? -(f.strength ?? 5.0) : (f.strength ?? 5.0)),
-            spin: f.spin ?? (f.type === 'rotate' ? (f.strength ?? 5.0) : 0.0),
-            windForce: f.windForce ?? 0.0,
-            windAngle: f.windAngle ?? 0.0,
-            pulse: f.pulse ?? 0.0,
-            turbulence: f.turbulence ?? 0.0,
-            radius: f.radius ?? (data.settings?.splatRadius ?? 0.1)
-        }));
+    const [settings, updateSettings] = useNodeSettings(id, data, {
+        viscosity: 0.002,
+        fade: 0.116,
+        dt: 0.016,
+        speed: 0.6,
+        interactionMode: 'drag',
+        emitters: [],
+        forceFields: [],
+        showObstacles: true,
+        showFieldIcons: true,
+        pressureIterations: 50,
+        splatRadius: 0.014,
+        splatForce: 5.0,
+        splatColor: '#ffffff',
+        densityAmount: 0.3,
+        emissionSpeed: 1.0,
+        gravity: 0.0
     });
+
+    const { 
+        viscosity, fade, dt, speed, interactionMode, emitters, forceFields, 
+        showObstacles, showFieldIcons, pressureIterations, splatRadius, 
+        splatForce, splatColor, densityAmount, emissionSpeed, gravity 
+    } = settings;
+
+    // Helper setters to maintain compatibility with existing code
+    const setViscosity = (v: any) => updateSettings({ viscosity: v });
+    const setFade = (v: any) => updateSettings({ fade: v });
+    const setDt = (v: any) => updateSettings({ dt: v });
+    const setSpeed = (v: any) => updateSettings({ speed: v });
+    const setInteractionMode = (v: any) => updateSettings({ interactionMode: v });
+    const setEmitters = (v: any) => updateSettings({ emitters: typeof v === 'function' ? v(emitters) : v });
+    const setForceFields = (v: any) => updateSettings({ forceFields: typeof v === 'function' ? v(forceFields) : v });
+    const setShowObstacles = (v: any) => updateSettings({ showObstacles: v });
+    const setShowFieldIcons = (v: any) => updateSettings({ showFieldIcons: v });
+    const setPressureIterations = (v: any) => updateSettings({ pressureIterations: v });
+    const setSplatRadius = (v: any) => updateSettings({ splatRadius: v });
+    const setSplatForce = (v: any) => updateSettings({ splatForce: v });
+    const setSplatColor = (v: any) => updateSettings({ splatColor: v });
+    const setDensityAmount = (v: any) => updateSettings({ densityAmount: v });
+    const setEmissionSpeed = (v: any) => updateSettings({ emissionSpeed: v });
+    const setGravity = (v: any) => updateSettings({ gravity: v });
+
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
     const [draggingFieldId, setDraggingFieldId] = useState<string | null>(null);
-    const [showObstacles, setShowObstacles] = useState(data.settings?.showObstacles ?? true);
-    const [showFieldIcons, setShowFieldIcons] = useState(data.settings?.showFieldIcons ?? true);
     
-    // New Parameters
-    const [pressureIterations, setPressureIterations] = useState(data.settings?.pressureIterations ?? 50);
-    const [splatRadius, setSplatRadius] = useState(data.settings?.splatRadius ?? 0.014);
-    const [splatForce, setSplatForce] = useState(data.settings?.splatForce ?? 5.0);
-    const [splatColor, setSplatColor] = useState(data.settings?.splatColor ?? '#ffffff');
-    const [densityAmount, setDensityAmount] = useState(data.settings?.densityAmount ?? 0.3);
-    const [emissionSpeed, setEmissionSpeed] = useState(data.settings?.emissionSpeed ?? 1.0);
-    const [gravity, setGravity] = useState(data.settings?.gravity ?? 0.0);
+    // Migration logic for forceFields
+    useEffect(() => {
+        if (forceFields && forceFields.length > 0) {
+             const migrated = forceFields.map((f: any) => ({
+                ...f,
+                id: f.id || Math.random().toString(36).substr(2, 9),
+                force: f.force ?? (f.type === 'attract' ? -(f.strength ?? 5.0) : (f.strength ?? 5.0)),
+                spin: f.spin ?? (f.type === 'rotate' ? (f.strength ?? 5.0) : 0.0),
+                windForce: f.windForce ?? 0.0,
+                windAngle: f.windAngle ?? 0.0,
+                pulse: f.pulse ?? 0.0,
+                turbulence: f.turbulence ?? 0.0,
+                radius: f.radius ?? (splatRadius ?? 0.1)
+            }));
+            if (JSON.stringify(migrated) !== JSON.stringify(forceFields)) {
+                setForceFields(migrated);
+            }
+        }
+    }, [forceFields, splatRadius]);
 
     // Compile Inputs
     useEffect(() => {
@@ -1244,23 +1277,8 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
     }, [nodes, edges, id]);
 
     // Sync settings to Node Data
-    useEffect(() => {
-        const settings = {
-            viscosity, fade, dt, speed, interactionMode, emitters, forceFields, showObstacles, showFieldIcons,
-            pressureIterations, splatRadius, splatForce, splatColor, densityAmount, emissionSpeed, gravity
-        };
-        
-        const timer = setTimeout(() => {
-            setNodes(nds => nds.map(n => {
-                if (n.id === id) {
-                    if (JSON.stringify(n.data.settings) === JSON.stringify(settings)) return n;
-                    return { ...n, data: { ...n.data, settings } };
-                }
-                return n;
-            }));
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [viscosity, fade, dt, speed, interactionMode, emitters, forceFields, showObstacles, showFieldIcons, pressureIterations, splatRadius, splatForce, splatColor, densityAmount, emissionSpeed, gravity, id, setNodes]);
+    // Settings sync handled by useNodeSettings hook
+
 
     const width = data.resolution?.w || 512;
     const height = data.resolution?.h || 512;

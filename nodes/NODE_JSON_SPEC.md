@@ -113,11 +113,20 @@ void run(vec2 uv, vec4 inputColor, float intensity, out vec4 result) {
 ```json
 "visibleIf": {
   "uniform": "target_uniform_id", // 目标 Uniform 的 ID
-  "value": 1,                     // (可选) 当目标值等于此值时显示
-  "notValue": 0                   // (可选) 当目标值不等于此值时显示
+  "value": 1,                     // (可选) 当目标值等于此值(或在数组中)时显示。支持数字或数字数组。
+  "notValue": 0                   // (可选) 当目标值不等于此值(或不在数组中)时显示。支持数字或数字数组。
 }
 ```
 *注意: `value` 和 `notValue` 通常只使用其中一个。*
+
+**示例:**
+```json
+// 单值匹配
+"visibleIf": { "uniform": "mode", "value": 0 }
+
+// 多值匹配 (数组支持)
+"visibleIf": { "uniform": "mode", "value": [1, 2] } // 当 mode 为 1 或 2 时显示
+```
 
 **示例:**
 ```json
