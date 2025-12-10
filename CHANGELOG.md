@@ -1,3 +1,8 @@
+## [1.1.2] - 2025-12-10
+
+Feature: Updated labels and descriptions for multiple nodes, simplified support widgets for vec3 and vec4, and removed the standard glowing node.
+feat: 更新多个节点的标签和描述，简化 vec3 和 vec4 的支持小部件，删除标准发光节点
+
 ## [1.1.1] - 2025-12-10
 
 feat: Add new image processing nodes and enhance versioning system

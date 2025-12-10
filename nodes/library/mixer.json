@@ -2,12 +2,12 @@
   "id": "MIX",
   "label": "Mixer",
   "category": "Color",
-  "description": "Linearly interpolate between two inputs.",
+  "description": "Linearly interpolate between two inputs (mix / lerp).",
   "locales": {
     "zh": {
-      "Mixer": "混合器",
-      "Linearly interpolate between two inputs.": "在两个输入之间进行线性插值。",
-      "factor": "因子"
+      "Mixer": "线性插值",
+      "Linearly interpolate between two inputs (mix / lerp).": "在两个输入之间进行线性插值 (mix / lerp)。",
+      "factor": "混合因子"
     }
   },
   "data": {

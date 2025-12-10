@@ -1,10 +1,10 @@
 {
   "id": "ADVANCED_BLOOM",
-  "label": "Adv. Bloom",
+  "label": "Bloom Glow",
   "category": "Filter",
   "locales": {
     "zh": {
-      "Adv. Bloom": "高级泛光",
+      "Bloom Glow": "发光 泛光",
       "Physically based bloom with multi-scale spiral sampling.": "基于物理的多尺度螺旋采样泛光效果。",
       "intensity": "强度",
       "threshold": "阈值",
@@ -17,7 +17,7 @@
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, sampler2D tex, float intensity, float threshold, float radius, float scatter, int samples, vec2 shift, vec3 tint, int glow_only, out vec4 result) {\n    vec4 original = texture(tex, uv);\n    vec3 glowSum = vec3(0.0);\n    float totalWeight = 0.0;\n    \n    int count = clamp(samples, 16, 1000);\n    float aspect = 1.0;\n    if (u_resolution.y > 0.0) aspect = u_resolution.x / u_resolution.y;\n\n    float knee = 0.1 + scatter * 0.1; \n\n    for (int i = 0; i < 1000; i++) {\n        if (i >= count) break;\n        \n        float t = float(i) / float(count - 1);\n        float theta = float(i) * 2.3999632; // Golden Angle\n        \n        float r_dist = pow(t, 1.0 - (scatter * 0.5)); \n        float r = radius * 0.01 * r_dist;\n        \n        vec2 offset = vec2(sin(theta), cos(theta)) * r;\n        offset.x /= aspect;\n        offset += shift * 0.01;\n        \n        // Multi-scale sampling using textureLod\n        float lod = scatter * 6.0 * t;\n        vec3 col = textureLod(tex, uv + offset, lod).rgb;\n        \n        float br = max(col.r, max(col.g, col.b));\n        float rq = clamp((br - threshold + knee) / (2.0 * knee), 0.0, 1.0);\n        float factor = rq * rq;\n        \n        if (br < threshold - knee) factor = 0.0;\n        \n        float sigma = 0.15 + scatter * 0.5;\n        float weight = exp(-t*t / (2.0 * sigma * sigma));\n        \n        glowSum += col * factor * weight;\n        totalWeight += weight;\n    }\n    \n    vec3 glow = vec3(0.0);\n    if (totalWeight > 0.0) {\n        glow = (glowSum / totalWeight) * intensity;\n    }\n    \n    glow *= tint;\n    \n    if (glow_only == 1) {\n        result = vec4(glow, 1.0);\n    } else {\n        result = vec4(original.rgb + glow, original.a);\n    }\n}",
+    "glsl": "void run(vec2 uv, sampler2D tex, float intensity, float threshold, float radius, float scatter, int samples, vec2 shift, vec3 tint, int glow_only, out vec4 result) {\n    vec4 original = texture(tex, uv);\n    vec3 glowSum = vec3(0.0);\n    float totalWeight = 0.0;\n    \n    int count = clamp(samples, 16, 1000);\n    float aspect = 1.0;\n    if (u_resolution.y > 0.0) aspect = u_resolution.x / u_resolution.y;\n\n    float knee = 0.1 + scatter * 0.1; \n\n    for (int i = 0; i < 1000; i++) {\n        if (i >= count) break;\n        \n        float t = float(i) / float(count - 1);\n        float theta = float(i) * 2.3999632; // Golden Angle\n        \n        float r_dist = pow(t, 1.0 - (scatter * 0.5)); \n        float r = radius * 0.01 * r_dist;\n        \n        vec2 offset = vec2(sin(theta), cos(theta)) * r;\n        offset.x /= aspect;\n        offset += shift * 0.01;\n        \n        // Multi-scale sampling using textureLod\n        float lod = scatter * 6.0 * t;\n        vec3 col = textureLod(tex, uv + offset, lod).rgb;\n        \n        float br = max(col.r, max(col.g, col.b));\n        float rq = clamp((br - threshold + knee) / (2.0 * knee), 0.0, 1.0);\n        float factor = rq * rq;\n        \n        if (br < threshold - knee) factor = 0.0;\n        \n        float sigma = 0.15 + scatter * 0.5;\n        float weight = exp(-t*t / (2.0 * sigma * sigma));\n        \n        glowSum += col * factor * weight;\n        totalWeight += weight;\n    }\n    \n    vec3 glow = vec3(0.0);\n    if (totalWeight > 0.0) {\n        glow = (glowSum / totalWeight) * intensity;\n    }\n    \n    glow *= tint;\n    \n    float glowAlpha = clamp(max(glow.r, max(glow.g, glow.b)), 0.0, 1.0);\n    \n    if (glow_only == 1) {\n        result = vec4(glow, glowAlpha);\n    } else {\n        float finalAlpha = 1.0 - (1.0 - original.a) * (1.0 - glowAlpha);\n        result = vec4(original.rgb + glow, finalAlpha);\n    }\n}",
     "inputs": [
       {
         "id": "tex",
