@@ -12,9 +12,30 @@ import ShaderPreview from './ShaderPreview';
 import { webglSystem } from '../utils/webglSystem';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
+import { useProjectDispatch } from '../context/ProjectContext';
 
 const edgesSelector = (state: any) => state.edges;
-const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+
+// Optimized edge comparison - only compare relevant edge properties, not object references
+const edgesEqual = (a: any[], b: any[]) => {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    
+    // Only check if edges structurally changed (source, target, handles)
+    // Ignore style/animation properties that might change during drag
+    for (let i = 0; i < a.length; i++) {
+        const edgeA = a[i];
+        const edgeB = b[i];
+        if (edgeA.id !== edgeB.id ||
+            edgeA.source !== edgeB.source ||
+            edgeA.target !== edgeB.target ||
+            edgeA.sourceHandle !== edgeB.sourceHandle ||
+            edgeA.targetHandle !== edgeB.targetHandle) {
+            return false;
+        }
+    }
+    return true;
+};
 
 // --- TYPES ---
 
@@ -2071,13 +2092,28 @@ class GPUParticleSystem {
     }
 }
 
-const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
-    const { t } = useTranslation();
-    const { setNodes, deleteElements, getNode, setEdges } = useReactFlow();
+const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
+    const { id, data, selected } = props;
     
-    // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
-    const nodes = useOptimizedNodes();
-    const edges = useStore(edgesSelector, deepEqual);
+    const { t } = useTranslation();
+    const { setNodes, deleteElements, getNode, setEdges, getNodes } = useReactFlow();
+    
+    // Don't subscribe to any context - get values on demand
+    // This prevents re-renders when context values change
+    const edges = useStore(edgesSelector, edgesEqual);
+    
+    const isConnected = edges.some(e => e.source === id);
+
+    // Check if this particle system should export data for preview
+    // Use data.preview flag directly to avoid subscribing to previewNodeId from context
+    const shouldExportData = React.useMemo(() => {
+        // If this node is marked for preview, export data
+        if (data.preview) return true;
+        
+        // Otherwise, don't bother checking ancestry - it's expensive
+        // The preview system will handle collecting data from connected nodes
+        return false;
+    }, [data.preview]);
 
     const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
         if (e.altKey) {
@@ -2150,6 +2186,7 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
     const emittedCountRef = useRef<number>(0.0);
     const loopStartEmittedRef = useRef<number>(0.0); // Track emitted count at start of loop
     const systemTimeRef = useRef<number>(0.0); // Track system duration
+    const prevGradientConfigRef = useRef<string>(""); // Cache for gradient texture generation
     
     // Initialize random seed from data if available
     const initSeed = (() => {
@@ -2179,8 +2216,8 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
         
         if (inputEdge) {
             try {
-                // Compile upstream graph
-                // We use 'nodes' from useNodes() which is updated on changes
+                // Get nodes on-demand to avoid subscribing to position changes
+                const nodes = getNodes();
                 const result = compileGraph(nodes as import('reactflow').Node<NodeData>[], edges, inputEdge.source);
                 setCompiledImage(result);
             } catch (e) {
@@ -2190,7 +2227,7 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
         } else {
             setCompiledImage(null);
         }
-    }, [edges, nodes, id]);
+    }, [edges, getNodes, id]);
 
     // Watch for Particle Texture Input
     useEffect(() => {
@@ -2198,6 +2235,8 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
         
         if (inputEdge) {
             try {
+                // Get nodes on-demand to avoid subscribing to position changes
+                const nodes = getNodes();
                 const result = compileGraph(nodes as import('reactflow').Node<NodeData>[], edges, inputEdge.source);
                 setCompiledParticleImage(result);
             } catch (e) {
@@ -2207,7 +2246,7 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
         } else {
             setCompiledParticleImage(null);
         }
-    }, [edges, nodes, id]);
+    }, [edges, getNodes, id]);
 
     // Update refs
     useEffect(() => { dataRef.current = data; }, [data]);
@@ -2222,6 +2261,23 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
         phi: initialCamera.phi, 
         target: initialCamera.target 
     } : { r: 8.0, theta: 0.0, phi: 1.5, target: [0, 0, 0] });
+
+    // Sync camera state from data (for Undo/Redo/Load)
+    useEffect(() => {
+        if (data.settings?.camera) {
+            const cam = data.settings.camera;
+            camState.current = {
+                r: cam.r,
+                theta: cam.theta,
+                phi: cam.phi,
+                target: cam.target
+            };
+            if (cam.isPerspective !== undefined) {
+                setIsPerspective(cam.isPerspective);
+            }
+        }
+    }, [data.settings?.camera]);
+
     const dragRef = useRef({ active: false, x: 0, y: 0, mode: 'orbit' as 'orbit' | 'pan' });
     
     // Track isPerspective for event handlers
@@ -2496,7 +2552,10 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
         
         let lastTime = performance.now();
         const loop = (time: number) => {
-            if (!isRunning) return;
+            if (!isRunning) {
+                requestRef.current = requestAnimationFrame(loop);
+                return;
+            }
 
             const dt = Math.min((time - lastTime) / 1000, 0.1);
             lastTime = time;
@@ -2595,7 +2654,14 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
             // Update Gradient
             const colorMod = settings.color;
             if (colorMod && colorMod.enabled && colorMod.color) {
-                 system.updateGradient(colorMod.color.gradientStops || [], colorMod.color.alphaStops || []);
+                const stops = colorMod.color.gradientStops || [];
+                const alphas = colorMod.color.alphaStops || [];
+                const config = JSON.stringify({ stops, alphas });
+                
+                if (config !== prevGradientConfigRef.current) {
+                    system.updateGradient(stops, alphas);
+                    prevGradientConfigRef.current = config;
+                }
             }
             
             // Size Curve Texture Update REMOVED
@@ -2845,8 +2911,10 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
             system.render(view, proj, settings, renderModules);
 
             // Export HDR Data
-            const hdrData = system.getHDRData();
-            registerDynamicTexture(`dynamic://${id}`, hdrData);
+            if (shouldExportData) {
+                const hdrData = system.getHDRData();
+                registerDynamicTexture(`dynamic://${id}`, hdrData);
+            }
 
             requestRef.current = requestAnimationFrame(loop);
         };
@@ -2857,7 +2925,7 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
             unregisterDynamicTexture(`dynamic://${id}`);
         };
-    }, [isRunning, isPerspective, showGizmos, getSettings, id, setNodes, maxParticles]);
+    }, [isRunning, isPerspective, showGizmos, getSettings, id, setNodes, maxParticles, shouldExportData]);
 
 
     // Sync to Node Data Persistence handled by useNodeSettings hook
@@ -3438,10 +3506,20 @@ const ParticleSystemNode = memo(({ id, data, selected }: NodeProps<NodeData>) =>
             </div>
         </div>
     );
-}, (prev, next) => {
-    return prev.id === next.id && 
-           prev.selected === next.selected && 
-           prev.data === next.data;
+}, (prev: any, next: any) => {
+    // Ignore position (xPos, yPos), dragging, zIndex changes - only care about id, selected, data
+    // This prevents re-renders during drag operations
+    if (prev.id !== next.id || prev.selected !== next.selected) {
+        return false;
+    }
+    
+    // Fast path: reference equality
+    if (prev.data === next.data) {
+        return true;
+    }
+    
+    // Slow path: deep comparison (expensive, but necessary for correctness)
+    return JSON.stringify(prev.data) === JSON.stringify(next.data);
 });
 
 export default ParticleSystemNode;

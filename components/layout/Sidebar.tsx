@@ -1,8 +1,8 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen } from 'lucide-react';
+import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen, Layers, BookmarkPlus } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
-import { ShaderNodeDefinition, NodeCategory } from '../../types';
+import { ShaderNodeDefinition, NodeCategory, LibraryItem, CanvasTemplate } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
 import { useTranslation } from 'react-i18next';
 import appConfig from '../../appConfig.json';
@@ -49,18 +49,61 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ node, onDragStart, onClick })
     );
 };
 
+// Canvas Template Item Component
+interface CanvasTemplateItemProps {
+    template: CanvasTemplate;
+    onLoad: (template: CanvasTemplate) => void;
+}
+
+const CanvasTemplateItem: React.FC<CanvasTemplateItemProps> = ({ template, onLoad }) => {
+    const { t } = useTranslation();
+    const { removeFromLibrary } = useProject();
+    
+    return (
+        <div 
+            onClick={() => onLoad(template)}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-cyan-900/30 text-zinc-400 hover:text-cyan-200 transition-all group w-full text-left border border-cyan-900/20 hover:border-cyan-700/50 cursor-pointer relative"
+            title={`${template.description || t('Canvas Template')} ${t('(Click to load)')}`}
+        >
+            <Layers size={14} className="text-cyan-400 opacity-70 group-hover:opacity-100 shrink-0" />
+            <div className="flex-1 min-w-0">
+                <span className="text-xs font-medium truncate block">{template.label}</span>
+                <span className="text-[10px] text-zinc-500 truncate block">{template.nodes.length} {t('nodes')}</span>
+            </div>
+            <button 
+                onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if(confirm(t("Delete Canvas Template?"))) {
+                        removeFromLibrary(template.id); 
+                    }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity shrink-0"
+                title={t("Delete from Library")}
+            >
+                <Trash2 size={12} />
+            </button>
+        </div>
+    );
+};
+
 interface SidebarCategoryProps {
     category: string;
-    nodes: ShaderNodeDefinition[];
+    items: LibraryItem[];
     onDragStart: (e: React.DragEvent, id: string) => void;
     onClick: (node: ShaderNodeDefinition) => void;
+    onLoadCanvas: (template: CanvasTemplate) => void;
     extraAction?: React.ReactNode;
+    topContent?: React.ReactNode;
     isOpen: boolean;
     onToggle: () => void;
 }
 
-const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDragStart, onClick, extraAction, isOpen, onToggle }) => {
+const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, items, onDragStart, onClick, onLoadCanvas, extraAction, topContent, isOpen, onToggle }) => {
     const { t } = useTranslation();
+
+    // Separate nodes and canvas templates
+    const nodes = items.filter((item): item is ShaderNodeDefinition => !('itemType' in item));
+    const canvasTemplates = items.filter((item): item is CanvasTemplate => 'itemType' in item && item.itemType === 'canvas');
 
     return (
         <div className={`flex flex-col w-full transition-all duration-300 ${isOpen ? 'flex-1 min-h-0' : 'shrink-0'}`}>
@@ -77,6 +120,24 @@ const SidebarCategory: React.FC<SidebarCategoryProps> = ({ category, nodes, onDr
             
             {isOpen && (
                 <div className="flex-1 overflow-y-auto custom-scrollbar pl-1 mt-0.5 flex flex-col gap-0.5 min-h-0">
+                    {/* Top Content (e.g., Save Button) */}
+                    {topContent}
+                    
+                    {/* Canvas Templates First */}
+                    {canvasTemplates.length > 0 && (
+                        <>
+                            {canvasTemplates.map(template => (
+                                <CanvasTemplateItem 
+                                    key={template.id} 
+                                    template={template} 
+                                    onLoad={onLoadCanvas}
+                                />
+                            ))}
+                            {nodes.length > 0 && <div className="h-px bg-zinc-800/50 my-1" />}
+                        </>
+                    )}
+                    
+                    {/* Regular Nodes */}
                     {nodes.map(node => (
                         <SidebarItem 
                             key={node.id} 
@@ -118,13 +179,23 @@ export const Sidebar: React.FC = () => {
         exportLibrary,
         importLibrary,
         loadExampleProject,
-        nodes
+        nodes,
+        setNodes,
+        setEdges,
+        setPreviewNodeId,
+        resolution,
+        addCanvasToLibrary
     } = useProject();
 
     const [expandedCategory, setExpandedCategory] = useState<string | null>('Generator');
     const [showAbout, setShowAbout] = useState(false);
     const [showChangelog, setShowChangelog] = useState(false);
     const [showExampleConfirm, setShowExampleConfirm] = useState(false);
+    const [showCanvasLoadConfirm, setShowCanvasLoadConfirm] = useState(false);
+    const [showSaveDialog, setShowSaveDialog] = useState(false);
+    const [canvasName, setCanvasName] = useState('');
+    const [canvasDesc, setCanvasDesc] = useState('');
+    const [pendingCanvasTemplate, setPendingCanvasTemplate] = useState<CanvasTemplate | null>(null);
     const libraryImportRef = useRef<HTMLInputElement>(null);
 
     const handleLoadExample = async () => {
@@ -183,6 +254,40 @@ export const Sidebar: React.FC = () => {
         addNode(def, position);
     }, [reactFlowInstance, reactFlowWrapper, addNode]);
 
+    const handleLoadCanvas = useCallback((template: CanvasTemplate) => {
+        if (nodes.length > 1 || (nodes.length === 1 && nodes[0].id !== '1')) {
+            setPendingCanvasTemplate(template);
+            setShowCanvasLoadConfirm(true);
+            return;
+        }
+        loadCanvasTemplateNow(template);
+    }, [nodes]);
+
+    const loadCanvasTemplateNow = useCallback((template: CanvasTemplate) => {
+        const nodesWithZ = template.nodes.map(n => ({
+            ...n,
+            zIndex: n.type === 'group' ? -10 : 10,
+            data: { ...n.data, resolution }
+        }));
+        setNodes(nodesWithZ as any);
+        setEdges(template.edges);
+        
+        let previewNode = nodesWithZ.find(n => n.data.preview);
+        if (!previewNode && nodesWithZ.length > 0) {
+            previewNode = nodesWithZ.find(n => n.id === template.previewNodeId || n.id === '1') || nodesWithZ[0];
+        }
+        
+        setPreviewNodeId(previewNode ? previewNode.id : null);
+    }, [resolution, setNodes, setEdges, setPreviewNodeId]);
+
+    const confirmLoadCanvas = useCallback(() => {
+        setShowCanvasLoadConfirm(false);
+        if (pendingCanvasTemplate) {
+            loadCanvasTemplateNow(pendingCanvasTemplate);
+            setPendingCanvasTemplate(null);
+        }
+    }, [pendingCanvasTemplate, loadCanvasTemplateNow]);
+
     const onDragStart = (event: React.DragEvent, nodeId: string) => {
         event.dataTransfer.setData('application/reactflow', nodeId);
         event.dataTransfer.effectAllowed = 'move';
@@ -237,6 +342,8 @@ export const Sidebar: React.FC = () => {
                     if (!groupNodes) return null;
                     
                     let extra = null;
+                    let topContent = null;
+                    
                     if (cat === 'User') {
                         extra = (
                             <div className="flex gap-1 mr-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
@@ -256,16 +363,29 @@ export const Sidebar: React.FC = () => {
                                 </button>
                             </div>
                         );
+                        
+                        topContent = (
+                            <button
+                                onClick={() => setShowSaveDialog(true)}
+                                className="flex items-center gap-2 px-2 py-2 mb-1 rounded-md bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-200 border border-cyan-700/50 hover:border-cyan-600 transition-all group w-full"
+                                title={t("Save Canvas to Library")}
+                            >
+                                <BookmarkPlus size={14} className="shrink-0" />
+                                <span className="text-xs font-medium">{t("Save Canvas to Library")}</span>
+                            </button>
+                        );
                     }
 
                     return (
                         <SidebarCategory 
                             key={cat}
                             category={cat}
-                            nodes={groupNodes}
+                            items={groupNodes}
                             onDragStart={onDragStart}
                             onClick={handleSidebarClick}
+                            onLoadCanvas={handleLoadCanvas}
                             extraAction={extra}
+                            topContent={topContent}
                             isOpen={expandedCategory === cat}
                             onToggle={() => setExpandedCategory(prev => prev === cat ? null : cat)}
                         />
@@ -363,6 +483,125 @@ export const Sidebar: React.FC = () => {
                                 className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors"
                             >
                                 {t("Confirm")}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {showCanvasLoadConfirm && createPortal(
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto" onClick={() => {
+                    setShowCanvasLoadConfirm(false);
+                    setPendingCanvasTemplate(null);
+                }}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                            <Layers size={18} className="text-cyan-400" />
+                            {t("Load Canvas Template")}
+                        </h2>
+                        <p className="text-zinc-400 text-sm mb-2">{t("This will replace your current canvas with:")}</p>
+                        {pendingCanvasTemplate && (
+                            <div className="bg-zinc-800/50 rounded p-3 mb-6 border border-zinc-700/50">
+                                <div className="font-medium text-white">{pendingCanvasTemplate.label}</div>
+                                <div className="text-xs text-zinc-400 mt-1">{pendingCanvasTemplate.nodes.length} {t('nodes')}</div>
+                                {pendingCanvasTemplate.description && (
+                                    <div className="text-xs text-zinc-500 mt-2">{pendingCanvasTemplate.description}</div>
+                                )}
+                            </div>
+                        )}
+                        <p className="text-zinc-400 text-sm mb-6">{t("Continue?")}</p>
+                        <div className="flex justify-end gap-2">
+                            <button 
+                                onClick={() => {
+                                    setShowCanvasLoadConfirm(false);
+                                    setPendingCanvasTemplate(null);
+                                }}
+                                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors"
+                            >
+                                {t("Cancel")}
+                            </button>
+                            <button 
+                                onClick={confirmLoadCanvas}
+                                className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-sm transition-colors"
+                            >
+                                {t("Load")}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {showSaveDialog && createPortal(
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto" 
+                    onClick={() => {
+                        setShowSaveDialog(false);
+                        setCanvasName('');
+                        setCanvasDesc('');
+                    }}
+                >
+                    <div 
+                        className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-6 max-w-md w-full relative" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h2 className="text-lg font-bold text-white mb-4">{t("Save Canvas to Library")}</h2>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-zinc-400 mb-1">{t("Canvas Name")}</label>
+                                <input 
+                                    type="text"
+                                    value={canvasName}
+                                    onChange={e => setCanvasName(e.target.value)}
+                                    placeholder={t("Enter canvas name...")}
+                                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500"
+                                    autoFocus
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm text-zinc-400 mb-1">{t("Description")} ({t("Optional")})</label>
+                                <textarea 
+                                    value={canvasDesc}
+                                    onChange={e => setCanvasDesc(e.target.value)}
+                                    placeholder={t("Enter description...")}
+                                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-cyan-500 resize-none"
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button 
+                                onClick={() => {
+                                    setShowSaveDialog(false);
+                                    setCanvasName('');
+                                    setCanvasDesc('');
+                                }}
+                                className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors"
+                            >
+                                {t("Cancel")}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (canvasName.trim()) {
+                                        addCanvasToLibrary(canvasName.trim(), canvasDesc.trim() || undefined);
+                                        setShowSaveDialog(false);
+                                        setCanvasName('');
+                                        setCanvasDesc('');
+                                        alert(t("Canvas saved to library!"));
+                                    }
+                                }}
+                                disabled={!canvasName.trim()}
+                                className={`px-4 py-2 rounded text-white text-sm transition-colors ${
+                                    canvasName.trim() 
+                                        ? 'bg-cyan-600 hover:bg-cyan-500' 
+                                        : 'bg-zinc-700 cursor-not-allowed'
+                                }`}
+                            >
+                                {t("Save")}
                             </button>
                         </div>
                     </div>

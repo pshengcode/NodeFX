@@ -195,3 +195,31 @@ void run(vec2 uv, vec4 inputColor, float intensity, out vec4 result) {
   }
 }
 ```
+
+## 3. 函数重载与 UI 选择 (Overloads)
+
+GLSL 代码支持定义多个 run 函数（重载）。系统会自动解析所有 run 函数签名。
+
+为了在 UI 中提供友好的重载选择器，可以使用自定义预处理指令 //[Item(Label, Order)] 标记每个 run 函数。
+
+**语法:**
+\\\glsl
+//[Item("显示名称", 排序权重)]
+void run(...) { ... }
+\\\
+
+**示例:**
+\\\glsl
+// Output: Float
+//[Item(FloatOutput, 0)]
+void run(vec4 input, out float result) { ... }
+
+// Output: Vec4
+//[Item(Vec4Output, 1)]
+void run(vec4 input, out vec4 result) { ... }
+\\\
+
+*   **Label**: 下拉菜单中显示的名称。
+*   **Order**: 排序权重（数字越小越靠前）。
+*   如果未提供标记，UI 将显示默认的签名列表。
+

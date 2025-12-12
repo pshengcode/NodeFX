@@ -13,7 +13,8 @@ export function useKeyboardShortcuts(
     undo: () => void,
     redo: () => void,
     currentScope: string,
-    reactFlowInstance: ReactFlowInstance | null
+    reactFlowInstance: ReactFlowInstance | null,
+    isDragging: boolean
 ) {
     const { t } = useTranslation();
 
@@ -32,6 +33,8 @@ export function useKeyboardShortcuts(
     }, []);
 
     useEffect(() => {
+        if (isDragging) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
             // UI/UX FIX: Check if we are in an input, textarea, contenteditable (like div inputs), or the Monaco Editor
@@ -198,10 +201,12 @@ export function useKeyboardShortcuts(
   
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [nodes, setNodes, resolution, clipboard, currentScope, reactFlowInstance]); // Added dependencies
+    }, [nodes, setNodes, resolution, clipboard, currentScope, reactFlowInstance, isDragging]); // Added dependencies
 
     // Keyboard Shortcuts for Undo/Redo
     useEffect(() => {
+        if (isDragging) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();

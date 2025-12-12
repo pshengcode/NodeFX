@@ -5,7 +5,14 @@ import { NodeData, GLSLType, UniformVal, UniformValueType } from '../types';
 export const sanitizeType = (type: string): GLSLType => {
   if (!type) return 'float';
   if (type === 'vec1') return 'float';
-  const validTypes = ['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D', 'bool'];
+  const validTypes = [
+      'float', 'int', 'bool', 'uint',
+      'vec2', 'vec3', 'vec4',
+      'uvec2', 'uvec3', 'uvec4',
+      'mat2', 'mat3', 'mat4',
+      'sampler2D', 'samplerCube',
+      'vec2[]'
+  ];
   return validTypes.includes(type) ? (type as GLSLType) : 'float';
 };
 

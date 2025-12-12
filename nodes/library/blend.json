@@ -1,7 +1,7 @@
 {
   "id": "BLEND",
   "label": "Blend",
-  "category": "Composite",
+  "category": "Color",
   "locales": {
     "zh": {
       "Blend": "混合",
@@ -57,9 +57,9 @@
       "    );",
       "}",
       "",
-      "void run(vec2 uv, sampler2D background, sampler2D foreground, float opacity, int mode, out vec4 result) {",
-      "    vec4 bg = texture(background, uv);",
-      "    vec4 fg = texture(foreground, uv);",
+      "void run(vec2 uv, vec4 background, vec4 foreground, float opacity, int mode, out vec4 result) {",
+      "    vec4 bg = background;",
+      "    vec4 fg = foreground;",
       "    ",
       "    vec3 b = bg.rgb;",
       "    vec3 f = fg.rgb;",
@@ -95,7 +95,7 @@
       "        outCol = b - f;",
       "    } else if (mode == 14) { // Divide",
       "        outCol = b / max(f, vec3(0.00001));",
-      "    }",
+      "}",
       "    ",
       "    // Apply opacity to the foreground influence",
       "    // Standard compositing: Result = BG * (1 - alpha) + Blend(BG, FG) * alpha",
@@ -111,40 +111,127 @@
       "}"
     ],
     "inputs": [
-      { "id": "background", "name": "Background", "type": "sampler2D" },
-      { "id": "foreground", "name": "Foreground", "type": "sampler2D" },
-      { "id": "opacity", "name": "Opacity", "type": "float", "default": 1.0 },
-      { "id": "mode", "name": "Mode", "type": "int", "default": 0 }
+      {
+        "id": "background",
+        "name": "Background",
+        "type": "vec4"
+      },
+      {
+        "id": "foreground",
+        "name": "Foreground",
+        "type": "vec4"
+      },
+      {
+        "id": "opacity",
+        "name": "Opacity",
+        "type": "float",
+        "default": 1.0
+      },
+      {
+        "id": "mode",
+        "name": "Mode",
+        "type": "int",
+        "default": 0
+      }
     ],
     "uniforms": {
-      "opacity": { 
-        "type": "float", 
-        "value": 1.0, 
-        "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01 } 
+      "opacity": {
+        "type": "float",
+        "value": 1.0,
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
       },
-      "mode": { 
-        "type": "int", 
-        "value": 0, 
+      "mode": {
+        "type": "int",
+        "value": 0,
         "widget": "enum",
         "widgetConfig": {
           "enumOptions": [
-            { "label": "Normal", "value": 0 },
-            { "label": "Darken", "value": 1 },
-            { "label": "Multiply", "value": 2 },
-            { "label": "Color Burn", "value": 3 },
-            { "label": "Lighten", "value": 4 },
-            { "label": "Screen", "value": 5 },
-            { "label": "Color Dodge", "value": 6 },
-            { "label": "Overlay", "value": 7 },
-            { "label": "Soft Light", "value": 8 },
-            { "label": "Hard Light", "value": 9 },
-            { "label": "Difference", "value": 10 },
-            { "label": "Exclusion", "value": 11 },
-            { "label": "Add", "value": 12 },
-            { "label": "Subtract", "value": 13 },
-            { "label": "Divide", "value": 14 }
+            {
+              "label": "Normal",
+              "value": 0
+            },
+            {
+              "label": "Darken",
+              "value": 1
+            },
+            {
+              "label": "Multiply",
+              "value": 2
+            },
+            {
+              "label": "Color Burn",
+              "value": 3
+            },
+            {
+              "label": "Lighten",
+              "value": 4
+            },
+            {
+              "label": "Screen",
+              "value": 5
+            },
+            {
+              "label": "Color Dodge",
+              "value": 6
+            },
+            {
+              "label": "Overlay",
+              "value": 7
+            },
+            {
+              "label": "Soft Light",
+              "value": 8
+            },
+            {
+              "label": "Hard Light",
+              "value": 9
+            },
+            {
+              "label": "Difference",
+              "value": 10
+            },
+            {
+              "label": "Exclusion",
+              "value": 11
+            },
+            {
+              "label": "Add",
+              "value": 12
+            },
+            {
+              "label": "Subtract",
+              "value": 13
+            },
+            {
+              "label": "Divide",
+              "value": 14
+            }
           ]
         }
+      },
+      "background": {
+        "type": "vec4",
+        "value": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "widget": "color"
+      },
+      "foreground": {
+        "type": "vec4",
+        "value": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "widget": "color"
       }
     },
     "outputType": "vec4"

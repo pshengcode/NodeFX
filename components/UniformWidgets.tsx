@@ -1166,6 +1166,8 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
             };
             reader.readAsDataURL(file);
         }
+        // Reset the input value to allow selecting the same file again
+        e.target.value = '';
     };
 
     const applySize = (e: React.MouseEvent) => {

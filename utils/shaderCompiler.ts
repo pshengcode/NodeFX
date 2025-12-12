@@ -485,6 +485,7 @@ out vec4 fragColor;
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform sampler2D u_empty_tex;
+uniform samplerCube u_empty_cube;
 
 // Shadertoy compatibility
 #define iTime u_time

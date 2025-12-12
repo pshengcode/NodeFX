@@ -2,7 +2,14 @@
 import { GLSLType, NodeInput, NodeOutput } from '../types';
 
 // GLSL Types we care about for ports
-const VALID_TYPES = new Set(['float', 'int', 'vec2', 'vec3', 'vec4', 'sampler2D']);
+const VALID_TYPES = new Set([
+    'float', 'int', 'bool', 'uint',
+    'vec2', 'vec3', 'vec4',
+    'uvec2', 'uvec3', 'uvec4',
+    'mat2', 'mat3', 'mat4',
+    'sampler2D', 'samplerCube',
+    'vec2[]'
+]);
 
 interface Token {
     type: 'keyword' | 'identifier' | 'symbol' | 'number' | 'preprocessor';
@@ -24,10 +31,19 @@ export const stripComments = (code: string): string => {
         const next = code[i + 1];
 
         if (char === '/' && next === '/') {
-            // Line comment: skip until newline
-            i += 2;
-            while (i < len && code[i] !== '\n') i++;
-            // Newline will be handled by the next iteration if present
+            // Check if it is a metadata directive //[...]
+            if (code[i + 2] === '[') {
+                // Preserve this line!
+                // We copy the first two slashes and continue
+                out += '//';
+                i += 2;
+                // The rest of the line will be handled by the loop normally
+            } else {
+                // Line comment: skip until newline
+                i += 2;
+                while (i < len && code[i] !== '\n') i++;
+                // Newline will be handled by the next iteration if present
+            }
         } else if (char === '/' && next === '*') {
             // Block comment: skip until */
             i += 2;
@@ -83,6 +99,18 @@ const tokenize = (code: string): Token[] => {
             continue;
         }
 
+        // Metadata Directive //[...]
+        if (char === '/' && code[i+1] === '/' && code[i+2] === '[') {
+            let val = '';
+            while (i < len && code[i] !== '\n') {
+                val += code[i];
+                i++;
+            }
+            // Treat as preprocessor token for compatibility with extractAllSignatures logic
+            tokens.push({ type: 'preprocessor', value: val, line });
+            continue;
+        }
+
         // Identifiers & Keywords
         if (isAlpha(char)) {
             let val = '';
@@ -95,7 +123,7 @@ const tokenize = (code: string): Token[] => {
         }
 
         // Symbols
-        if (/[(),;{}]/.test(char)) {
+        if (/[(),;{}[\]]/.test(char)) {
             tokens.push({ type: 'symbol', value: char, line });
             i++;
             continue;
@@ -113,6 +141,9 @@ export interface ParsedSignature {
     outputs: NodeOutput[];
     isOverloaded: boolean;
     valid: boolean;
+    label?: string;
+    order?: number;
+    originalIndex?: number;
 }
 
 /**
@@ -131,12 +162,26 @@ export const extractShaderIO = (rawCode: string): ParsedSignature => {
         };
     }
 
-    // Return the first signature, but mark as overloaded if multiple exist
+    // Find the default signature (lowest order)
+    // If no orders are specified, use the first one (index 0)
+    // If orders are specified, sort by order, then by index
+    const sorted = [...signatures].sort((a, b) => {
+        const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.originalIndex || 0) - (b.originalIndex || 0);
+    });
+
+    const bestSig = sorted[0];
+
     return {
-        inputs: signatures[0].inputs,
-        outputs: signatures[0].outputs,
+        inputs: bestSig.inputs,
+        outputs: bestSig.outputs,
         isOverloaded: signatures.length > 1,
-        valid: true
+        valid: true,
+        label: bestSig.label,
+        order: bestSig.order,
+        originalIndex: bestSig.originalIndex
     };
 };
 
@@ -156,6 +201,33 @@ export const extractAllSignatures = (rawCode: string): ParsedSignature[] => {
             tokens[i+1].value === 'run' && 
             tokens[i+2].value === '('
         ) {
+            // Look backwards for #[Item(...)] preprocessor directive
+            let label: string | undefined;
+            let order: number | undefined;
+            
+            // Scan backwards from 'void' (index i)
+            // Skip whitespace/newlines is handled by tokenizer, but we need to check previous tokens
+            let j = i - 1;
+            while (j >= 0) {
+                const t = tokens[j];
+                if (t.type === 'preprocessor') {
+                    // Check if it matches #[Item(...)] or //[Item(...)]
+                    
+                    // Match #[Item(Identifier, Order)] or //[Item(Identifier, Order)]
+                    const match = t.value.match(new RegExp("^(?:#|//)\\[Item\\s*\\(\\s*([a-zA-Z0-9_]+)\\s*(?:,\\s*(\\d+))?\\s*\\)\\]"));
+                    if (match) {
+                        label = match[1];
+                        if (match[2]) {
+                            order = parseInt(match[2], 10);
+                        } else {
+                            order = 0; // Default order if not specified
+                        }
+                    }
+                    break; // Found the nearest preprocessor, stop looking
+                }
+                j--;
+            }
+
             const inputs: NodeInput[] = [];
             const outputs: NodeOutput[] = [];
             
@@ -183,7 +255,10 @@ export const extractAllSignatures = (rawCode: string): ParsedSignature[] => {
                 inputs,
                 outputs,
                 isOverloaded: false, // Individual sig is not overloaded
-                valid: true
+                valid: true,
+                label,
+                order,
+                originalIndex: signatures.length
             });
         }
     }
@@ -194,7 +269,22 @@ export const extractAllSignatures = (rawCode: string): ParsedSignature[] => {
 const parseArgument = (parts: string[], inputs: NodeInput[], outputs: NodeOutput[]) => {
     if (parts.length < 2) return; // Need at least Type + Name
 
-    const name = parts[parts.length - 1];
+    let name = parts[parts.length - 1];
+    let isArray = false;
+
+    // Handle Array Syntax: type name[size] -> parts: [type, name, [, size, ]]
+    // Or if numbers skipped: [type, name, [, ]]
+    if (name === ']') {
+        // It's an array!
+        // Find the name before the '['
+        let j = parts.length - 2;
+        while (j >= 0 && parts[j] !== '[') j--; // Skip size/content
+        if (j > 0) {
+            name = parts[j - 1]; // Name is before '['
+            isArray = true;
+        }
+    }
+
     // UV is system reserved, ignore
     if (name === 'uv') return;
 
@@ -218,7 +308,12 @@ const parseArgument = (parts: string[], inputs: NodeInput[], outputs: NodeOutput
         typeStr = foundType;
     } else {
         // Fallback: try second to last
+        // If array, we might need to look further back, but foundType usually works
         typeStr = parts[parts.length - 2];
+    }
+
+    if (isArray && typeStr && !typeStr.endsWith('[]')) {
+        typeStr += '[]';
     }
 
     if (!VALID_TYPES.has(typeStr)) return; // Invalid type, ignore

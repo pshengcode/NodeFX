@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Node,
   Edge,
@@ -110,14 +110,20 @@ interface ProjectContextType {
   getBreadcrumbs: () => Array<{ id: string; label: string }>;
 
   // User Library
-  userNodes: ShaderNodeDefinition[];
+  userNodes: import('../types').LibraryItem[];
   addToLibrary: (nodeData: NodeData) => void;
+  addCanvasToLibrary: (label: string, description?: string) => void;
   removeFromLibrary: (id: string) => void;
   importLibrary: (json: string) => boolean;
   exportLibrary: () => void;
+  
+  // Performance State
+  isDragging: boolean;
 }
 
+// Split Contexts for Performance
 const ProjectContext = createContext<ProjectContextType | null>(null);
+const ProjectDispatchContext = createContext<Omit<ProjectContextType, 'nodes' | 'edges'> | null>(null);
 
 export const useProject = () => {
   const context = useContext(ProjectContext);
@@ -125,6 +131,14 @@ export const useProject = () => {
     throw new Error('useProject must be used within a ProjectProvider');
   }
   return context;
+};
+
+export const useProjectDispatch = () => {
+    const context = useContext(ProjectDispatchContext);
+    if (!context) {
+      throw new Error('useProjectDispatch must be used within a ProjectProvider');
+    }
+    return context;
 };
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -148,7 +162,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [nodes, setNodes] = useNodesState(initialFlow?.nodes || initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialFlow?.edges || initialEdges);
   
-  const [previewNodeId, setPreviewNodeId] = useState<string | null>(() => {
+  const [previewNodeId, setPreviewNodeIdState] = useState<string | null>(() => {
       const savedId = initialFlow?.previewNodeId;
       const defaultId = '1';
       const initialNodeList = initialFlow?.nodes || initialNodes;
@@ -157,14 +171,40 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return initialNodeList.length > 0 ? initialNodeList[0].id : null;
   });
 
+  // Robust Preview Setter: Updates both state and node data to ensure consistency
+  const setPreviewNodeId = useCallback((id: string | null) => {
+      setPreviewNodeIdState(id);
+      setNodes(nds => nds.map(n => {
+          const shouldBePreview = n.id === id;
+          if (n.data.preview !== shouldBePreview) {
+              return { ...n, data: { ...n.data, preview: shouldBePreview } };
+          }
+          return n;
+      }));
+  }, [setNodes]);
+
+  // Sync State from Nodes (Handle Undo/Redo)
+  useEffect(() => {
+      // Find the node that claims to be the preview
+      const activePreviewNode = nodes.find(n => n.data.preview);
+      const activeId = activePreviewNode ? activePreviewNode.id : null;
+      
+      // If state doesn't match visual reality (e.g. after Undo), sync state to reality
+      if (activeId !== previewNodeId) {
+          setPreviewNodeIdState(activeId);
+      }
+  }, [nodes, previewNodeId]);
+
   const [compiledData, setCompiledData] = useState<CompilationResult | null>(null);
   const [resolution, setResolution] = useState<{w: number, h: number}>({ w: 512, h: 512 });
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [currentScope, setCurrentScope] = useState<string>('root');
+  const [isDragging, setIsDragging] = useState(false);
   const viewportStack = useRef<Record<string, { x: number, y: number, zoom: number }>>({});
 
   // Visibility Effect
   useEffect(() => {
+      if (isDragging) return; // Skip visibility updates during drag
       setNodes(nds => nds.map(n => {
           const isVisible = (n.data.scopeId || 'root') === currentScope;
           if (n.hidden !== !isVisible) {
@@ -172,6 +212,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
           return n;
       }));
+
 
       // Viewport Management
       if (reactFlowInstance) {
@@ -311,10 +352,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const {
       userNodes,
       addToLibrary,
+      addCanvasToLibrary: addCanvasToLibraryHook,
       removeFromLibrary,
       importLibrary,
       exportLibrary
   } = useUserLibrary();
+
+  // Wrapper for addCanvasToLibrary to use current context state
+  const addCanvasToLibrary = useCallback((label: string, description?: string) => {
+      addCanvasToLibraryHook(label, nodes, edges, previewNodeId, description);
+  }, [addCanvasToLibraryHook, nodes, edges, previewNodeId]);
 
   // Merge User Nodes into nodesByCategory and fullRegistry
   const allNodesByCategory = useMemo(() => {
@@ -349,13 +396,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       onConnect, 
       addNode, 
       onNodeClick, 
+      onNodeDragStart,
       onNodeDragStop, 
       onNodesDelete,
       onDragOver,
       onDrop
   } = useGraphActions(
       nodes, setNodes, edges, setEdges, previewNodeId, setPreviewNodeId, setCompiledData, resolution,
-      reactFlowWrapper, reactFlowInstance, allFullRegistry, currentScope
+      reactFlowWrapper, reactFlowInstance, allFullRegistry, currentScope, setIsDragging
   );
 
   const { clearPersistence } = usePersistence(nodes, edges, previewNodeId, setNodes, setEdges, initialNodes, initialEdges);
@@ -363,8 +411,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { copyShareLink } = useUrlSharing();
   const { runTypeInference } = useTypeInference();
   
-  useKeyboardShortcuts(nodes, setNodes, edges, setEdges, resolution, undo, redo, currentScope, reactFlowInstance);
-  useShaderCompiler(nodes, edges, previewNodeId, setCompiledData);
+  useKeyboardShortcuts(nodes, setNodes, edges, setEdges, resolution, undo, redo, currentScope, reactFlowInstance, isDragging);
+  useShaderCompiler(nodes, edges, previewNodeId, setCompiledData, isDragging);
 
   const { 
       saveProject, 
@@ -391,6 +439,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Keep a ref to nodes for event listeners
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+
+  // const prevPreviewNodeId = useRef<string | null>(null); // Removed
+
 
   // Share Logic
   const [pendingShareData, setPendingShareData] = useState<{ nodes: Node<NodeData>[], edges: Edge[], previewNodeId?: string | null } | null>(null);
@@ -470,15 +521,23 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.history.replaceState(null, '', window.location.pathname);
   };
 
-  // Resolution Effect
+  // Optimized Preview Sync - REMOVED (Handled by setPreviewNodeId and Undo/Redo sync)
+  /*
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => {
-        if (n.data.resolution?.w !== resolution.w || n.data.resolution?.h !== resolution.h) {
-            return { ...n, data: { ...n.data, resolution } };
-        }
-        return n;
-    }));
-  }, [resolution, setNodes]);
+      if (previewNodeId === prevPreviewNodeId.current) return;
+      
+      const oldId = prevPreviewNodeId.current;
+      const newId = previewNodeId;
+      prevPreviewNodeId.current = newId;
+
+      setNodes(nds => nds.map(n => {
+          // Only update the specific nodes that changed status
+          if (n.id === oldId) return { ...n, data: { ...n.data, preview: false } };
+          if (n.id === newId) return { ...n, data: { ...n.data, preview: true } };
+          return n;
+      }));
+  }, [previewNodeId, setNodes]);
+  */
 
   // Canvas Size Event
   useEffect(() => {
@@ -493,12 +552,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // AUTO-CASTING LOGIC: Watch edges to update Polymorphic nodes
+  // Use nodesRef instead of nodes to avoid triggering on position-only changes
   const graphTypeSignature = useMemo(() => {
-      return nodes.map(n => `${n.id}:${n.data.outputType}`).join('|');
-  }, [nodes]);
+      if (isDragging) return ""; // Skip computation during drag
+      return nodesRef.current.map(n => `${n.id}:${n.data.outputType}`).join('|');
+  }, [isDragging]); // Removed 'nodes' dependency - use nodesRef instead
 
   useEffect(() => {
-    if (nodes.length === 0) return;
+    if (isDragging) return; // Skip heavy inference during drag
+    if (nodesRef.current.length === 0) return;
 
     const currentNodes = nodesRef.current;
     let nextNodes = currentNodes;
@@ -563,31 +625,59 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }, 0);
     }
 
-  }, [edges, graphTypeSignature, runTypeInference, setNodes, setEdges]);
+  }, [edges, graphTypeSignature, runTypeInference, setNodes, setEdges, isDragging]);
 
-  const value = {
-    nodes, edges, setNodes, setEdges, onNodesChange: onNodesChangeAction, onEdgesChange,
+  // Stable Dispatch Context Value (Memoized to avoid updates on node position changes)
+  const dispatchValue = useMemo(() => ({
+    setNodes, setEdges, onNodesChange: onNodesChangeAction, onEdgesChange,
     previewNodeId, setPreviewNodeId,
     compiledData, setCompiledData,
     resolution, setResolution,
     reactFlowInstance, setReactFlowInstance, reactFlowWrapper,
-    onConnect, addNode, onNodeClick, onNodeDragStop, onNodesDelete, onDragOver, onDrop,
+    onConnect, addNode, onNodeClick, onNodeDragStart, onNodeDragStop, onNodesDelete, onDragOver, onDrop,
     undo, redo, canUndo, canRedo, takeSnapshot,
     copyShareLink,
     saveProject, loadProject, importNodeFromJson, resetCanvas, loadExampleProject,
-    userNodes, addToLibrary, removeFromLibrary, importLibrary, exportLibrary,
+    userNodes, addToLibrary, addCanvasToLibrary, removeFromLibrary, importLibrary, exportLibrary,
     nodesByCategory: allNodesByCategory, fullRegistry: allFullRegistry, nodeRegistryList,
     currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs,
-    
-    // Missing properties added
     externalNodes, isRefreshingNodes, refreshExternalNodes,
     projectFileInputRef, nodeImportInputRef,
-    pendingShareData, handleShareAction
-  };
+    pendingShareData, handleShareAction,
+    isDragging
+  }), [
+      // Dependencies that should NOT include 'nodes' or 'edges' directly
+      // unless they are structural changes handled by other dependencies (like compiledData)
+      setNodes, setEdges, onNodesChangeAction, onEdgesChange,
+      previewNodeId, setPreviewNodeId,
+      compiledData, setCompiledData,
+      resolution, setResolution,
+      reactFlowInstance, setReactFlowInstance, reactFlowWrapper,
+      onConnect, addNode, onNodeClick, onNodeDragStart, onNodeDragStop, onNodesDelete, onDragOver, onDrop,
+      undo, redo, canUndo, canRedo, takeSnapshot,
+      copyShareLink,
+      saveProject, loadProject, importNodeFromJson, resetCanvas, loadExampleProject,
+      userNodes, addToLibrary, addCanvasToLibrary, removeFromLibrary, importLibrary, exportLibrary,
+      allNodesByCategory, allFullRegistry, nodeRegistryList,
+      currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs,
+      externalNodes, isRefreshingNodes, refreshExternalNodes,
+      projectFileInputRef, nodeImportInputRef,
+      pendingShareData, handleShareAction
+      // Note: isDragging is intentionally NOT in dependencies to avoid re-creating dispatchValue on every drag
+      // Components can access the latest isDragging value, but changes won't trigger re-renders
+  ]);
+
+  const value = useMemo(() => ({
+    ...dispatchValue,
+    nodes, 
+    edges
+  }), [dispatchValue, nodes, edges]);
 
   return (
-    <ProjectContext.Provider value={value}>
-      {children}
-    </ProjectContext.Provider>
+    <ProjectDispatchContext.Provider value={dispatchValue}>
+        <ProjectContext.Provider value={value}>
+            {children}
+        </ProjectContext.Provider>
+    </ProjectDispatchContext.Provider>
   );
 };

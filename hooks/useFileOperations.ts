@@ -46,7 +46,16 @@ export function useFileOperations(
                     }));
                     setNodes(nodesWithZ);
                     setEdges(project.edges);
-                    setPreviewNodeId(null); 
+                    
+                    // Restore preview state
+                    let previewNode = nodesWithZ.find((n: Node) => n.data.preview);
+                    
+                    // Fallback: If no preview set, try '1' or first node
+                    if (!previewNode && nodesWithZ.length > 0) {
+                        previewNode = nodesWithZ.find((n: Node) => n.id === '1') || nodesWithZ[0];
+                    }
+                    
+                    setPreviewNodeId(previewNode ? previewNode.id : null); 
                 }
             } catch (err) {
                 alert(t("Invalid Project File"));
@@ -102,7 +111,16 @@ export function useFileOperations(
                 }));
                 setNodes(nodesWithZ);
                 setEdges(project.edges);
-                setPreviewNodeId(null);
+                
+                // Restore preview state
+                let previewNode = nodesWithZ.find((n: Node) => n.data.preview);
+                
+                // Fallback: If no preview set, try '1' or first node
+                if (!previewNode && nodesWithZ.length > 0) {
+                    previewNode = nodesWithZ.find((n: Node) => n.id === '1') || nodesWithZ[0];
+                }
+
+                setPreviewNodeId(previewNode ? previewNode.id : null);
                 return true;
             }
         } catch (err) {

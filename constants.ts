@@ -14,10 +14,19 @@ void main() {
 export const TYPE_COLORS: Record<GLSLType, string> = {
   float: '#3b82f6',    // blue-500
   int: '#1d4ed8',      // blue-700
+  bool: '#14b8a6',     // teal-500
+  uint: '#0e7490',     // cyan-700
   vec2: '#22c55e',     // green-500
   vec3: '#a855f7',     // purple-500
   vec4: '#ec4899',     // pink-500
+  uvec2: '#15803d',    // green-700
+  uvec3: '#7e22ce',    // purple-700
+  uvec4: '#be185d',    // pink-700
+  mat2: '#eab308',     // yellow-500
+  mat3: '#ca8a04',     // yellow-600
+  mat4: '#a16207',     // yellow-700
   sampler2D: '#f97316', // orange-500
+  samplerCube: '#c2410c', // orange-700
   'vec2[]': '#15803d'   // green-700
 };
 

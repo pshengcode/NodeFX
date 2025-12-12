@@ -13,8 +13,13 @@ import { extractShaderIO, extractAllSignatures } from '../utils/glslParser';
 import { useTranslation } from 'react-i18next';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { getNodeDefinition } from '../nodes/registry';
-import { useProject } from '../context/ProjectContext';
+import { useProjectDispatch } from '../context/ProjectContext';
 import ShaderPreview from './ShaderPreview';
+
+// Custom selector hook to get edges connected to this node
+const useNodeEdges = (nodeId: string) => {
+    return useEdges().filter(e => e.source === nodeId || e.target === nodeId);
+};
 
 // --- NODE EDITOR MODAL ---
 const NodeEditorModal = ({ data, onSave, onClose }: { data: NodeData, onSave: (newData: Partial<NodeData>) => void, onClose: () => void }) => {
@@ -977,8 +982,9 @@ const UniformControlWrapper = ({
 // ... CustomNode implementation (Wrapper) ...
 const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { setNodes, deleteElements, setEdges, getNodes, getEdges } = useReactFlow();
-  const { enterGroup, addToLibrary, compiledData } = useProject();
-  const edges = useEdges(); 
+  const { enterGroup, addToLibrary, compiledData, setPreviewNodeId } = useProjectDispatch();
+  // PERFORMANCE: Use custom hook to only get edges connected to this node
+  const edges = useNodeEdges(id);
   const { t: tGlobal } = useTranslation();
   
   const nodeDef = useMemo(() => data.definitionId ? getNodeDefinition(data.definitionId) : undefined, [data.definitionId]);
@@ -1051,7 +1057,13 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       // Initialize new uniforms
       sig.inputs.forEach(inp => {
           if (!nextUniforms[inp.id] || nextUniforms[inp.id].type !== inp.type) {
-              nextUniforms[inp.id] = { type: inp.type, value: getDefaultValue(inp.type) };
+              // Try to restore from definition to preserve widget config (e.g. Enums)
+              const defaultUniform = nodeDef?.data.uniforms?.[inp.id];
+              if (defaultUniform && defaultUniform.type === inp.type) {
+                  nextUniforms[inp.id] = JSON.parse(JSON.stringify(defaultUniform));
+              } else {
+                  nextUniforms[inp.id] = { type: inp.type, value: getDefaultValue(inp.type) };
+              }
           }
       });
 
@@ -1067,7 +1079,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           outputType: sig.outputs.length > 0 ? sig.outputs[0].type : 'float',
           uniforms: nextUniforms
       });
-  }, [signatures, currentSignatureIndex, data.uniforms, updateNodeData]);
+  }, [signatures, currentSignatureIndex, data.uniforms, updateNodeData, nodeDef]);
 
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -1287,7 +1299,15 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                         )}
                     </div>
                 )}
-                <button className={`preview-trigger p-1 rounded hover:bg-zinc-700 transition-colors ml-1 ${data.preview ? 'bg-zinc-900 ring-1 ring-green-500/50' : 'hover:bg-zinc-700'}`}><Eye size={14} className={data.preview ? "text-green-500 animate-pulse" : "text-zinc-600 hover:text-zinc-300"} /></button>
+                <button 
+                    className={`preview-trigger p-1 rounded hover:bg-zinc-700 transition-colors ml-1 ${data.preview ? 'bg-zinc-900 ring-1 ring-green-500/50' : 'hover:bg-zinc-700'}`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewNodeId(id);
+                    }}
+                >
+                    <Eye size={14} className={data.preview ? "text-green-500 animate-pulse" : "text-zinc-600 hover:text-zinc-300"} />
+                </button>
             </div>
             <div className="flex items-center gap-1 shrink-0">
                 {data.isCompound && (
@@ -1300,6 +1320,89 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 <button onClick={handleDeleteNode} className="p-1 rounded hover:bg-red-900/30 text-zinc-500 hover:text-red-400 transition-colors ml-1"><X size={14} /></button>
             </div>
         </div>
+        {signatures.length > 1 && (
+            <div className="px-2 py-1 bg-zinc-950/50 border-b border-zinc-800 flex items-center">
+                <div 
+                    className="relative w-full"
+                    onMouseLeave={() => {
+                        if (hoverTimer.current) clearTimeout(hoverTimer.current);
+                        setShowOverloads(false);
+                    }}
+                    onMouseEnter={() => {
+                        if (hoverTimer.current) clearTimeout(hoverTimer.current);
+                    }}
+                >
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setShowOverloads(!showOverloads); }}
+                        className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700 hover:border-zinc-600 text-[10px] text-zinc-300 transition-colors"
+                    >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                            <Layers size={10} className="text-blue-400 shrink-0" />
+                            <span className="truncate font-medium">{signatures[currentSignatureIndex]?.label || `Variant ${currentSignatureIndex + 1}`}</span>
+                        </div>
+                        <MoreVertical size={10} className="rotate-90 shrink-0 opacity-50" />
+                    </button>
+
+                    {showOverloads && (
+                        <div className="absolute top-full left-0 w-full pt-1 z-50" onClick={e => e.stopPropagation()}>
+                            <div className="bg-zinc-900 border border-zinc-700 rounded shadow-xl p-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {signatures.map((sig, idx) => (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => { handleSelectSignature(idx); setShowOverloads(false); }}
+                                        className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-mono border transition-colors mb-1 last:mb-0 ${idx === currentSignatureIndex ? 'bg-blue-900/20 border-blue-500/30 cursor-default' : 'bg-zinc-950 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 cursor-pointer'}`}
+                                    >
+                                        {sig.label ? (
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className={`font-bold ${idx === currentSignatureIndex ? 'text-blue-400' : 'text-zinc-300'}`}>{sig.label}</span>
+                                                <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight opacity-60 scale-90 origin-left">
+                                                    <span className="text-zinc-500">run(</span>
+                                                    {sig.inputs.map((i, iIdx) => (
+                                                        <span key={i.id} className="flex items-center">
+                                                            <span className="text-purple-400">{i.type}</span>
+                                                            {iIdx < sig.inputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                        </span>
+                                                    ))}
+                                                    <span className="text-zinc-500">)</span>
+                                                    <span className="text-zinc-600">→</span>
+                                                    {sig.outputs.map((o, oIdx) => (
+                                                        <span key={o.id} className="flex items-center">
+                                                            <span className="text-orange-400">{o.type}</span>
+                                                            {oIdx < sig.outputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
+                                                <span className={`font-bold mr-1 ${idx === currentSignatureIndex ? 'text-blue-400' : 'text-zinc-600'}`}>#{idx + 1}</span>
+                                                <span className="text-zinc-500">run(</span>
+                                                {sig.inputs.map((i, iIdx) => (
+                                                    <span key={i.id} className="flex items-center">
+                                                        <span className="text-purple-400">{i.type}</span>
+                                                        <span className="text-zinc-300 ml-1">{i.name}</span>
+                                                        {iIdx < sig.inputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                    </span>
+                                                ))}
+                                                {sig.outputs.length > 0 && sig.inputs.length > 0 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                {sig.outputs.map((o, oIdx) => (
+                                                    <span key={o.id} className="flex items-center">
+                                                        <span className="text-orange-400">out {o.type}</span>
+                                                        <span className="text-zinc-300 ml-1">{o.name}</span>
+                                                        {oIdx < sig.outputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                    </span>
+                                                ))}
+                                                <span className="text-zinc-500">)</span>
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
         <div className="flex relative">
             <div className="flex-1 flex flex-col py-2 gap-2 min-w-[50%] border-r border-zinc-800/50">
                 {/* RENDER UNIFORMS FOR GLOBAL VARS */}
@@ -1384,61 +1487,6 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 <div className="text-[9px] text-zinc-600 flex justify-between px-1"><span>{tGlobal("Ctrl+S to save")}</span><span>{tGlobal("Standard GLSL syntax")}</span></div>
             </div>
         )}
-        
-        {signatures.length > 1 && (
-            <div 
-                className="absolute bottom-0 left-0 z-20"
-                onMouseEnter={() => {
-                    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-                    hoverTimer.current = setTimeout(() => setShowOverloads(true), 500);
-                }}
-                onMouseLeave={() => {
-                    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-                    setShowOverloads(false);
-                }}
-            >
-                <div className={`w-5 h-5 flex items-center justify-center rounded-bl-lg rounded-tr-lg border-t border-r transition-colors cursor-help ${showOverloads ? 'bg-blue-900/40 border-blue-500/50 text-blue-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800'}`}>
-                    <Layers size={10} />
-                </div>
-
-                {showOverloads && (
-                    <div className="absolute bottom-full left-0 pb-1 z-50" onClick={e => e.stopPropagation()}>
-                        <div className="bg-zinc-900 border border-zinc-700 rounded shadow-xl p-1 min-w-[260px] max-w-[400px] animate-in fade-in zoom-in-95 duration-100 origin-bottom-left">
-                            <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                {signatures.map((sig, idx) => (
-                                    <button 
-                                        key={idx} 
-                                        onClick={() => handleSelectSignature(idx)}
-                                        className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-mono border transition-colors ${idx === currentSignatureIndex ? 'bg-blue-900/20 border-blue-500/30 cursor-default' : 'bg-zinc-950 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 cursor-pointer'}`}
-                                    >
-                                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
-                                            <span className={`font-bold mr-1 ${idx === currentSignatureIndex ? 'text-blue-400' : 'text-zinc-600'}`}>#{idx + 1}</span>
-                                            <span className="text-zinc-500">run(</span>
-                                            {sig.inputs.map((i, iIdx) => (
-                                                <span key={i.id} className="flex items-center">
-                                                    <span className="text-purple-400">{i.type}</span>
-                                                    <span className="text-zinc-300 ml-1">{i.name}</span>
-                                                    {iIdx < sig.inputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
-                                                </span>
-                                            ))}
-                                            {sig.outputs.length > 0 && sig.inputs.length > 0 && <span className="text-zinc-600 ml-0.5">,</span>}
-                                            {sig.outputs.map((o, oIdx) => (
-                                                <span key={o.id} className="flex items-center">
-                                                    <span className="text-orange-400">out {o.type}</span>
-                                                    <span className="text-zinc-300 ml-1">{o.name}</span>
-                                                    {oIdx < sig.outputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
-                                                </span>
-                                            ))}
-                                            <span className="text-zinc-500">)</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        )}
         </div>
         {showCode && isFloatingCode && createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-8" onClick={() => setIsFloatingCode(false)}>
@@ -1489,6 +1537,32 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         )}
     </>
   );
+}, (prev, next) => {
+    // Deep comparison for critical props
+    if (prev.id !== next.id) return false;
+    if (prev.selected !== next.selected) return false;
+    if (prev.dragging !== next.dragging) return false;
+    
+    // Deep check for data changes
+    const prevData = prev.data;
+    const nextData = next.data;
+    
+    if (prevData.label !== nextData.label) return false;
+    if (prevData.preview !== nextData.preview) return false;
+    if (prevData.glsl !== nextData.glsl) return false;
+    if (prevData.outputType !== nextData.outputType) return false;
+    if (prevData.isGlobalVar !== nextData.isGlobalVar) return false;
+    if (prevData.isCompound !== nextData.isCompound) return false;
+    
+    // Check inputs/outputs structure (shallow comparison)
+    if (prevData.inputs.length !== nextData.inputs.length) return false;
+    if (prevData.outputs.length !== nextData.outputs.length) return false;
+    
+    // Check uniforms (compare stringified to detect deep changes)
+    if (JSON.stringify(prevData.uniforms) !== JSON.stringify(nextData.uniforms)) return false;
+    
+    // Position changes are handled by ReactFlow internally, don't block render
+    return true;
 });
 
 export default CustomNode;

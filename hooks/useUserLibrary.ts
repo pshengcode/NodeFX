@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShaderNodeDefinition, NodeData } from '../types';
+import { ShaderNodeDefinition, NodeData, LibraryItem, CanvasTemplate, SerializedNode, SerializedEdge } from '../types';
+import { Node, Edge } from 'reactflow';
 
 const STORAGE_KEY = 'nodefx_user_library';
 
 export const useUserLibrary = () => {
-    const [userNodes, setUserNodes] = useState<ShaderNodeDefinition[]>([]);
+    const [userNodes, setUserNodes] = useState<LibraryItem[]>([]);
 
     // Load from LocalStorage on mount
     useEffect(() => {
@@ -22,9 +23,9 @@ export const useUserLibrary = () => {
     }, []);
 
     // Save to LocalStorage whenever userNodes changes
-    const saveToStorage = useCallback((nodes: ShaderNodeDefinition[]) => {
+    const saveToStorage = useCallback((items: LibraryItem[]) => {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(nodes));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
         } catch (e) {
             console.error("Failed to save user library:", e);
         }
@@ -52,6 +53,55 @@ export const useUserLibrary = () => {
 
         setUserNodes(prev => {
             const next = [...prev, def];
+            saveToStorage(next);
+            return next;
+        });
+    }, [saveToStorage]);
+
+    // Add canvas template to library
+    const addCanvasToLibrary = useCallback((
+        label: string,
+        nodes: Node<NodeData>[],
+        edges: Edge[],
+        previewNodeId: string | null,
+        description?: string
+    ) => {
+        const serializedNodes: SerializedNode[] = nodes.map(node => ({
+            id: node.id,
+            type: node.type || 'custom',
+            position: node.position,
+            data: node.data,
+            parentId: node.parentId,
+            extent: node.extent === 'parent' ? 'parent' : undefined,
+            width: node.width || null,
+            height: node.height || null
+        }));
+
+        const serializedEdges: SerializedEdge[] = edges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+            type: edge.type,
+            animated: edge.animated,
+            data: edge.data
+        }));
+
+        const template: CanvasTemplate = {
+            id: `canvas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            label,
+            description: description || 'Saved canvas template',
+            category: 'User',
+            itemType: 'canvas',
+            timestamp: Date.now(),
+            nodes: serializedNodes,
+            edges: serializedEdges,
+            previewNodeId
+        };
+
+        setUserNodes(prev => {
+            const next = [...prev, template];
             saveToStorage(next);
             return next;
         });
@@ -98,6 +148,7 @@ export const useUserLibrary = () => {
     return {
         userNodes,
         addToLibrary,
+        addCanvasToLibrary,
         removeFromLibrary,
         importLibrary,
         exportLibrary

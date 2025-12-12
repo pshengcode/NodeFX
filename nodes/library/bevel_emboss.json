@@ -1,0 +1,436 @@
+{
+  "id": "BEVEL_EMBOSS",
+  "label": "Bevel & Emboss",
+  "category": "Filter",
+  "locales": {
+    "zh": {
+      "Bevel & Emboss": "斜面和浮雕",
+      "Input": "输入",
+      "Style": "样式",
+      "Inner Bevel": "内斜面",
+      "Outer Bevel": "外斜面",
+      "Emboss": "浮雕效果",
+      "Pillow Emboss": "枕状浮雕",
+      "Depth": "深度 (%)",
+      "Size": "大小 (px)",
+      "Soften": "软化 (px)",
+      "Angle": "角度",
+      "Altitude": "高度",
+      "Highlight Opacity": "高光不透明度",
+      "Shadow Opacity": "阴影不透明度",
+      "Highlight Color": "高光颜色",
+      "Shadow Color": "阴影颜色",
+      "Direction": "方向",
+      "Up": "上",
+      "Down": "下",
+      "Highlight Mode": "高光模式",
+      "Shadow Mode": "阴影模式",
+      "Normal": "正常",
+      "Multiply": "正片叠底",
+      "Screen": "滤色",
+      "Overlay": "叠加",
+      "Linear Dodge": "线性减淡 (添加)",
+      "Linear Burn": "线性加深"
+    }
+  },
+  "data": {
+    "glsl": [
+      "vec3 blendNormal(vec3 base, vec3 blend) {",
+      "    return blend;",
+      "}",
+      "",
+      "vec3 blendMultiply(vec3 base, vec3 blend) {",
+      "    return base * blend;",
+      "}",
+      "",
+      "vec3 blendScreen(vec3 base, vec3 blend) {",
+      "    return 1.0 - (1.0 - base) * (1.0 - blend);",
+      "}",
+      "",
+      "vec3 blendOverlay(vec3 base, vec3 blend) {",
+      "    return mix(2.0 * base * blend, 1.0 - 2.0 * (1.0 - base) * (1.0 - blend), step(0.5, base));",
+      "}",
+      "",
+      "vec3 blendLinearDodge(vec3 base, vec3 blend) {",
+      "    return min(base + blend, 1.0);",
+      "}",
+      "",
+      "vec3 blendLinearBurn(vec3 base, vec3 blend) {",
+      "    return max(base + blend - 1.0, 0.0);",
+      "}",
+      "",
+      "vec3 applyBlend(int mode, vec3 base, vec3 blend) {",
+      "    if (mode == 0) return blendNormal(base, blend);",
+      "    if (mode == 1) return blendMultiply(base, blend);",
+      "    if (mode == 2) return blendScreen(base, blend);",
+      "    if (mode == 3) return blendOverlay(base, blend);",
+      "    if (mode == 4) return blendLinearDodge(base, blend);",
+      "    if (mode == 5) return blendLinearBurn(base, blend);",
+      "    return blend;",
+      "}",
+      "",
+      "float getSample(sampler2D tex, vec2 uv, float soften) {",
+      "    if (soften <= 0.1) return texture(tex, uv).a;",
+      "    ",
+      "    float total = 0.0;",
+      "    float totalWeight = 0.0;",
+      "    ",
+      "    // 16x16 Gaussian Blur (256 samples)",
+      "    for(float i = 0.0; i < 16.0; i++) {",
+      "        float x = (i / 15.0) * 2.0 - 1.0;",
+      "        for(float j = 0.0; j < 16.0; j++) {",
+      "            float y = (j / 15.0) * 2.0 - 1.0;",
+      "            ",
+      "            float d2 = x*x + y*y;",
+      "            float w = exp(-d2 * 2.0);",
+      "            ",
+      "            vec2 offset = vec2(x, y) * (soften / u_resolution);",
+      "            total += texture(tex, uv + offset).a * w;",
+      "            totalWeight += w;",
+      "        }",
+      "    }",
+      "    ",
+      "    return total / totalWeight;",
+      "}",
+      "",
+      "void run(vec2 uv, sampler2D inputTex, int style, float depth, float size, float soften, float angle, float altitude, float hiOpacity, float shOpacity, vec3 hiColor, vec3 shColor, int direction, int hiMode, int shMode, out vec4 result) {",
+      "    vec4 original = texture(inputTex, uv);",
+      "    ",
+      "    // 1. Calculate Offset",
+      "    float rad = radians(angle);",
+      "    vec2 dirVec = vec2(cos(rad), sin(rad));",
+      "    vec2 offset = dirVec * (size / u_resolution);",
+      "    ",
+      "    // 2. Central Difference Sampling with Soften",
+      "    float h1 = getSample(inputTex, uv - offset, soften);",
+      "    float h2 = getSample(inputTex, uv + offset, soften);",
+      "    ",
+      "    // 3. Calculate Slope",
+      "    float diff = h1 - h2;",
+      "    ",
+      "    // Style Adjustments",
+      "    if (style == 3) { // Pillow",
+      "        diff = -diff;",
+      "    }",
+      "    ",
+      "    // Direction: Up vs Down",
+      "    if (direction == 1) { // Down",
+      "        diff = -diff;",
+      "    }",
+      "    ",
+      "    // 4. Calculate Intensity",
+      "    float altFactor = cos(radians(clamp(altitude, 0.0, 89.0)));",
+      "    float intensity = diff * (depth / 100.0) * altFactor;",
+      "    ",
+      "    // 5. Determine Mask",
+      "    float mask = 0.0;",
+      "    if (style == 0) { // Inner",
+      "        mask = original.a;",
+      "    } else if (style == 1) { // Outer",
+      "        mask = 1.0 - original.a;",
+      "    } else { // Emboss (2) & Pillow (3)",
+      "        mask = 1.0;",
+      "    }",
+      "    ",
+      "    // Soften mask for Outer/Emboss",
+      "    float edgePresence = smoothstep(0.0, 0.1, abs(diff));",
+      "    if (style != 0) {",
+      "        mask *= edgePresence;",
+      "    }",
+      "    ",
+      "    // 6. Apply Lighting",
+      "    float highlightAmt = clamp(intensity, 0.0, 1.0) * (hiOpacity / 100.0) * mask;",
+      "    float shadowAmt = clamp(-intensity, 0.0, 1.0) * (shOpacity / 100.0) * mask;",
+      "    ",
+      "    vec3 rgb = original.rgb;",
+      "    ",
+      "    // Apply Highlight",
+      "    vec3 hiBlended = applyBlend(hiMode, rgb, hiColor);",
+      "    rgb = mix(rgb, hiBlended, highlightAmt);",
+      "    ",
+      "    // Apply Shadow",
+      "    vec3 shBlended = applyBlend(shMode, rgb, shColor);",
+      "    rgb = mix(rgb, shBlended, shadowAmt);",
+      "    ",
+      "    // 7. Output Alpha",
+      "    float outAlpha = original.a;",
+      "    if (style != 0) {",
+      "        float effectAlpha = max(highlightAmt, shadowAmt);",
+      "        outAlpha = max(original.a, effectAlpha);",
+      "    }",
+      "    ",
+      "    result = vec4(rgb, outAlpha);",
+      "}"
+    ],
+    "inputs": [
+      {
+        "id": "inputTex",
+        "name": "Input",
+        "type": "sampler2D"
+      },
+      {
+        "id": "style",
+        "name": "Style",
+        "type": "int"
+      },
+      {
+        "id": "depth",
+        "name": "Depth",
+        "type": "float"
+      },
+      {
+        "id": "size",
+        "name": "Size",
+        "type": "float"
+      },
+      {
+        "id": "soften",
+        "name": "Soften",
+        "type": "float"
+      },
+      {
+        "id": "angle",
+        "name": "Angle",
+        "type": "float"
+      },
+      {
+        "id": "altitude",
+        "name": "Altitude",
+        "type": "float"
+      },
+      {
+        "id": "hiOpacity",
+        "name": "Highlight Opacity",
+        "type": "float"
+      },
+      {
+        "id": "shOpacity",
+        "name": "Shadow Opacity",
+        "type": "float"
+      },
+      {
+        "id": "hiColor",
+        "name": "Highlight Color",
+        "type": "vec3"
+      },
+      {
+        "id": "shColor",
+        "name": "Shadow Color",
+        "type": "vec3"
+      },
+      {
+        "id": "direction",
+        "name": "Direction",
+        "type": "int"
+      },
+      {
+        "id": "hiMode",
+        "name": "Highlight Mode",
+        "type": "int"
+      },
+      {
+        "id": "shMode",
+        "name": "Shadow Mode",
+        "type": "int"
+      }
+    ],
+    "uniforms": {
+      "style": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Inner Bevel",
+              "value": 0
+            },
+            {
+              "label": "Outer Bevel",
+              "value": 1
+            },
+            {
+              "label": "Emboss",
+              "value": 2
+            },
+            {
+              "label": "Pillow Emboss",
+              "value": 3
+            }
+          ]
+        }
+      },
+      "depth": {
+        "type": "float",
+        "value": 100,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 1,
+          "max": 1000,
+          "step": 1
+        }
+      },
+      "size": {
+        "type": "float",
+        "value": 5,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 250,
+          "step": 1
+        }
+      },
+      "soften": {
+        "type": "float",
+        "value": 0,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 32,
+          "step": 1
+        }
+      },
+      "angle": {
+        "type": "float",
+        "value": 30,
+        "widget": "knob",
+        "widgetConfig": {
+          "min": 0,
+          "max": 360,
+          "step": 1
+        }
+      },
+      "altitude": {
+        "type": "float",
+        "value": 30,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 90,
+          "step": 1
+        }
+      },
+      "hiColor": {
+        "type": "vec3",
+        "value": [
+          1,
+          1,
+          1
+        ],
+        "widget": "color"
+      },
+      "hiMode": {
+        "type": "int",
+        "value": 2,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Normal",
+              "value": 0
+            },
+            {
+              "label": "Multiply",
+              "value": 1
+            },
+            {
+              "label": "Screen",
+              "value": 2
+            },
+            {
+              "label": "Overlay",
+              "value": 3
+            },
+            {
+              "label": "Linear Dodge",
+              "value": 4
+            },
+            {
+              "label": "Linear Burn",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "hiOpacity": {
+        "type": "float",
+        "value": 75,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      },
+      "shColor": {
+        "type": "vec3",
+        "value": [
+          0,
+          0,
+          0
+        ],
+        "widget": "color"
+      },
+      "shMode": {
+        "type": "int",
+        "value": 1,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Normal",
+              "value": 0
+            },
+            {
+              "label": "Multiply",
+              "value": 1
+            },
+            {
+              "label": "Screen",
+              "value": 2
+            },
+            {
+              "label": "Overlay",
+              "value": 3
+            },
+            {
+              "label": "Linear Dodge",
+              "value": 4
+            },
+            {
+              "label": "Linear Burn",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "shOpacity": {
+        "type": "float",
+        "value": 75,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      },
+      "direction": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Up",
+              "value": 0
+            },
+            {
+              "label": "Down",
+              "value": 1
+            }
+          ]
+        }
+      }
+    }
+  }
+}

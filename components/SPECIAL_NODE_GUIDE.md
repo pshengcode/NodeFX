@@ -311,3 +311,54 @@ A: 确保你没有在组件内部使用额外的 `useState` 来存储这些设�
 
 **Q: 我可以手动调用 setNodes 吗？**
 A: 可以，但尽量避免。`useNodeSettings` 已经为你处理了大部分同步逻辑。手动调用容易导致死循环或覆盖掉防抖逻辑。
+
+## 性能优化与 Hook 选择指南 (Performance & Hooks)
+
+为了保证应用在大量节点场景下的流畅性（特别是拖动节点时的 60fps 体验），在开发新节点时请严格遵守以下 Hook 使用规范。
+
+### ❌ 严禁使用 (Don't Use)
+
+1.  **`useProject()` 中的 `nodes` 状态**
+    *   **原因**: `nodes` 数组包含所有节点的位置信息 (`position`)。当用户拖动任何节点时，该数组在每一帧都会更新。
+    *   **后果**: 如果你的节点组件直接依赖 `nodes`，它将在拖动过程中每秒重渲染 60 次，导致严重的性能卡顿（"不跟手"）。
+    *   **错误示例**:
+        ```typescript
+        const { nodes } = useProject(); // ❌ 拖动时会无限重渲染
+        const myParent = nodes.find(n => n.id === parentId);
+        ```
+
+2.  **`useNodes()` (React Flow)**
+    *   **原因**: 同上，直接订阅整个节点列表会导致对位置变化敏感。
+
+### ✅ 推荐使用 (Recommended)
+
+1.  **`useOptimizedNodes()`**
+    *   **用途**: 当你需要访问**其他节点**的数据（如查找父节点、读取连接节点的类型）时。
+    *   **原理**: 该 Hook 内部实现了深度比较，**自动过滤掉了位置 (`position`) 的变化**。只有当节点的结构（ID, Type）或业务数据 (`data`) 发生变化时，才会触发更新。
+    *   **位置**: `hooks/useOptimizedNodes.ts`
+    *   **正确示例**:
+        ```typescript
+        import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+        
+        const MyNode = () => {
+            const nodes = useOptimizedNodes(); // ✅ 拖动时不会触发重渲染
+            // ...
+        };
+        ```
+
+2.  **`useNodeSettings()`**
+    *   **用途**: 管理节点自身的 UI 状态（如颜色选择器、复选框、滑块值）。
+    *   **原理**: 维护本地 React State 实现高频交互（0延迟），并使用防抖（Debounce）机制异步同步到全局 Store，避免阻塞主线程。
+
+3.  **`useStore()` + Selector (React Flow)**
+    *   **用途**: 当你需要极其精细地订阅某个特定状态时。
+    *   **示例**:
+        ```typescript
+        const zoom = useStore(s => s.transform[2]); // 仅在缩放变化时更新
+        ```
+
+### ⚠️ 开发注意事项
+
+1.  **拖动测试**: 开发完新节点后，务必进行拖动测试。打开开发者工具的 "Highlight updates"，拖动节点，确保**只有被拖动的节点**在更新，其他节点应当保持静止（不重渲染）。
+2.  **连接逻辑**: 如果需要在连线时执行逻辑（如动态创建端口），请确保逻辑放在 `useGraphActions` 或 `onConnect` 回调中，而不要写在组件的渲染周期里。
+

@@ -1,0 +1,237 @@
+{
+  "id": "SWIZZLE",
+  "label": "Swizzle",
+  "category": "Vector",
+  "locales": {
+    "zh": {
+      "Swizzle": "分量重排",
+      "Rearranges the components of a vector.": "重新排列向量的分量。",
+      "Input": "输入",
+      "Output": "输出",
+      "Channel R": "通道 R",
+      "Channel G": "通道 G",
+      "Channel B": "通道 B",
+      "Channel A": "通道 A",
+      "Input R": "输入 R",
+      "Input G": "输入 G",
+      "Input B": "输入 B",
+      "Input A": "输入 A",
+      "Zero (0)": "零 (0)",
+      "One (1)": "一 (1)"
+    }
+  },
+  "data": {
+    "glsl": [
+      "float getComponent(vec4 v, int mode) {",
+      "    if (mode == 0) return v.r;",
+      "    if (mode == 1) return v.g;",
+      "    if (mode == 2) return v.b;",
+      "    if (mode == 3) return v.a;",
+      "    if (mode == 4) return 0.0;",
+      "    return 1.0; // mode 5",
+      "}",
+      "",
+      "// Output: Float",
+      "//[Item(Float, 0)]",
+      "void run(vec2 uv, vec4 inputVal, int r_src, out float result) {",
+      "    result = getComponent(inputVal, r_src);",
+      "}",
+      "",
+      "// Output: Vec2",
+      "//[Item(Vec2, 1)]",
+      "void run(vec2 uv, vec4 inputVal, int r_src, int g_src, out vec2 result) {",
+      "    result = vec2(",
+      "        getComponent(inputVal, r_src),",
+      "        getComponent(inputVal, g_src)",
+      "    );",
+      "}",
+      "",
+      "// Output: Vec3",
+      "//[Item(Vec3, 2)]",
+      "void run(vec2 uv, vec4 inputVal, int r_src, int g_src, int b_src, out vec3 result) {",
+      "    result = vec3(",
+      "        getComponent(inputVal, r_src),",
+      "        getComponent(inputVal, g_src),",
+      "        getComponent(inputVal, b_src)",
+      "    );",
+      "}",
+      "",
+      "// Output: Vec4 (Default)",
+      "//[Item(Vec4, 3)]",
+      "void run(vec2 uv, vec4 inputVal, int r_src, int g_src, int b_src, int a_src, out vec4 result) {",
+      "    result = vec4(",
+      "        getComponent(inputVal, r_src),",
+      "        getComponent(inputVal, g_src),",
+      "        getComponent(inputVal, b_src),",
+      "        getComponent(inputVal, a_src)",
+      "    );",
+      "}"
+    ],
+    "inputs": [
+      {
+        "id": "inputVal",
+        "name": "Input",
+        "type": "vec4"
+      },
+      {
+        "id": "r_src",
+        "name": "Channel R",
+        "type": "int",
+        "default": 0
+      },
+      {
+        "id": "g_src",
+        "name": "Channel G",
+        "type": "int",
+        "default": 1
+      },
+      {
+        "id": "b_src",
+        "name": "Channel B",
+        "type": "int",
+        "default": 2
+      },
+      {
+        "id": "a_src",
+        "name": "Channel A",
+        "type": "int",
+        "default": 3
+      }
+    ],
+    "uniforms": {
+      "r_src": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Input R",
+              "value": 0
+            },
+            {
+              "label": "Input G",
+              "value": 1
+            },
+            {
+              "label": "Input B",
+              "value": 2
+            },
+            {
+              "label": "Input A",
+              "value": 3
+            },
+            {
+              "label": "Zero (0)",
+              "value": 4
+            },
+            {
+              "label": "One (1)",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "g_src": {
+        "type": "int",
+        "value": 1,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Input R",
+              "value": 0
+            },
+            {
+              "label": "Input G",
+              "value": 1
+            },
+            {
+              "label": "Input B",
+              "value": 2
+            },
+            {
+              "label": "Input A",
+              "value": 3
+            },
+            {
+              "label": "Zero (0)",
+              "value": 4
+            },
+            {
+              "label": "One (1)",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "b_src": {
+        "type": "int",
+        "value": 2,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Input R",
+              "value": 0
+            },
+            {
+              "label": "Input G",
+              "value": 1
+            },
+            {
+              "label": "Input B",
+              "value": 2
+            },
+            {
+              "label": "Input A",
+              "value": 3
+            },
+            {
+              "label": "Zero (0)",
+              "value": 4
+            },
+            {
+              "label": "One (1)",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "a_src": {
+        "type": "int",
+        "value": 3,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Input R",
+              "value": 0
+            },
+            {
+              "label": "Input G",
+              "value": 1
+            },
+            {
+              "label": "Input B",
+              "value": 2
+            },
+            {
+              "label": "Input A",
+              "value": 3
+            },
+            {
+              "label": "Zero (0)",
+              "value": 4
+            },
+            {
+              "label": "One (1)",
+              "value": 5
+            }
+          ]
+        }
+      }
+    },
+    "outputType": "vec4"
+  }
+}

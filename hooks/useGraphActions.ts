@@ -26,13 +26,53 @@ export function useGraphActions(
     reactFlowWrapper: React.RefObject<HTMLDivElement>,
     reactFlowInstance: ReactFlowInstance | null,
     fullRegistry: Record<string, ShaderNodeDefinition>,
-    currentScope: string
+    currentScope: string,
+    setIsDragging: (dragging: boolean) => void
 ) {
     const { t } = useTranslation();
 
     // Custom onNodesChange to handle Group deletion (Ungroup Children)
     const onNodesChange = useCallback((changes: NodeChange[]) => {
+        // Detect if this is a drag operation
+        const hasDragging = changes.some(c => c.type === 'position' && (c as any).dragging === true);
+        if (hasDragging && !changes.some(c => c.type === 'position' && (c as any).dragging === false)) {
+            // Start of drag or during drag
+            setIsDragging(true);
+        } else if (changes.some(c => c.type === 'position' && (c as any).dragging === false)) {
+            // End of drag
+            setIsDragging(false);
+        }
+        
         setNodes((currentNodes) => {
+            // FAST PATH: Position changes only (Drag optimization)
+            // If all changes are position updates, we manually update only the affected nodes
+            // to preserve object references for unchanged nodes. This prevents React.memo'd components from re-rendering.
+            const isPositionOnly = changes.every(c => c.type === 'position');
+            if (isPositionOnly) {
+                const changeMap = new Map<string, any>();
+                changes.forEach(c => {
+                    if (c.type === 'position') {
+                        changeMap.set(c.id, c);
+                    }
+                });
+
+                return currentNodes.map(node => {
+                    const change = changeMap.get(node.id);
+                    if (change) {
+                        // Only create new object for moved nodes
+                        return {
+                            ...node,
+                            position: change.position || node.position,
+                            positionAbsolute: change.positionAbsolute || node.positionAbsolute,
+                            dragging: change.dragging ?? node.dragging
+                        };
+                    }
+                    // Return exact same reference for unchanged nodes
+                    return node;
+                });
+            }
+
+            // COMPLEX PATH: Removals, Selection, Dimensions, etc.
             // Filter out invalid removals first (Protect GraphInput/Output)
             const validChanges = changes.filter(c => {
                 if (c.type === 'remove') {
@@ -129,8 +169,10 @@ export function useGraphActions(
 
     const onConnect = useCallback(
         (params: Connection) => {
-            const sourceNode = nodes.find(n => n.id === params.source);
-            const targetNode = nodes.find(n => n.id === params.target);
+            // Use reactFlowInstance to get nodes to avoid dependency on 'nodes' state
+            // This prevents onConnect from changing on every node drag (position update)
+            const sourceNode = reactFlowInstance?.getNode(params.source || '');
+            const targetNode = reactFlowInstance?.getNode(params.target || '');
     
             if (!sourceNode || !targetNode) return;
 
@@ -155,7 +197,7 @@ export function useGraphActions(
             if (currentScope !== 'root') {
                 // 1. Create Input
                 if (sourceNode.id === `input-proxy-${currentScope}` && params.sourceHandle === '__create_input__') {
-                    const parentNode = nodes.find(n => n.id === currentScope);
+                    const parentNode = reactFlowInstance?.getNode(currentScope);
                     if (parentNode) {
                         const targetInput = targetNode.data.inputs.find(i => i.id === params.targetHandle);
                         const newType = targetInput ? targetInput.type : 'float';
@@ -190,7 +232,7 @@ export function useGraphActions(
 
                 // 2. Create Output
                 if (targetNode.id === `output-proxy-${currentScope}` && params.targetHandle === '__create_output__') {
-                    const parentNode = nodes.find(n => n.id === currentScope);
+                    const parentNode = reactFlowInstance?.getNode(currentScope);
                     if (parentNode) {
                         const sourceOutput = sourceNode.data.outputs?.find(o => o.id === params.sourceHandle);
                         const newType = sourceOutput ? sourceOutput.type : sourceNode.data.outputType;
@@ -220,7 +262,7 @@ export function useGraphActions(
                 return addEdge({ ...params, type: 'smart', animated: false }, filtered);
             });
         },
-        [nodes, setEdges, currentScope, setNodes]
+        [setEdges, currentScope, setNodes, reactFlowInstance]
     );
 
     const addNode = useCallback((def: ShaderNodeDefinition, position?: { x: number, y: number }, initialValues?: Record<string, UniformVal>) => {
@@ -309,8 +351,13 @@ export function useGraphActions(
         }
     }, [setPreviewNodeId]);
 
+    const onNodeDragStart: NodeMouseHandler = useCallback(() => {
+        setIsDragging(true);
+    }, [setIsDragging]);
+
     // Handle Node Drag Stop (Parenting Logic)
     const onNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
+        setIsDragging(false);
         setNodes((currentNodes) => {
             // 1. Find potential parent (Group Node) that intersects with the dragged node
             const nW = node.width ?? 150;
@@ -449,7 +496,7 @@ export function useGraphActions(
                 }
             }
         },
-        [reactFlowInstance, addNode, fullRegistry, reactFlowWrapper]
+        [reactFlowInstance, addNode, fullRegistry, reactFlowWrapper, t]
     );
 
     return {
@@ -457,6 +504,7 @@ export function useGraphActions(
         onConnect,
         addNode,
         onNodeClick,
+        onNodeDragStart,
         onNodeDragStop,
         onNodesDelete,
         onDragOver,

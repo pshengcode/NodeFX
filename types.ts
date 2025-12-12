@@ -193,3 +193,19 @@ export interface ShaderNodeDefinition {
     internalEdges?: SerializedEdge[];
   };
 }
+
+// Canvas Template - Save entire canvas as a template
+export interface CanvasTemplate {
+  id: string;
+  label: string;
+  description?: string;
+  category: 'User'; // Always belongs to User category
+  itemType: 'canvas'; // Distinguish from single nodes
+  timestamp: number;
+  nodes: SerializedNode[];
+  edges: SerializedEdge[];
+  previewNodeId?: string | null;
+}
+
+// Union type for library items
+export type LibraryItem = ShaderNodeDefinition | CanvasTemplate;

@@ -503,4 +503,16 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
 });
 
 ShaderPreview.displayName = 'ShaderPreview';
-export default ShaderPreview;
+// Memoize ShaderPreview to prevent unnecessary re-renders
+export default React.memo(ShaderPreview, (prev, next) => {
+    // Only re-render if critical props change
+    return (
+        prev.data === next.data &&
+        prev.paused === next.paused &&
+        prev.width === next.width &&
+        prev.height === next.height &&
+        prev.uniforms === next.uniforms &&
+        prev.definitionId === next.definitionId &&
+        prev.activeUniformId === next.activeUniformId
+    );
+});

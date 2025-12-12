@@ -1,3 +1,56 @@
+## [1.1.3] - 2025-12-12
+
+feat: Add Bevel & Emboss node with GLSL implementation and localization
+- Introduced a new node for Bevel & Emboss effects, including various styles and parameters.
+- Added localization support for Chinese.
+- Implemented GLSL functions for blending modes and embossing effects.
+refactor: Change Blend node category from Composite to Color
+- Updated the category of the Blend node to better reflect its functionality.
+- Modified the input types from sampler2D to vec4 for background and foreground.
+feat: Introduce Swizzle node for rearranging vector components
+- Added a new Swizzle node that allows users to rearrange the components of a vector.
+- Implemented various output types (Float, Vec2, Vec3, Vec4) based on user selection.
+test: Add performance tests for CustomNode rendering optimization
+- Created tests to ensure CustomNode components are memoized and only re-render when necessary.
+- Verified that changes in position do not trigger unnecessary re-renders.
+feat: Extend types with CanvasTemplate and LibraryItem union
+- Added a new CanvasTemplate interface for saving entire canvas states.
+- Created a union type LibraryItem to encompass both ShaderNodeDefinition and CanvasTemplate.
+fix: Enhance GLSL parser to support additional types and metadata directives
+- Updated the VALID_TYPES set to include more GLSL types (e.g., uint, mat2, samplerCube).
+- Improved comment stripping to preserve metadata directives.
+- Enhanced signature extraction to handle new label and order attributes.
+fix: Update inference helpers and schemas for new GLSL types
+- Modified sanitizeType function to recognize new GLSL types.
+- Updated GLSLTypeSchema to include additional types for validation.
+chore: Add empty cube texture uniform for shader compatibility
+- Introduced a new uniform samplerCube for compatibility with Shadertoy shaders.
+feat: 添加斜面与浮雕（Bevel & Emboss）节点并实现 GLSL 与本地化
+- 引入用于斜面与浮雕效果的新节点，包含多种样式和参数。
+- 添加中文本地化支持。
+- 实现用于混合模式与浮雕效果的 GLSL 函数。
+refactor: 将 Blend 节点类别从 Composite 更改为 Color
+- 更新 Blend 节点的类别以更准确地反映其功能。
+- 将背景和前景的输入类型从 sampler2D 修改为 vec4。
+feat: 引入用于重排列向量分量的 Swizzle 节点
+- 添加新的 Swizzle 节点，允许用户重排列向量的分量。
+- 根据用户选择实现多种输出类型（Float、Vec2、Vec3、Vec4）。
+test: 为 CustomNode 渲染优化添加性能测试
+- 创建测试以确保 CustomNode 组件被记忆化（memoized），仅在必要时重新渲染。
+- 验证位置变化不会触发不必要的重新渲染。
+feat: 扩展类型，新增 CanvasTemplate 接口和 LibraryItem 联合类型
+- 添加用于保存整个画布状态的新 CanvasTemplate 接口。
+- 创建 LibraryItem 联合类型以包含 ShaderNodeDefinition 和 CanvasTemplate。
+fix: 增强 GLSL 解析器以支持更多类型和元数据指令
+- 更新 VALID_TYPES 集合以包含更多 GLSL 类型（例如 uint、mat2、samplerCube）。
+- 改进注释剥离以保留元数据指令。
+- 增强签名提取以处理新的 label 和 order 属性。
+fix: 更新推断辅助函数和模式以支持新的 GLSL 类型
+- 修改 sanitizeType 函数以识别新增的 GLSL 类型。
+- 更新 GLSLTypeSchema 以包含用于验证的额外类型。
+chore: 添加用于着色器兼容性的空立方体纹理统一变量
+- 引入新的 samplerCube 统一变量以兼容 Shadertoy 着色器。
+
 ## [1.1.2] - 2025-12-10
 
 Feature: Updated labels and descriptions for multiple nodes, simplified support widgets for vec3 and vec4, and removed the standard glowing node.
