@@ -120,6 +120,15 @@ export function useTypeInference() {
                 }
             }
 
+            // If this node has connections but NO incoming edges, the score-based matching
+            // above can't differentiate overloads. Prefer matching by the connected rank.
+            if (incomingEdges.length === 0 && isConnected && signatures.length > 0) {
+                matchedSig =
+                    signatures.find(sig => sig.outputs?.length > 0 && getTypeRank(sig.outputs[0].type) === maxRank) ||
+                    signatures.find(sig => sig.inputs.length > 0 && getTypeRank(sig.inputs[0].type) === maxRank) ||
+                    matchedSig;
+            }
+
             // Fallback: If no connections or no match found, keep current or try rank-based
             if (!matchedSig && signatures.length > 0 && !isConnected) {
                  // If not connected, maybe default to the first one? Or keep current?
@@ -127,9 +136,11 @@ export function useTypeInference() {
             } else if (!matchedSig && signatures.length > 0 && isConnected) {
                  // Connected but no perfect match found via edges (maybe edges are new?)
                  // Try the old rank-based fallback for the first input
-                 matchedSig = signatures.find(sig => 
-                    sig.inputs.length > 0 && getTypeRank(sig.inputs[0].type) === maxRank
-                );
+                      matchedSig = signatures.find(sig => {
+                          const inputRankMatches = sig.inputs.length > 0 && getTypeRank(sig.inputs[0].type) === maxRank;
+                          const outputRankMatches = sig.outputs?.length > 0 && getTypeRank(sig.outputs[0].type) === maxRank;
+                          return outputRankMatches || inputRankMatches;
+                      });
             }
             
             let newInputs = node.data.inputs;

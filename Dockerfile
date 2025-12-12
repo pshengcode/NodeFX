@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM node:18-alpine as builder
+FROM node:22-alpine as builder
 
 WORKDIR /app
 
@@ -11,12 +11,6 @@ RUN npm install
 
 # Copy the rest of the application code
 COPY . .
-
-# Build arguments for environment variables
-# 注意：Vite 在构建时会替换 process.env.GEMINI_API_KEY
-# 如果需要在构建时注入 Key，可以使用 --build-arg
-ARG GEMINI_API_KEY
-ENV GEMINI_API_KEY=$GEMINI_API_KEY
 
 # Build the app
 RUN npm run build

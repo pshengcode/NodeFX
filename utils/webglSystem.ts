@@ -593,4 +593,15 @@ class WebGLSystem {
     }
 }
 
-export const webglSystem = new WebGLSystem();
+let _webglSystem: WebGLSystem | null = null;
+
+const getWebglSystem = () => {
+    if (_webglSystem) return _webglSystem;
+    _webglSystem = new WebGLSystem();
+    return _webglSystem;
+};
+
+export const webglSystem = {
+    render: (...args: Parameters<WebGLSystem['render']>) => getWebglSystem().render(...args),
+    cleanup: (...args: Parameters<WebGLSystem['cleanup']>) => getWebglSystem().cleanup(...args)
+};

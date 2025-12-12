@@ -58,6 +58,7 @@ export const WidgetConfigSchema = z.object({
 // Complex runtime types like Float32Array are not expected in JSON definitions.
 export const UniformValueSchema = z.union([
     z.number(),
+    z.boolean(),
     z.array(z.number()),
     z.array(z.array(z.number())), // Support for vec2[] (array of arrays)
     z.string(),

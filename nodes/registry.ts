@@ -44,6 +44,8 @@ export const normalizeNodeDefinition = (json: any): ShaderNodeDefinition => {
 }
 
 // Load all JSON files from the library folder
+// Keep eager loading for simplicity - the JSON files are text and compress well
+// Alternative: could split into separate chunks per category in the future
 const modules = import.meta.glob('./library/*.json', { eager: true });
 
 export const NODE_REGISTRY: ShaderNodeDefinition[] = Object.values(modules).map((mod: any) => {

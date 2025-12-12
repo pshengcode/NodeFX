@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Global Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 8px;

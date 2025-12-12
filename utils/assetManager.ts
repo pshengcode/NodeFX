@@ -23,11 +23,16 @@ const openDB = (): Promise<IDBDatabase> => {
 class AssetManager {
     // Cache stores data + timestamp for LRU
     private cache: Map<string, { data: string | RawTextureData, lastUsed: number }> = new Map();
-    private dbPromise: Promise<IDBDatabase>;
+    private dbPromise: Promise<IDBDatabase> | null = null;
     private MAX_CACHE_SIZE = 50; // Max items in memory
 
-    constructor() {
+    private getDb(): Promise<IDBDatabase> {
+        if (this.dbPromise) return this.dbPromise;
+        if (typeof indexedDB === 'undefined') {
+            return Promise.reject(new Error('IndexedDB is not available in this environment'));
+        }
         this.dbPromise = openDB();
+        return this.dbPromise;
     }
 
     // Generate a unique ID
@@ -41,7 +46,7 @@ class AssetManager {
         this.pruneCache();
         
         try {
-            const db = await this.dbPromise;
+            const db = await this.getDb();
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(STORE_NAME, 'readwrite');
                 const store = tx.objectStore(STORE_NAME);
@@ -71,7 +76,7 @@ class AssetManager {
 
         // 2. Check Disk
         try {
-            const db = await this.dbPromise;
+            const db = await this.getDb();
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(STORE_NAME, 'readonly');
                 const store = tx.objectStore(STORE_NAME);

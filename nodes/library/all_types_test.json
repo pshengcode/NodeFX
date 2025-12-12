@@ -1,7 +1,7 @@
 {
   "id": "ALL_TYPES_TEST",
   "label": "All Types Test",
-  "category": "Tool",
+  "category": "Utility",
   "description": "A node containing all supported input types for testing UI and compilation.",
   "data": {
     "inputs": [
@@ -25,6 +25,7 @@
     "outputs": [
       { "id": "result", "name": "Result", "type": "vec4" }
     ],
+    "outputType": "vec4",
     "uniforms": {
       "f": { "type": "float", "value": 0.5 },
       "i": { "type": "int", "value": 1 },

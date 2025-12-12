@@ -234,6 +234,14 @@
         "type": "int"
       }
     ],
+    "outputs": [
+      {
+        "id": "result",
+        "name": "Result",
+        "type": "vec4"
+      }
+    ],
+    "outputType": "vec4",
     "uniforms": {
       "style": {
         "type": "int",
@@ -293,7 +301,7 @@
       "angle": {
         "type": "float",
         "value": 30,
-        "widget": "knob",
+        "widget": "angle",
         "widgetConfig": {
           "min": 0,
           "max": 360,

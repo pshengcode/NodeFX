@@ -1,21 +1,23 @@
-import React, { useState, useCallback, useEffect, memo, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, memo, useMemo, lazy } from 'react';
 import ReactFlow, { 
     Background, Controls, SelectionMode, NodeTypes, EdgeTypes
 } from 'reactflow';
 import { Eye, ChevronRight, Home } from 'lucide-react';
 import { useProject, useProjectDispatch } from '../../context/ProjectContext';
-import CustomNode from '../CustomNode';
 import GroupNode from '../GroupNode';
 import NetworkNode from '../NetworkNode';
 import PaintNode from '../PaintNode';
-import FluidSimulationNode from '../FluidSimulationNode';
 import BakeNode from '../BakeNode';
 import SmartEdge from '../SmartEdge';
 import ContextMenu from '../ContextMenu';
 import ShaderPreview from '../ShaderPreview';
 import { GraphInputNode, GraphOutputNode } from '../IOProxyNodes';
 import { useTranslation } from 'react-i18next';
-import ParticleSystemNode from '../ParticleSystemNode';
+
+// Lazy load large components for code splitting
+const CustomNode = lazy(() => import('../CustomNode'));
+const ParticleSystemNode = lazy(() => import('../ParticleSystemNode'));
+const FluidSimulationNode = lazy(() => import('../FluidSimulationNode'));
 
 // Define nodeTypes OUTSIDE component to prevent re-creation on every render
 // This is critical for performance - if nodeTypes object changes, ReactFlow re-renders ALL nodes
@@ -216,6 +218,7 @@ export const Canvas: React.FC = () => {
     return (
         <div className="flex-1 relative flex flex-col h-full" ref={reactFlowWrapper} onClick={closeContextMenu}>
             <div className="flex-1 relative">
+                <React.Suspense fallback={<div className="flex items-center justify-center h-full text-white">Loading...</div>}>
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
@@ -261,6 +264,7 @@ export const Canvas: React.FC = () => {
                         />
                     )}
                 </ReactFlow>
+                </React.Suspense>
                 
                 {/* Breadcrumbs Overlay */}
                 <Breadcrumbs 

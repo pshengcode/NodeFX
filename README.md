@@ -28,7 +28,7 @@ NodeFX is a powerful, node-based visual editor for creating GLSL shaders directl
 
 ### Prerequisites
 
-- Node.js (v16 or higher recommended)
+- Node.js (v20 or higher recommended)
 - npm or yarn
 
 ### Installation
@@ -49,7 +49,7 @@ NodeFX is a powerful, node-based visual editor for creating GLSL shaders directl
    npm run dev
    ```
 
-4. Open your browser at `http://localhost:5173` (or the port shown in your terminal).
+4. Open your browser at `http://localhost:3000` (or the port shown in your terminal).
 
 ## 📖 Usage Guide
 
@@ -87,4 +87,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-[MIT](LICENSE)
+See [LICENSE](LICENSE).

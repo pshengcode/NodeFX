@@ -11,7 +11,11 @@ export interface BuiltinResource {
 
 // 2. Dynamic Local Textures (from assets/textures folder)
 // Vite's import.meta.glob will find all images in that folder and return their URLs
-const localModules = import.meta.glob('../assets/textures/*.{png,jpg,jpeg,webp,svg}', { eager: true, as: 'url' });
+const localModules = import.meta.glob('../assets/textures/*.{png,jpg,jpeg,webp,svg}', {
+    eager: true,
+    query: '?url',
+    import: 'default',
+});
 
 const LOCAL_TEXTURES: BuiltinResource[] = Object.entries(localModules).map(([path, url]) => {
     // path is like "../assets/textures/my_image.png"
