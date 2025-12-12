@@ -1,3 +1,19 @@
+## [1.1.4] - 2025-12-12
+
+feat: 增强性能监控面板 / Enhanced performance monitoring panel
+Performance Stats / 性能统计:
+- Add compilation stats (total compiles, errors, compile time) / 添加编译统计（总次数、错误数、耗时）
+- Add WebGL resource tracking (programs, textures, FBOs, cleanup time) / 添加 WebGL 资源追踪（程序、纹理、FBO、清理时间）
+- Add memory usage display (Chrome only) / 添加内存使用显示（仅 Chrome）
+- Add node type distribution (particle, fluid, network) / 添加节点类型分布统计
+- Add undo/redo stack size tracking / 添加撤销/重做栈大小追踪
+Features / 功能:
+- Support ?debug URL parameter to show stats in production / 支持 ?debug URL 参数在生产环境显示统计
+- Real-time WebGL resource monitoring / 实时 WebGL 资源监控
+- Compilation performance tracking / 编译性能追踪
+Bug Fixes / 问题修复:
+- Fix null value warning in ParticleSystemNode select elements / 修复粒子系统节点 select 元素的 null 值警告
+
 ## [1.1.3] - 2025-12-12
 
 feat: Add Bevel & Emboss node with GLSL implementation and localization

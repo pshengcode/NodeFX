@@ -48,6 +48,7 @@ class WebGLSystem {
     private quadBuffer: WebGLBuffer | null = null;
     
     private startTime: number = Date.now();
+    private lastCleanupTime: number = Date.now();
 
     constructor() {
         this.canvas = document.createElement('canvas');
@@ -117,6 +118,7 @@ class WebGLSystem {
 
     // --- RESOURCE MANAGEMENT ---
     public cleanup(activePassIds: string[]) {
+        this.lastCleanupTime = Date.now();
         const gl = this.gl;
         const activeSet = new Set(activePassIds);
         const now = Date.now();
@@ -591,6 +593,16 @@ class WebGLSystem {
             this.cleanup(activePassIds);
         }
     }
+    
+    // Get performance statistics
+    public getStats() {
+        return {
+            programs: this.programs.size,
+            textures: this.textureCache.size,
+            fbos: this.fboCache.size,
+            timeSinceLastCleanup: Date.now() - this.lastCleanupTime
+        };
+    }
 }
 
 let _webglSystem: WebGLSystem | null = null;
@@ -603,5 +615,6 @@ const getWebglSystem = () => {
 
 export const webglSystem = {
     render: (...args: Parameters<WebGLSystem['render']>) => getWebglSystem().render(...args),
-    cleanup: (...args: Parameters<WebGLSystem['cleanup']>) => getWebglSystem().cleanup(...args)
+    cleanup: (...args: Parameters<WebGLSystem['cleanup']>) => getWebglSystem().cleanup(...args),
+    getStats: () => getWebglSystem().getStats()
 };

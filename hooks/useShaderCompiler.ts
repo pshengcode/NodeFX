@@ -1,7 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Node, Edge } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { compileGraph } from '../utils/shaderCompiler';
+
+// Global compilation stats
+let totalCompiles = 0;
+let totalErrors = 0;
+let lastCompileTime = 0;
 
 export function useShaderCompiler(
     nodes: Node<NodeData>[],
@@ -10,6 +15,7 @@ export function useShaderCompiler(
     setCompiledData: (data: CompilationResult | null) => void,
     isDragging: boolean
 ) {
+    const [compileStats, setCompileStats] = useState({ totalCompiles, totalErrors, lastCompileTime });
     // OPTIMIZATION: Run compilation on Main Thread to avoid Worker serialization overhead
     // for frequent updates (like dragging sliders).
     // For very complex shaders, this might block UI, but for typical usage, 
@@ -48,13 +54,23 @@ export function useShaderCompiler(
         if (currentHash === prevHash.current) return;
         prevHash.current = currentHash;
 
+        const startTime = performance.now();
         try {
             const result = compileGraph(nodes, edges, previewNodeId);
+            lastCompileTime = performance.now() - startTime;
+            totalCompiles++;
             setCompiledData(result);
+            setCompileStats({ totalCompiles, totalErrors, lastCompileTime });
         } catch (err) {
             console.error("Shader Compile Error:", err);
+            lastCompileTime = performance.now() - startTime;
+            totalCompiles++;
+            totalErrors++;
             setCompiledData({ passes: [], error: err instanceof Error ? err.message : String(err) });
+            setCompileStats({ totalCompiles, totalErrors, lastCompileTime });
         }
     }, [nodes, edges, previewNodeId, isDragging, setCompiledData]);
+    
+    return compileStats;
 }
 

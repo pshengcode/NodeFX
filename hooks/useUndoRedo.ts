@@ -399,6 +399,9 @@ export function useUndoRedo(
     redo,
     canUndo: past.length > 0 || hasUnsavedChanges,
     canRedo: future.length > 0,
-    takeSnapshot // Expose this if we want to force save before big operations
+    takeSnapshot, // Expose this if we want to force save before big operations
+    // Expose stack sizes for debugging/stats
+    undoStackSize: past.length,
+    redoStackSize: future.length
   };
 }

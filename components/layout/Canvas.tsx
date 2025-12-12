@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect, memo, useMemo, lazy } from 'react';
 import ReactFlow, { 
-    Background, Controls, SelectionMode, NodeTypes, EdgeTypes
+    Background, Controls, SelectionMode, NodeTypes, EdgeTypes, Node
 } from 'reactflow';
 import { Eye, ChevronRight, Home } from 'lucide-react';
 import { useProject, useProjectDispatch } from '../../context/ProjectContext';
+import { NodeData } from '../../types';
+import { webglSystem } from '../../utils/webglSystem';
 import GroupNode from '../GroupNode';
 import NetworkNode from '../NetworkNode';
 import PaintNode from '../PaintNode';
@@ -37,9 +39,25 @@ const edgeTypes: EdgeTypes = {
   smart: SmartEdge
 };
 
-const PerformanceMonitor = ({ nodeCount }: { nodeCount: number }) => {
+const PerformanceMonitor = ({ 
+    nodeCount, 
+    edgeCount, 
+    undoStack, 
+    redoStack,
+    nodes,
+    compileStats
+}: { 
+    nodeCount: number; 
+    edgeCount: number; 
+    undoStack: number; 
+    redoStack: number;
+    nodes: Node<NodeData>[];
+    compileStats: { totalCompiles: number; totalErrors: number; lastCompileTime: number };
+}) => {
     const [fps, setFps] = useState(0);
     const [avgFrameTime, setAvgFrameTime] = useState(0);
+    const [memoryUsage, setMemoryUsage] = useState<number | null>(null);
+    const [webglStats, setWebglStats] = useState({ programs: 0, textures: 0, fbos: 0, timeSinceLastCleanup: 0 });
 
     useEffect(() => {
         let frameCount = 0;
@@ -55,6 +73,19 @@ const PerformanceMonitor = ({ nodeCount }: { nodeCount: number }) => {
                 setAvgFrameTime(1000 / frameCount);
                 frameCount = 0;
                 lastTime = now;
+                
+                // Update memory if available (Chrome only)
+                if ((performance as any).memory) {
+                    const used = (performance as any).memory.usedJSHeapSize;
+                    setMemoryUsage(Math.round(used / 1024 / 1024)); // MB
+                }
+                
+                // Update WebGL stats
+                try {
+                    setWebglStats(webglSystem.getStats());
+                } catch (e) {
+                    // WebGL system might not be initialized yet
+                }
             }
             
             animationFrameId = requestAnimationFrame(loop);
@@ -64,12 +95,65 @@ const PerformanceMonitor = ({ nodeCount }: { nodeCount: number }) => {
         return () => cancelAnimationFrame(animationFrameId);
     }, []);
 
+    // Calculate node type distribution
+    const nodeTypes = useMemo(() => {
+        const particle = nodes.filter(n => n.type === 'particleSystem').length;
+        const fluid = nodes.filter(n => n.type === 'fluidSimulationNode').length;
+        const network = nodes.filter(n => n.type === 'networkNode').length;
+        const custom = nodes.filter(n => n.type === 'customShader').length;
+        return { particle, fluid, network, custom };
+    }, [nodes]);
+
     return (
         <div className="absolute top-20 right-4 z-50 bg-black/60 backdrop-blur-md border border-zinc-700 p-2 rounded text-xs font-mono text-zinc-300 pointer-events-none select-none">
             <div className="font-bold text-zinc-400 mb-1 border-b border-zinc-700 pb-1">DEV STATS</div>
+            
+            {/* Graph Stats */}
             <div className="flex justify-between gap-4"><span>Nodes:</span> <span className="text-white">{nodeCount}</span></div>
-            <div className="flex justify-between gap-4"><span>FPS:</span> <span className={fps < 30 ? "text-red-500" : "text-green-500"}>{fps}</span></div>
+            <div className="flex justify-between gap-4"><span>Edges:</span> <span className="text-white">{edgeCount}</span></div>
+            
+            {/* Performance */}
+            <div className="flex justify-between gap-4"><span>FPS:</span> <span className={fps < 30 ? "text-red-500" : fps < 50 ? "text-yellow-500" : "text-green-500"}>{fps}</span></div>
             <div className="flex justify-between gap-4"><span>Frame:</span> <span>{avgFrameTime.toFixed(1)}ms</span></div>
+            
+            {memoryUsage && (
+                <div className="flex justify-between gap-4"><span>Memory:</span> <span>{memoryUsage}MB</span></div>
+            )}
+            
+            {/* Node Types (show if any special nodes exist) */}
+            {(nodeTypes.particle > 0 || nodeTypes.fluid > 0 || nodeTypes.network > 0) && (
+                <div className="border-t border-zinc-700 mt-1 pt-1">
+                    {nodeTypes.particle > 0 && <div className="flex justify-between gap-4"><span>Particle:</span> <span className="text-purple-400">{nodeTypes.particle}</span></div>}
+                    {nodeTypes.fluid > 0 && <div className="flex justify-between gap-4"><span>Fluid:</span> <span className="text-blue-400">{nodeTypes.fluid}</span></div>}
+                    {nodeTypes.network > 0 && <div className="flex justify-between gap-4"><span>Network:</span> <span className="text-orange-400">{nodeTypes.network}</span></div>}
+                </div>
+            )}
+            
+            {/* Compilation Stats */}
+            <div className="border-t border-zinc-700 mt-1 pt-1">
+                <div className="flex justify-between gap-4"><span>Compiles:</span> <span>{compileStats.totalCompiles}</span></div>
+                {compileStats.totalErrors > 0 && (
+                    <div className="flex justify-between gap-4"><span>Errors:</span> <span className="text-red-400">{compileStats.totalErrors}</span></div>
+                )}
+                <div className="flex justify-between gap-4"><span>Compile:</span> <span>{compileStats.lastCompileTime.toFixed(1)}ms</span></div>
+            </div>
+            
+            {/* WebGL Stats */}
+            {(webglStats.programs > 0 || webglStats.textures > 0 || webglStats.fbos > 0) && (
+                <div className="border-t border-zinc-700 mt-1 pt-1">
+                    <div className="text-[9px] text-zinc-500 mb-0.5">WebGL Resources</div>
+                    <div className="flex justify-between gap-4"><span>Programs:</span> <span>{webglStats.programs}</span></div>
+                    <div className="flex justify-between gap-4"><span>Textures:</span> <span>{webglStats.textures}</span></div>
+                    <div className="flex justify-between gap-4"><span>FBOs:</span> <span>{webglStats.fbos}</span></div>
+                    <div className="flex justify-between gap-4"><span>Cleanup:</span> <span>{(webglStats.timeSinceLastCleanup / 1000).toFixed(0)}s ago</span></div>
+                </div>
+            )}
+            
+            {/* History */}
+            <div className="border-t border-zinc-700 mt-1 pt-1">
+                <div className="flex justify-between gap-4"><span>Undo:</span> <span>{undoStack}</span></div>
+                <div className="flex justify-between gap-4"><span>Redo:</span> <span>{redoStack}</span></div>
+            </div>
         </div>
     );
 };
@@ -161,7 +245,7 @@ export const Canvas: React.FC = () => {
     } = useProjectDispatch();
     
     // Get nodes and edges from full context (these trigger re-renders)
-    const { nodes, edges } = useProject();
+    const { nodes, edges, performanceStats } = useProject();
 
     const [menuState, setMenuState] = useState<{ visible: boolean; x: number; y: number; flowPosition?: {x: number, y: number} } | null>(null);
     
@@ -273,8 +357,17 @@ export const Canvas: React.FC = () => {
                     onNavigate={navigateToScope}
                 />
 
-                 {/* Dev Performance Monitor */}
-                 {import.meta.env.DEV && <PerformanceMonitor nodeCount={nodes.length} />}
+                 {/* Dev Performance Monitor - Show in dev or with ?debug query param */}
+                 {(import.meta.env.DEV || new URLSearchParams(window.location.search).has('debug')) && (
+                     <PerformanceMonitor 
+                         nodeCount={nodes.length} 
+                         edgeCount={edges.length}
+                         undoStack={performanceStats.undoStackSize}
+                         redoStack={performanceStats.redoStackSize}
+                         nodes={nodes}
+                         compileStats={performanceStats.compileStats}
+                     />
+                 )}
             </div>
 
             {/* Preview Panel */}

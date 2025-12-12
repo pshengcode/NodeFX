@@ -47,6 +47,7 @@ interface ProjectContextType {
   edges: Edge[];
   setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+  performanceStats: { undoStackSize: number; redoStackSize: number };
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   
@@ -119,6 +120,11 @@ interface ProjectContextType {
   
   // Performance State
   isDragging: boolean;
+  performanceStats: { 
+    undoStackSize: number; 
+    redoStackSize: number;
+    compileStats: { totalCompiles: number; totalErrors: number; lastCompileTime: number };
+  };
 }
 
 // Split Contexts for Performance
@@ -407,12 +413,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 
   const { clearPersistence } = usePersistence(nodes, edges, previewNodeId, setNodes, setEdges, initialNodes, initialEdges);
-  const { undo, redo, canUndo, canRedo, takeSnapshot } = useUndoRedo(nodes, edges, setNodes, setEdges);
+  const { undo, redo, canUndo, canRedo, takeSnapshot, undoStackSize, redoStackSize } = useUndoRedo(nodes, edges, setNodes, setEdges);
   const { copyShareLink } = useUrlSharing();
   const { runTypeInference } = useTypeInference();
   
   useKeyboardShortcuts(nodes, setNodes, edges, setEdges, resolution, undo, redo, currentScope, reactFlowInstance, isDragging);
-  useShaderCompiler(nodes, edges, previewNodeId, setCompiledData, isDragging);
+  const compileStats = useShaderCompiler(nodes, edges, previewNodeId, setCompiledData, isDragging);
+  
+  // Performance Stats
+  const performanceStats = useMemo(() => ({
+    undoStackSize,
+    redoStackSize,
+    compileStats
+  }), [undoStackSize, redoStackSize, compileStats]);
 
   const { 
       saveProject, 
@@ -636,6 +649,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     reactFlowInstance, setReactFlowInstance, reactFlowWrapper,
     onConnect, addNode, onNodeClick, onNodeDragStart, onNodeDragStop, onNodesDelete, onDragOver, onDrop,
     undo, redo, canUndo, canRedo, takeSnapshot,
+    performanceStats,
     copyShareLink,
     saveProject, loadProject, importNodeFromJson, resetCanvas, loadExampleProject,
     userNodes, addToLibrary, addCanvasToLibrary, removeFromLibrary, importLibrary, exportLibrary,
@@ -662,7 +676,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       currentScope, enterGroup, exitGroup, navigateToScope, getBreadcrumbs,
       externalNodes, isRefreshingNodes, refreshExternalNodes,
       projectFileInputRef, nodeImportInputRef,
-      pendingShareData, handleShareAction
+      pendingShareData, handleShareAction,
+      performanceStats
       // Note: isDragging is intentionally NOT in dependencies to avoid re-creating dispatchValue on every drag
       // Components can access the latest isDragging value, but changes won't trigger re-renders
   ]);

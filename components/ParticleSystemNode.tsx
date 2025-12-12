@@ -3162,7 +3162,7 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
                 <div key={propKey} className="flex items-center justify-between py-1">
                     <label className="text-[10px] text-zinc-400">{label}</label>
                     <select 
-                        value={value} 
+                        value={value ?? options[0] ?? ''} 
                         onChange={e => updatePropertyWithLogic(modId, propKey, e.target.value)}
                         className="bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-[10px] text-zinc-200 outline-none w-24"
                     >
@@ -3217,7 +3217,7 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
 
                     <div className="relative w-4 h-4 shrink-0 group/select">
                         <select 
-                            value={value.mode} 
+                            value={value.mode ?? 'Constant'} 
                             onChange={e => updatePropertyWithLogic(modId, propKey, { ...value, mode: e.target.value })}
                             className="absolute inset-0 opacity-0 cursor-pointer z-10"
                             title="Toggle Constant/Random"
