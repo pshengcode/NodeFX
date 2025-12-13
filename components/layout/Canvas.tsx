@@ -15,6 +15,7 @@ import ContextMenu from '../ContextMenu';
 import ShaderPreview from '../ShaderPreview';
 import { GraphInputNode, GraphOutputNode } from '../IOProxyNodes';
 import { useTranslation } from 'react-i18next';
+import { buildUniformOverridesFromNodes } from '../../utils/uniformOverrides';
 
 // Lazy load large components for code splitting
 const CustomNode = lazy(() => import('../CustomNode'));
@@ -192,12 +193,14 @@ const PreviewPanel = memo(({
     compiledData, 
     resolution, 
     previewNodeId, 
+    uniformOverrides,
     onNodeError,
     t 
 }: {
     compiledData: any;
     resolution: { w: number; h: number };
     previewNodeId: string | null;
+    uniformOverrides: any;
     onNodeError: (nodeId: string, error: string | null) => void;
     t: (key: string) => string;
 }) => {
@@ -218,6 +221,7 @@ const PreviewPanel = memo(({
                     height={resolution.h} 
                     className="w-full h-full"
                     onNodeError={onNodeError}
+                    uniformOverrides={uniformOverrides}
                 />
             </div>
         </div>
@@ -227,7 +231,8 @@ const PreviewPanel = memo(({
         prev.compiledData === next.compiledData &&
         prev.resolution.w === next.resolution.w &&
         prev.resolution.h === next.resolution.h &&
-        prev.previewNodeId === next.previewNodeId
+        prev.previewNodeId === next.previewNodeId &&
+        prev.uniformOverrides === next.uniformOverrides
     );
 });
 
@@ -246,6 +251,8 @@ export const Canvas: React.FC = () => {
     
     // Get nodes and edges from full context (these trigger re-renders)
     const { nodes, edges, performanceStats } = useProject();
+
+    const uniformOverrides = useMemo(() => buildUniformOverridesFromNodes(nodes), [nodes]);
 
     const [menuState, setMenuState] = useState<{ visible: boolean; x: number; y: number; flowPosition?: {x: number, y: number} } | null>(null);
     
@@ -375,6 +382,7 @@ export const Canvas: React.FC = () => {
                 compiledData={compiledData}
                 resolution={resolution}
                 previewNodeId={previewNodeId}
+                uniformOverrides={uniformOverrides}
                 onNodeError={handleNodeError}
                 t={t}
             />

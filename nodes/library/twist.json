@@ -70,10 +70,6 @@
           "max": 2,
           "step": 0.01
         }
-      },
-      "inColor": {
-        "type": "sampler2D",
-        "value": 0
       }
     },
     "outputType": "vec2"

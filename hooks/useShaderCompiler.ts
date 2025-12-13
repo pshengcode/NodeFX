@@ -31,19 +31,26 @@ export function useShaderCompiler(
             return;
         }
 
-        // Simple structural hash to avoid recompiling on position changes
-        // We include: node IDs, types, data (excluding position-related), and edges
+        // Structural hash to avoid recompiling when only uniform VALUES change.
+        // We include only data that can affect shader SOURCE (GLSL strings, port IDs/types,
+        // edge connectivity, and the presence/type of uniforms).
         const structure = {
             nodes: nodes.map(n => ({
                 id: n.id,
                 type: n.type,
-                // Only include data relevant to compilation
                 data: {
-                    ...n.data,
-                    // Exclude UI state that doesn't affect shader
-                    preview: undefined,
-                    label: undefined,
-                    // Include glsl, inputs, outputs, uniforms, etc.
+                    glsl: n.data.glsl,
+                    outputType: n.data.outputType,
+                    inputs: (n.data.inputs || []).map(i => ({ id: i.id, type: i.type })),
+                    outputs: (n.data.outputs || []).map(o => ({ id: o.id, type: o.type })),
+                    isCompound: n.data.isCompound,
+                    scopeId: n.data.scopeId,
+                    isGlobalVar: n.data.isGlobalVar,
+                    globalName: n.data.globalName,
+                    // Uniforms affect shader code only via existence + declared type.
+                    uniforms: Object.fromEntries(
+                        Object.entries(n.data.uniforms || {}).map(([k, u]) => [k, { type: u.type }])
+                    )
                 }
             })),
             edges: edges.map(e => ({ s: e.source, t: e.target, sh: e.sourceHandle, th: e.targetHandle })),

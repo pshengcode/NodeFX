@@ -14,6 +14,7 @@ interface Props {
   height?: number;
   onNodeError?: (nodeId: string, error: string | null) => void;
   uniforms?: Record<string, UniformVal>;
+    uniformOverrides?: Record<string, UniformVal>;
   onUpdateUniform?: (key: string, value: any) => void;
   definitionId?: string;
   activeUniformId?: string;
@@ -21,7 +22,7 @@ interface Props {
 
 type ChannelMode = 0 | 1 | 2 | 3 | 4; // RGBA, R, G, B, A
 
-const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, paused, width, height, onNodeError, uniforms, onUpdateUniform, definitionId, activeUniformId }, ref) => {
+const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, paused, width, height, onNodeError, uniforms, uniformOverrides, onUpdateUniform, definitionId, activeUniformId }, ref) => {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +38,12 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+    // Keep latest override map without restarting RAF loop.
+    const uniformOverridesRef = useRef<Record<string, UniformVal> | undefined>(undefined);
+    useEffect(() => {
+            uniformOverridesRef.current = uniformOverrides ?? uniforms;
+    }, [uniformOverrides, uniforms]);
 
   const [draggedPoint, setDraggedPoint] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -113,7 +120,7 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
                  tiling,
                  zoom,
                  pan,
-                 uniforms // Pass current uniforms override
+                 uniformOverridesRef.current // Pass current uniforms override
              );
              
              // LOOP FIX: Only clear the error if the current frame rendered SUCCESSFULLY.
@@ -127,7 +134,7 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       
       render();
       return () => cancelAnimationFrame(animationFrameRef.current);
-  }, [data, paused, width, height, channelMode, onNodeError, lastError, tiling, zoom, pan]);
+    }, [data, paused, width, height, channelMode, onNodeError, lastError, tiling, zoom, pan]);
 
   const handleCopyCode = () => {
       if (!data) return;
@@ -512,6 +519,7 @@ export default React.memo(ShaderPreview, (prev, next) => {
         prev.width === next.width &&
         prev.height === next.height &&
         prev.uniforms === next.uniforms &&
+        prev.uniformOverrides === next.uniformOverrides &&
         prev.definitionId === next.definitionId &&
         prev.activeUniformId === next.activeUniformId
     );

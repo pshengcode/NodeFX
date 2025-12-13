@@ -24,12 +24,12 @@
     ],
     "outputs": [
       {
-        "id": "image",
+        "id": "out_image",
         "name": "Image",
         "type": "vec4"
       },
       {
-        "id": "flow",
+        "id": "out_flow",
         "name": "Flow",
         "type": "vec4"
       }

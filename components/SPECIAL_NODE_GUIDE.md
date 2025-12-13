@@ -144,34 +144,96 @@ export default MySpecialNode;
 如果你的节点需要接收图像输入（例如作为遮罩或发射源）：
 
 1.  **查找连接**：在 `useEffect` 中查找连接到特定 Handle 的 Edge。
-2.  **编译图表**：使用 `compileGraph` 获取上游节点的渲染数据。
-3.  **隐藏渲染**：使用 `<ShaderPreview>` 组件将上游数据渲染到一个隐藏的 Canvas 中。
-4.  **读取数据**：在你的主渲染循环中，直接读取这个隐藏 Canvas 的内容。
+2.  **编译图表（仅当源码结构变化时）**：使用 `compileGraph` 获取上游节点的渲染数据。
+3.  **实时更新 Uniform（不触发重编译）**：将“精确 uniform 名称”的 `uniformOverrides` 传给 `<ShaderPreview>`，让上游参数（run 入参的值 / 未连线时走 uniform）变化能实时反映到输入纹理。
+4.  **隐藏渲染**：使用 `<ShaderPreview>` 将上游数据渲染到隐藏 Canvas。
+5.  **读取数据**：在你的主渲染循环中读取这个隐藏 Canvas 的内容。
+
+> 说明：本项目把“图编译”分成两层：
+> - `compileGraph(...)`：把节点图拼成 GLSL 源码 + uniform 表（CPU 侧）。
+> - `webglSystem.render(...)`：只有当 shader code 字符串变化时才会真正 compile/link WebGL program；uniform 值变化应只更新 `gl.uniform*`。
+>
+> 因此，**上游参数值变化不应该触发 `compileGraph`**（否则 slider 会很“重”），但必须通过 `uniformOverrides` 让渲染拿到最新值。
 
 ```typescript
-// 1. 状态定义
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useStore } from 'reactflow';
+import { compileGraph } from '../utils/shaderCompiler';
+import { buildUniformOverridesFromNodes } from '../utils/uniformOverrides';
+import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+
+// 1) 状态定义
 const [compiledInput, setCompiledInput] = useState<CompilationResult | null>(null);
 const inputCanvasRef = useRef<HTMLCanvasElement>(null);
 
-// 2. 监听连接并编译
+// 2) 订阅 edges（结构变化），订阅 nodes（data 变化但不因拖拽 position 变化而重渲）
+const nodes = useOptimizedNodes();
+const edges = useStore((s: any) => s.edges, (a: any[], b: any[]) => JSON.stringify(a) === JSON.stringify(b));
+
+// 3) uniformOverrides：用于实时更新上游参数值（不触发重编译）
+const uniformOverrides = useMemo(
+    () => buildUniformOverridesFromNodes(nodes as any),
+    [nodes]
+);
+
+// 4) graphCodeHash：只包含会影响 shader SOURCE 的结构信息（排除 uniform.value）
+const graphCodeHash = useMemo(() => {
+    const structure = {
+        nodes: (nodes as any[]).map(n => ({
+            id: n.id,
+            type: n.type,
+            data: {
+                glsl: n.data?.glsl,
+                outputType: n.data?.outputType,
+                inputs: (n.data?.inputs || []).map((i: any) => ({ id: i.id, type: i.type })),
+                outputs: (n.data?.outputs || []).map((o: any) => ({ id: o.id, type: o.type })),
+                isCompound: n.data?.isCompound,
+                scopeId: n.data?.scopeId,
+                isGlobalVar: n.data?.isGlobalVar,
+                globalName: n.data?.globalName,
+                uniforms: Object.fromEntries(
+                    Object.entries(n.data?.uniforms || {}).map(([k, u]: any) => [k, { type: u?.type }])
+                ),
+            }
+        })),
+        edges: edges.map((e: any) => ({ s: e.source, t: e.target, sh: e.sourceHandle, th: e.targetHandle })),
+    };
+    return JSON.stringify(structure);
+}, [nodes, edges]);
+
+const prevCompileKeyRef = useRef<string>('');
+
+// 5) 监听连接并编译：只在源码结构变化时 compileGraph
 useEffect(() => {
     const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'input_image');
-    if (inputEdge) {
-        const result = compileGraph(nodes, edges, inputEdge.source);
-        setCompiledInput(result);
-    } else {
+    if (!inputEdge) {
+        prevCompileKeyRef.current = '';
         setCompiledInput(null);
+        return;
     }
-}, [nodes, edges, id]);
 
-// 3. 在 JSX 中渲染隐藏的 Preview
+    const compileKey = `${inputEdge.source}|${graphCodeHash}`;
+    if (compileKey === prevCompileKeyRef.current) return;
+    prevCompileKeyRef.current = compileKey;
+
+    const result = compileGraph(nodes as any, edges, inputEdge.source);
+    setCompiledInput(result);
+}, [id, nodes, edges, graphCodeHash]);
+
+// 6) JSX 中渲染隐藏 Preview（关键：传 uniformOverrides）
 // <div className="hidden">
-//    {compiledInput && (
-//        <ShaderPreview ref={inputCanvasRef} data={compiledInput} width={width} height={height} />
-//    )}
+//   {compiledInput && (
+//     <ShaderPreview
+//       ref={inputCanvasRef}
+//       data={compiledInput}
+//       width={width}
+//       height={height}
+//       uniformOverrides={uniformOverrides}
+//     />
+//   )}
 // </div>
 
-// 4. 在主循环中使用
+// 7) 主循环使用
 // ctx.drawImage(inputCanvasRef.current, 0, 0);
 ```
 

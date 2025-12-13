@@ -42,6 +42,22 @@ export const WidgetConfigSchema = z.object({
         x: z.number(),
         y: z.number()
     })).optional(),
+    curvePointsR: z.array(z.object({
+        x: z.number(),
+        y: z.number()
+    })).optional(),
+    curvePointsG: z.array(z.object({
+        x: z.number(),
+        y: z.number()
+    })).optional(),
+    curvePointsB: z.array(z.object({
+        x: z.number(),
+        y: z.number()
+    })).optional(),
+    curvePointsA: z.array(z.object({
+        x: z.number(),
+        y: z.number()
+    })).optional(),
     enumOptions: z.array(z.object({
         label: z.string(),
         value: z.number()

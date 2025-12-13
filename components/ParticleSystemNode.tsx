@@ -10,6 +10,7 @@ import { assetManager } from '../utils/assetManager';
 import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { webglSystem } from '../utils/webglSystem';
+import { buildUniformOverridesFromNodes } from '../utils/uniformOverrides';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useProjectDispatch } from '../context/ProjectContext';
@@ -2101,6 +2102,41 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
     // Don't subscribe to any context - get values on demand
     // This prevents re-renders when context values change
     const edges = useStore(edgesSelector, edgesEqual);
+
+    // Subscribe to node DATA changes (but not position drags) so upstream uniform edits
+    // can update input previews in real time.
+    const nodes = useOptimizedNodes();
+
+    // Exact-name uniform overrides for ShaderPreview/webglSystem.
+    const uniformOverrides = React.useMemo(
+        () => buildUniformOverridesFromNodes(nodes as any),
+        [nodes]
+    );
+
+    // Structural hash for shader SOURCE changes (excludes uniform values)
+    const graphCodeHash = React.useMemo(() => {
+        const structure = {
+            nodes: (nodes as any[]).map(n => ({
+                id: n.id,
+                type: n.type,
+                data: {
+                    glsl: n.data?.glsl,
+                    outputType: n.data?.outputType,
+                    inputs: (n.data?.inputs || []).map((i: any) => ({ id: i.id, type: i.type })),
+                    outputs: (n.data?.outputs || []).map((o: any) => ({ id: o.id, type: o.type })),
+                    isCompound: n.data?.isCompound,
+                    scopeId: n.data?.scopeId,
+                    isGlobalVar: n.data?.isGlobalVar,
+                    globalName: n.data?.globalName,
+                    uniforms: Object.fromEntries(
+                        Object.entries(n.data?.uniforms || {}).map(([k, u]: any) => [k, { type: u?.type }])
+                    ),
+                }
+            })),
+            edges: edges.map((e: any) => ({ s: e.source, t: e.target, sh: e.sourceHandle, th: e.targetHandle })),
+        };
+        return JSON.stringify(structure);
+    }, [nodes, edges]);
     
     const isConnected = edges.some(e => e.source === id);
 
@@ -2210,43 +2246,50 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
     const [compiledParticleImage, setCompiledParticleImage] = useState<CompilationResult | null>(null);
     const particleImageInputCanvasRef = useRef<HTMLCanvasElement>(null);
 
-    // Watch for Input Connection Changes and Compile
+    const prevImageCompileKeyRef = useRef<string>('');
+    const prevParticleCompileKeyRef = useRef<string>('');
+
+    // Watch for Input Connection Changes and Compile (only when shader SOURCE changes)
     useEffect(() => {
         const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'image');
         
         if (inputEdge) {
+            const compileKey = `${inputEdge.source}|${graphCodeHash}`;
+            if (compileKey === prevImageCompileKeyRef.current) return;
+            prevImageCompileKeyRef.current = compileKey;
             try {
-                // Get nodes on-demand to avoid subscribing to position changes
-                const nodes = getNodes();
-                const result = compileGraph(nodes as import('reactflow').Node<NodeData>[], edges, inputEdge.source);
+                const result = compileGraph(nodes as any, edges, inputEdge.source);
                 setCompiledImage(result);
             } catch (e) {
                 console.error("Particle System Input Compile Error:", e);
                 setCompiledImage(null);
             }
         } else {
+            prevImageCompileKeyRef.current = '';
             setCompiledImage(null);
         }
-    }, [edges, getNodes, id]);
+    }, [edges, nodes, id, graphCodeHash]);
 
     // Watch for Particle Texture Input
     useEffect(() => {
         const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'particleTexture');
         
         if (inputEdge) {
+            const compileKey = `${inputEdge.source}|${graphCodeHash}`;
+            if (compileKey === prevParticleCompileKeyRef.current) return;
+            prevParticleCompileKeyRef.current = compileKey;
             try {
-                // Get nodes on-demand to avoid subscribing to position changes
-                const nodes = getNodes();
-                const result = compileGraph(nodes as import('reactflow').Node<NodeData>[], edges, inputEdge.source);
+                const result = compileGraph(nodes as any, edges, inputEdge.source);
                 setCompiledParticleImage(result);
             } catch (e) {
                 console.error("Particle System Particle Texture Input Compile Error:", e);
                 setCompiledParticleImage(null);
             }
         } else {
+            prevParticleCompileKeyRef.current = '';
             setCompiledParticleImage(null);
         }
-    }, [edges, getNodes, id]);
+    }, [edges, nodes, id, graphCodeHash]);
 
     // Update refs
     useEffect(() => { dataRef.current = data; }, [data]);
@@ -3405,6 +3448,7 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
                         data={compiledImage} 
                         width={data.resolution?.w || 512} 
                         height={data.resolution?.h || 512}
+                        uniformOverrides={uniformOverrides}
                     />
                 )}
                 {compiledParticleImage && (
@@ -3413,6 +3457,7 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
                         data={compiledParticleImage} 
                         width={data.resolution?.w || 512} 
                         height={data.resolution?.h || 512}
+                        uniformOverrides={uniformOverrides}
                     />
                 )}
             </div>

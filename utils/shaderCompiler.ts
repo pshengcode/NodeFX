@@ -560,7 +560,8 @@ uniform samplerCube u_empty_cube;
                             w,
                             uVal.widgetConfig.curvePointsR,
                             uVal.widgetConfig.curvePointsG,
-                            uVal.widgetConfig.curvePointsB
+                            uVal.widgetConfig.curvePointsB,
+                            uVal.widgetConfig.curvePointsA
                         );
                     }
                  }
@@ -576,7 +577,8 @@ uniform samplerCube u_empty_cube;
                              w,
                              uVal.widgetConfig.curvePointsR,
                              uVal.widgetConfig.curvePointsG,
-                             uVal.widgetConfig.curvePointsB
+                             uVal.widgetConfig.curvePointsB,
+                             uVal.widgetConfig.curvePointsA
                          );
                      }
 
@@ -587,7 +589,19 @@ uniform samplerCube u_empty_cube;
                          const b = textureData.data[centerIdx + 2] / 255;
                          const a = textureData.data[centerIdx + 3] / 255;
 
-                         if (safeType === 'vec4') val = new Float32Array([r,g,b,a]);
+                         if (safeType === 'vec4') {
+                             // Curve editor currently has no A channel; preserve original alpha for curve-driven vec4.
+                             let preservedAlpha: number | null = null;
+                             if (uVal.widget === 'curve') {
+                                 const original = getUniformValue(safeType, uVal.value);
+                                 if (original instanceof Float32Array && original.length >= 4) {
+                                     preservedAlpha = original[3];
+                                 } else if (Array.isArray(original) && original.length >= 4 && typeof original[3] === 'number') {
+                                     preservedAlpha = original[3];
+                                 }
+                             }
+                             val = new Float32Array([r, g, b, preservedAlpha ?? a]);
+                         }
                          else if (safeType === 'vec3') val = new Float32Array([r,g,b]);
                          else if (safeType === 'float') val = r;
                      }

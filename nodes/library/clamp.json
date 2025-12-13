@@ -11,7 +11,7 @@
   },
   "data": {
     "autoType": true,
-    "glsl": "void run(vec2 uv, float a, float mn, float mx, out float res) { res = clamp(a, mn, mx); }\nvoid run(vec2 uv, vec2 a, vec2 mn, vec2 mx, out vec2 res)   { res = clamp(a, mn, mx); }\nvoid run(vec2 uv, vec3 a, vec3 mn, vec3 mx, out vec3 res)   { res = clamp(a, mn, mx); }\nvoid run(vec2 uv, vec4 a, vec4 mn, vec4 mx, out vec4 res)   { res = clamp(a, mn, mx); }",
+    "glsl": "void run(vec2 uv, float a, float min, float max, out float res) { res = clamp(a, min, max); }\nvoid run(vec2 uv, vec2 a, vec2 min, vec2 max, out vec2 res)   { res = clamp(a, min, max); }\nvoid run(vec2 uv, vec3 a, vec3 min, vec3 max, out vec3 res)   { res = clamp(a, min, max); }\nvoid run(vec2 uv, vec4 a, vec4 min, vec4 max, out vec4 res)   { res = clamp(a, min, max); }",
     "inputs": [
       { "id": "a", "name": "In", "type": "vec4" },
       { "id": "min", "name": "Min", "type": "vec4", "default": [0,0,0,0] },

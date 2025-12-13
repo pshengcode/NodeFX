@@ -19,7 +19,7 @@
     }
   },
   "data": {
-    "glsl": "\nvoid run(vec2 uv, vec2 disuv, float amount, out vec2 result) {\n    vec2 offset = disuv  * amount;\n    result = uv + offset;\n}\nvoid run(vec2 uv, sampler2D map, vec2 dis,float amount, out vec4 result) {\n    vec2 offset = dis  * amount;\n    vec2 uvResult=uv + offset;\n     result=texture(map,uvResult);\n}",
+    "glsl": "void run(vec2 uv, sampler2D map, vec2 dis, float amount, out vec4 result) {\n    vec2 offset = dis * amount;\n    vec2 uvResult = uv + offset;\n    result = texture(map, uvResult);\n}",
     "inputs": [
       {
         "id": "map",
@@ -54,13 +54,6 @@
           "max": 1,
           "step": 0.01
         }
-      },
-      "disuv": {
-        "type": "vec2",
-        "value": [
-          0,
-          0
-        ]
       },
       "map": {
         "type": "sampler2D",

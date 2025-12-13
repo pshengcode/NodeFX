@@ -46,6 +46,8 @@ class WebGLSystem {
     
     private displayProgram: WebGLProgram | null = null;
     private quadBuffer: WebGLBuffer | null = null;
+
+    private emptyTexture: WebGLTexture | null = null;
     
     private startTime: number = Date.now();
     private lastCleanupTime: number = Date.now();
@@ -86,6 +88,35 @@ class WebGLSystem {
         if (vert && frag) {
             this.displayProgram = this.createProgram(vert, frag);
         }
+    }
+
+    private getEmptyTexture() {
+        if (this.emptyTexture) return this.emptyTexture;
+
+        const gl = this.gl;
+        const tex = gl.createTexture();
+        if (!tex) throw new Error('Empty texture creation failed');
+
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            1,
+            1,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            new Uint8Array([0, 0, 0, 255])
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        this.emptyTexture = tex;
+        return tex;
     }
 
     private createShader(type: number, source: string) {
@@ -270,11 +301,37 @@ class WebGLSystem {
             return null;
         }
 
-        if (this.textureCache.has(id)) return this.textureCache.get(id)!;
+        // If we have a cached texture and the caller is providing fresh RawTextureData,
+        // re-upload the pixels in-place so widgets (curve/gradient) can update without
+        // creating unbounded new WebGLTexture objects.
+        // IMPORTANT: do uploads on a dedicated texture unit and restore the previous unit,
+        // otherwise we can accidentally disturb bindings used by the current render pass.
+        if (this.textureCache.has(id)) {
+            const cached = this.textureCache.get(id)!;
+            if (typeof value !== 'string') {
+                const oldActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+                gl.activeTexture(gl.TEXTURE31);
+                gl.bindTexture(gl.TEXTURE_2D, cached);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, value.data);
+                gl.generateMipmap(gl.TEXTURE_2D);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+                const wrap = value.wrapClamp ? gl.CLAMP_TO_EDGE : gl.REPEAT;
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+
+                gl.activeTexture(oldActive);
+            }
+            return cached;
+        }
 
         const tex = gl.createTexture();
         if(!tex) return null;
 
+        const oldActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+        gl.activeTexture(gl.TEXTURE31);
         gl.bindTexture(gl.TEXTURE_2D, tex);
 
         if (typeof value === 'string') {
@@ -283,12 +340,15 @@ class WebGLSystem {
             const img = new Image();
             img.onload = () => {
                 if(!gl.isTexture(tex)) return;
+                const prevActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+                gl.activeTexture(gl.TEXTURE31);
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
                 gl.generateMipmap(gl.TEXTURE_2D);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.activeTexture(prevActive);
             };
             img.src = value;
         } else {
@@ -302,6 +362,8 @@ class WebGLSystem {
         const wrap = (typeof value !== 'string' && value.wrapClamp) ? gl.CLAMP_TO_EDGE : gl.REPEAT;
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+
+        gl.activeTexture(oldActive);
 
         this.textureCache.set(id, tex);
         return tex;
@@ -423,7 +485,14 @@ class WebGLSystem {
             if (timeLoc) gl.uniform1f(timeLoc, (Date.now() - this.startTime) / 1000);
             if (resLoc) gl.uniform2f(resLoc, width, height);
 
-            let texUnit = 0;
+            // Always bind a known empty texture to unit 0.
+            // This prevents "stale" sampling from previous draws when a sampler uniform is unset
+            // (e.g. a node has an unconnected texture input).
+            const emptyTex = this.getEmptyTexture();
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, emptyTex);
+
+            let texUnit = 1;
             
             // Standard Uniforms
             Object.entries(pass.uniforms).forEach(([name, val]) => {
@@ -441,27 +510,31 @@ class WebGLSystem {
                     // However, for the PREVIEW node (which is the one being dragged), its uniforms are usually direct?
                     // No, shaderCompiler renames everything.
                     
-                    // Simple heuristic: check if name ends with `_${overrideKey}`
                     if (uniformOverrides) {
-                        for (const [key, overrideVal] of Object.entries(uniformOverrides)) {
-                            if (name.endsWith(`_${key}`)) {
-                                u = { type: overrideVal.type, value: overrideVal.value };
-                                break;
+                        // Preferred: exact match by full GLSL uniform name
+                        const exact = uniformOverrides[name];
+                        if (exact) {
+                            u = { type: exact.type, value: exact.value };
+                        } else {
+                            // Back-compat: heuristic match by suffix (older callers pass raw node uniform keys)
+                            for (const [key, overrideVal] of Object.entries(uniformOverrides)) {
+                                if (name.endsWith(`_${key}`)) {
+                                    u = { type: overrideVal.type, value: overrideVal.value };
+                                    break;
+                                }
                             }
                         }
                     }
 
-                    if (u.type === 'sampler2D' && u.value) {
-                        const tex = this.getTexture(u.value);
-                        if (tex) {
-                            // FEEDBACK GUARD: If input texture is same as current output, prevent bind
-                            if (tex === currentTex) {
-                                gl.activeTexture(gl.TEXTURE0 + texUnit);
-                                gl.bindTexture(gl.TEXTURE_2D, null); // Bind black/empty
-                            } else {
-                                gl.activeTexture(gl.TEXTURE0 + texUnit);
-                                gl.bindTexture(gl.TEXTURE_2D, tex);
-                            }
+                    if (u.type === 'sampler2D') {
+                        const tex = u.value ? this.getTexture(u.value) : null;
+
+                        // FEEDBACK GUARD + missing input: use the bound empty texture on unit 0.
+                        if (!tex || tex === currentTex) {
+                            gl.uniform1i(loc, 0);
+                        } else {
+                            gl.activeTexture(gl.TEXTURE0 + texUnit);
+                            gl.bindTexture(gl.TEXTURE_2D, tex);
                             gl.uniform1i(loc, texUnit++);
                         }
                     } else if (u.type === 'float') gl.uniform1f(loc, u.value);
@@ -505,17 +578,20 @@ class WebGLSystem {
                          if (srcPass) {
                              // Get the FBO used by that pass
                              const obj = this.getFBO(srcPass.id, width, height, true);
-                             
+
                              // FEEDBACK GUARD: Check collision
                              if (obj.tex === currentTex) {
-                                 gl.activeTexture(gl.TEXTURE0 + texUnit);
-                                 gl.bindTexture(gl.TEXTURE_2D, null); 
+                                 gl.uniform1i(loc, 0);
                              } else {
                                  gl.activeTexture(gl.TEXTURE0 + texUnit);
                                  gl.bindTexture(gl.TEXTURE_2D, obj.tex);
+                                 gl.uniform1i(loc, texUnit++);
                              }
-                             gl.uniform1i(loc, texUnit++);
+                         } else {
+                             gl.uniform1i(loc, 0);
                          }
+                     } else if (loc) {
+                         gl.uniform1i(loc, 0);
                      }
                  });
             }

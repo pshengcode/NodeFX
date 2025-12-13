@@ -276,6 +276,58 @@ export function useGraphActions(
       //  if (def.id === 'FLOW_MAP') type = 'flowMapNode';
         if ((def as any).type === 'bakeNode') type = 'bakeNode';
     
+        const baseUniforms: Record<string, UniformVal> = {
+            ...(def.data.uniforms || {}),
+            ...(initialValues || {})
+        };
+
+        const getDefaultUniformForType = (type: string): any => {
+            switch (type) {
+                case 'float': return 0;
+                case 'int': return 0;
+                case 'uint': return 0;
+                case 'bool': return false;
+                case 'vec2': return [0, 0];
+                case 'vec3': return [0, 0, 0];
+                case 'vec4': return [0, 0, 0, 1];
+                case 'uvec2': return [0, 0];
+                case 'uvec3': return [0, 0, 0];
+                case 'uvec4': return [0, 0, 0, 0];
+                case 'mat2': return [1, 0, 0, 1];
+                case 'mat3': return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+                case 'mat4': return [
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1
+                ];
+                case 'sampler2D': return null;
+                case 'samplerCube': return null;
+                case 'vec2[]': return Array.from({ length: 16 }, () => [0, 0]);
+                default: return 0;
+            }
+        };
+
+        const ensureUniformDefaultsForInputs = (inputs: any[] | undefined, uniforms: Record<string, UniformVal>) => {
+            if (!Array.isArray(inputs)) return uniforms;
+            const next = { ...uniforms };
+            for (const input of inputs) {
+                const id = input?.id;
+                const type = input?.type;
+                if (!id || !type) continue;
+                if (next[id] !== undefined) continue;
+
+                const defVal = (input as any).default;
+                next[id] = {
+                    type,
+                    value: defVal !== undefined ? defVal : getDefaultUniformForType(type)
+                };
+            }
+            return next;
+        };
+
+        const filledUniforms = ensureUniformDefaultsForInputs((def.data as any).inputs, baseUniforms);
+
         const newNode: Node<NodeData> = {
           id,
           type,
@@ -289,10 +341,7 @@ export function useGraphActions(
             locales: def.locales,
             preview: false,
             resolution,
-            uniforms: {
-                ...def.data.uniforms,
-                ...(initialValues || {})
-            },
+            uniforms: filledUniforms,
             scopeId: currentScope
           } as NodeData,
         };

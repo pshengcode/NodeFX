@@ -37,6 +37,7 @@ export interface WidgetConfig {
   curvePointsR?: Array<{ x: number; y: number }>;
   curvePointsG?: Array<{ x: number; y: number }>;
   curvePointsB?: Array<{ x: number; y: number }>;
+  curvePointsA?: Array<{ x: number; y: number }>;
   // Configuration for Enum options
   enumOptions?: Array<{ label: string; value: number }>;
   
@@ -57,7 +58,7 @@ export interface RawTextureData {
   wrapClamp?: boolean; // If true, use CLAMP_TO_EDGE
 }
 
-export type UniformValueType = number | number[] | Float32Array | string | RawTextureData | null;
+export type UniformValueType = number | number[] | Float32Array | Uint32Array | string | RawTextureData | null;
 
 export interface UniformVal {
   type: GLSLType;
@@ -193,19 +194,3 @@ export interface ShaderNodeDefinition {
     internalEdges?: SerializedEdge[];
   };
 }
-
-// Canvas Template - Save entire canvas as a template
-export interface CanvasTemplate {
-  id: string;
-  label: string;
-  description?: string;
-  category: 'User'; // Always belongs to User category
-  itemType: 'canvas'; // Distinguish from single nodes
-  timestamp: number;
-  nodes: SerializedNode[];
-  edges: SerializedEdge[];
-  previewNodeId?: string | null;
-}
-
-// Union type for library items
-export type LibraryItem = ShaderNodeDefinition | CanvasTemplate;

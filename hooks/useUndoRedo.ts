@@ -66,13 +66,24 @@ const getStructuralNode = (node: Node): any => {
   // Actually, if the handle string changes, it might mean a reset. 
   // But usually we want to track the *definition* of the graph.
 
+  // IMPORTANT: Track dimensions for Group nodes so resize changes are captured
+  // in history snapshots. Otherwise a resize followed by an add/remove can cause
+  // undo to restore an older (pre-resize) group size.
+  const dimensionSig = node.type === 'group' ? {
+      width: node.width != null ? Number(Number(node.width).toFixed(2)) : undefined,
+      height: node.height != null ? Number(Number(node.height).toFixed(2)) : undefined,
+      styleWidth: (node.style as any)?.width,
+      styleHeight: (node.style as any)?.height
+  } : undefined;
+
   return {
     id: node.id,
     type: node.type,
     position: { x: Number(node.position.x.toFixed(2)), y: Number(node.position.y.toFixed(2)) }, // Round to 2 decimals to avoid float noise but capture small moves
     parentNode: node.parentNode,
     extent: node.extent,
-    data: prunedData
+    data: prunedData,
+    ...(dimensionSig ? { dimensionSig } : {})
   };
 };
 

@@ -97,7 +97,8 @@ export const generateCurveTexture = (
   width: number = 512,
   pointsR?: Array<{ x: number; y: number }>,
   pointsG?: Array<{ x: number; y: number }>,
-  pointsB?: Array<{ x: number; y: number }>
+  pointsB?: Array<{ x: number; y: number }>,
+  pointsA?: Array<{ x: number; y: number }>
 ): RawTextureData => {
   const height = 1;
   const data = new Uint8ClampedArray(width * height * 4);
@@ -142,6 +143,7 @@ export const generateCurveTexture = (
   const rPts = prepare(pointsR);
   const gPts = prepare(pointsG);
   const bPts = prepare(pointsB);
+  const aPts = prepare(pointsA);
 
   for (let i = 0; i < width; i++) {
       const t = i / (width - 1);
@@ -154,12 +156,15 @@ export const generateCurveTexture = (
       const r = rPts ? getValue(rPts, tm) : tm;
       const g = gPts ? getValue(gPts, tm) : tm;
       const b = bPts ? getValue(bPts, tm) : tm;
+        // Alpha curve is independent from master/RGB by default.
+        // If not provided, keep identity mapping (a -> a) for back-compat.
+        const a = aPts ? getValue(aPts, t) : t;
       
       const idx = i * 4;
       data[idx] = Math.round(Math.max(0, Math.min(1, r)) * 255);
       data[idx + 1] = Math.round(Math.max(0, Math.min(1, g)) * 255);
       data[idx + 2] = Math.round(Math.max(0, Math.min(1, b)) * 255);
-      data[idx + 3] = 255;
+        data[idx + 3] = Math.round(Math.max(0, Math.min(1, a)) * 255);
   }
 
   return {

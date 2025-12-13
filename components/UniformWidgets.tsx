@@ -563,6 +563,13 @@ export const GradientWidget = ({ config, onChangeValue, onConfigChange }: {
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const configRef = useRef<WidgetConfig>(config);
+    const rafRef = useRef<number | null>(null);
+    const pendingRef = useRef<{ colorStops: Array<{ pos: number; color: string }>; alphaStops: Array<{ pos: number; value: number }> } | null>(null);
+
+    useEffect(() => {
+        configRef.current = config;
+    }, [config]);
 
     // Ensure we have stops. 
     const colorStops = config.gradientStops || [{ pos: 0, color: '#000000' }, { pos: 1, color: '#ffffff' }];
@@ -573,12 +580,31 @@ export const GradientWidget = ({ config, onChangeValue, onConfigChange }: {
 
     // Helper to broadcast updates
     const update = (newColorStops: typeof colorStops, newAlphaStops: typeof alphaStops) => {
-        onConfigChange({ 
-            ...config, 
-            gradientStops: newColorStops,
-            alphaStops: newAlphaStops
+        // Throttle to 1 update/frame to avoid preview flicker from rapid node updates.
+        pendingRef.current = { colorStops: newColorStops, alphaStops: newAlphaStops };
+        if (rafRef.current !== null) return;
+        rafRef.current = window.requestAnimationFrame(() => {
+            rafRef.current = null;
+            const pending = pendingRef.current;
+            if (!pending) return;
+            pendingRef.current = null;
+            const base = configRef.current;
+            onConfigChange({
+                ...base,
+                gradientStops: pending.colorStops,
+                alphaStops: pending.alphaStops,
+            });
         });
     };
+
+    useEffect(() => {
+        return () => {
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+        };
+    }, []);
 
     // Render Preview Canvas
     useEffect(() => {
@@ -905,12 +931,20 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
     onConfigChange: (cfg: WidgetConfig) => void 
 }) => {
     const { t } = useTranslation();
-    const [activeChannel, setActiveChannel] = useState<'master'|'r'|'g'|'b'>('master');
+    const [activeChannel, setActiveChannel] = useState<'master'|'r'|'g'|'b'|'a'>('master');
+    const configRef = useRef<WidgetConfig>(config);
+    const rafRef = useRef<number | null>(null);
+    const pendingRef = useRef<{ channel: 'master'|'r'|'g'|'b'|'a'; points: Array<{ x: number; y: number }> } | null>(null);
+
+    useEffect(() => {
+        configRef.current = config;
+    }, [config]);
     
     const getPoints = (channel: string) => {
         if (channel === 'r') return config.curvePointsR || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
         if (channel === 'g') return config.curvePointsG || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
         if (channel === 'b') return config.curvePointsB || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+        if (channel === 'a') return config.curvePointsA || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
         return config.curvePoints || [{ x: 0, y: 0 }, { x: 1, y: 1 }];
     };
 
@@ -920,14 +954,33 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
     const [hoverIndex, setHoverIndex] = useState<number>(-1);
 
     const update = (newPoints: typeof points) => {
-        const updateObj: Partial<WidgetConfig> = {};
-        if (activeChannel === 'r') updateObj.curvePointsR = newPoints;
-        else if (activeChannel === 'g') updateObj.curvePointsG = newPoints;
-        else if (activeChannel === 'b') updateObj.curvePointsB = newPoints;
-        else updateObj.curvePoints = newPoints;
-        
-        onConfigChange({ ...config, ...updateObj });
+        // Throttle to 1 update/frame to avoid preview flicker from rapid node updates.
+        pendingRef.current = { channel: activeChannel, points: newPoints };
+        if (rafRef.current !== null) return;
+        rafRef.current = window.requestAnimationFrame(() => {
+            rafRef.current = null;
+            const pending = pendingRef.current;
+            if (!pending) return;
+            pendingRef.current = null;
+            const base = configRef.current;
+            const updateObj: Partial<WidgetConfig> = {};
+            if (pending.channel === 'r') updateObj.curvePointsR = pending.points;
+            else if (pending.channel === 'g') updateObj.curvePointsG = pending.points;
+            else if (pending.channel === 'b') updateObj.curvePointsB = pending.points;
+            else if (pending.channel === 'a') updateObj.curvePointsA = pending.points;
+            else updateObj.curvePoints = pending.points;
+            onConfigChange({ ...base, ...updateObj });
+        });
     };
+
+    useEffect(() => {
+        return () => {
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -1084,12 +1137,14 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
         if (activeChannel !== 'r') drawCurve(getPoints('r'), '#522', 1);
         if (activeChannel !== 'g') drawCurve(getPoints('g'), '#252', 1);
         if (activeChannel !== 'b') drawCurve(getPoints('b'), '#225', 1);
+        if (activeChannel !== 'a') drawCurve(getPoints('a'), '#444', 1);
 
         // Draw Active Curve
         let activeColor = '#fff';
         if (activeChannel === 'r') activeColor = '#ef4444';
         if (activeChannel === 'g') activeColor = '#22c55e';
         if (activeChannel === 'b') activeColor = '#3b82f6';
+        if (activeChannel === 'a') activeColor = '#a1a1aa';
         
         drawCurve(points, activeColor, 2);
 
@@ -1117,7 +1172,8 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
                     { id: 'master', label: 'RGB', color: 'text-zinc-200' },
                     { id: 'r', label: 'R', color: 'text-red-400' },
                     { id: 'g', label: 'G', color: 'text-green-400' },
-                    { id: 'b', label: 'B', color: 'text-blue-400' }
+                    { id: 'b', label: 'B', color: 'text-blue-400' },
+                    { id: 'a', label: 'A', color: 'text-zinc-300' }
                 ].map(c => (
                     <button 
                         key={c.id}

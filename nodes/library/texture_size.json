@@ -13,10 +13,10 @@
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, sampler2D tex, float lod, out vec2 res) { res = vec2(textureSize(tex, int(lod))); }",
+    "glsl": "void run(vec2 uv, sampler2D tex, int lod, out vec2 res) { res = vec2(textureSize(tex, lod)); }",
     "inputs": [
       { "id": "tex", "name": "Texture", "type": "sampler2D" },
-      { "id": "lod", "name": "LOD", "type": "float" }
+      { "id": "lod", "name": "LOD", "type": "int" }
     ],
     "uniforms": {
       "lod": { "type": "int", "value": 0, "widget": "number", "widgetConfig": { "step": 1, "min": 0 } }

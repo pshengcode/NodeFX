@@ -264,13 +264,57 @@ export const Sidebar: React.FC = () => {
     }, [nodes]);
 
     const loadCanvasTemplateNow = useCallback((template: CanvasTemplate) => {
-        const nodesWithZ = template.nodes.map(n => ({
-            ...n,
-            zIndex: n.type === 'group' ? -10 : 10,
-            data: { ...n.data, resolution }
-        }));
+        const nodesWithZ = template.nodes.map(n => {
+            const w = typeof n.width === 'number' && Number.isFinite(n.width) ? n.width : undefined;
+            const h = typeof n.height === 'number' && Number.isFinite(n.height) ? n.height : undefined;
+
+            return {
+                ...n,
+                zIndex: n.type === 'group' ? -10 : 10,
+                data: { ...n.data, resolution },
+                // Ensure group node dimensions are honored on restore.
+                // ReactFlow relies on node.style for initial sizing in many cases.
+                ...(n.type === 'group' && (w !== undefined || h !== undefined)
+                    ? {
+                        style: {
+                            ...(n as any).style,
+                            ...(w !== undefined ? { width: w } : {}),
+                            ...(h !== undefined ? { height: h } : {})
+                        }
+                    }
+                    : {})
+            };
+        });
+
+        // Some serialized templates may have edges without explicit handle IDs.
+        // compileGraph relies on handle IDs to map connections to input/output ports.
+        const nodeById = new Map(nodesWithZ.map(n => [n.id, n] as const));
+        const normalizedEdges = (template.edges || []).map(e => {
+            const sourceNode = nodeById.get(e.source as any);
+            const targetNode = nodeById.get(e.target as any);
+
+            let sourceHandle = (e as any).sourceHandle;
+            let targetHandle = (e as any).targetHandle;
+
+            if ((targetHandle == null || targetHandle === '') && targetNode) {
+                const inputs = (targetNode as any).data?.inputs || [];
+                if (inputs.length === 1) targetHandle = inputs[0].id;
+            }
+
+            if ((sourceHandle == null || sourceHandle === '') && sourceNode) {
+                const outputs = (sourceNode as any).data?.outputs || [];
+                if (outputs.length === 1) sourceHandle = outputs[0].id;
+            }
+
+            return {
+                ...e,
+                sourceHandle: sourceHandle ?? null,
+                targetHandle: targetHandle ?? null,
+            };
+        });
+
         setNodes(nodesWithZ as any);
-        setEdges(template.edges);
+        setEdges(normalizedEdges as any);
         
         let previewNode = nodesWithZ.find(n => n.data.preview);
         if (!previewNode && nodesWithZ.length > 0) {

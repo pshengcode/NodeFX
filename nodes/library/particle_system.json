@@ -4,7 +4,7 @@
   "category": "Generator",
   "description": "Complex particle system with multiple modules for emission, shape, velocity, and rendering.",
   "data": {
-    "glsl": "void run(vec2 uv, sampler2D tex, out vec4 result) {\n    result = texture(tex, uv);\n}",
+    "glsl": "void run(vec2 uv, sampler2D tex, out vec4 output) {\n    output = texture(tex, uv);\n}",
     "outputType": "vec4",
     "inputs": [
       {

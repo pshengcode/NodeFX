@@ -66,6 +66,15 @@ export const useUserLibrary = () => {
         previewNodeId: string | null,
         description?: string
     ) => {
+        const readDim = (v: any): number | undefined => {
+            if (typeof v === 'number' && Number.isFinite(v)) return v;
+            if (typeof v === 'string') {
+                const parsed = Number.parseFloat(v);
+                return Number.isFinite(parsed) ? parsed : undefined;
+            }
+            return undefined;
+        };
+
         const serializedNodes: SerializedNode[] = nodes.map(node => ({
             id: node.id,
             type: node.type || 'custom',
@@ -73,16 +82,26 @@ export const useUserLibrary = () => {
             data: node.data,
             parentId: node.parentId,
             extent: node.extent === 'parent' ? 'parent' : undefined,
-            width: node.width || null,
-            height: node.height || null
+            width: (
+                (typeof node.width === 'number' && Number.isFinite(node.width) ? node.width : undefined) ??
+                readDim((node.style as any)?.width) ??
+                null
+            ),
+            height: (
+                (typeof node.height === 'number' && Number.isFinite(node.height) ? node.height : undefined) ??
+                readDim((node.style as any)?.height) ??
+                null
+            )
         }));
 
         const serializedEdges: SerializedEdge[] = edges.map(edge => ({
             id: edge.id,
             source: edge.source,
             target: edge.target,
-            sourceHandle: edge.sourceHandle,
-            targetHandle: edge.targetHandle,
+            // Persist handles explicitly so JSON round-trips consistently.
+            // (undefined would be dropped, which can break compileGraph traversal on restore)
+            sourceHandle: edge.sourceHandle ?? null,
+            targetHandle: edge.targetHandle ?? null,
             type: edge.type,
             animated: edge.animated,
             data: edge.data

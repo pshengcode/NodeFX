@@ -1,29 +1,69 @@
 {
-  "id": "TEXTURE_LOD",
-  "label": "Texture LOD",
-  "category": "Input",
-  "icon": "Image",
-  "description": "Sample a texture with explicit Level-of-Detail (LOD).",
+  "id": "SAMP_TEXTURE",
+  "label": "samptexture",
+  "category": "Generator",
+  "description": "Loads an external image texture and outputs RGBA + individual channels.",
   "locales": {
     "zh": {
-      "Texture LOD": "纹理采样 (LOD)",
-      "Sample a texture with explicit Level-of-Detail (LOD).": "使用显式 LOD 级别对纹理进行采样。",
-      "Texture": "纹理",
-      "UV": "UV 坐标",
-      "LOD": "LOD 级别"
+      "samptexture": "采样纹理",
+      "Loads an external image texture and outputs RGBA + individual channels.": "加载外部图片纹理，并输出 RGBA 以及单独通道。",
+      "image": "图片"
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, sampler2D tex, vec2 texUV, float lod, out vec4 res) { res = textureLod(tex, texUV, lod); }",
+    "glsl": "void run(vec2 uv, vec2 uv_in, sampler2D image, out vec4 result, out float r, out float g, out float b, out float a) {\n  vec2 coord = (uv_in == vec2(0.0)) ? uv : uv_in;\n  result = texture2D(image, coord);\n  r = result.r;\n  g = result.g;\n  b = result.b;\n  a = result.a;\n}",
     "inputs": [
-      { "id": "tex", "name": "Texture", "type": "sampler2D" },
-      { "id": "texUV", "name": "UV", "type": "vec2" },
-      { "id": "lod", "name": "LOD", "type": "float" }
+      {
+        "id": "uv_in",
+        "name": "uv_in",
+        "type": "vec2"
+      },
+      {
+        "id": "image",
+        "name": "image",
+        "type": "sampler2D"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "result",
+        "name": "result",
+        "type": "vec4"
+      },
+      {
+        "id": "r",
+        "name": "r",
+        "type": "float"
+      },
+      {
+        "id": "g",
+        "name": "g",
+        "type": "float"
+      },
+      {
+        "id": "b",
+        "name": "b",
+        "type": "float"
+      },
+      {
+        "id": "a",
+        "name": "a",
+        "type": "float"
+      }
     ],
     "uniforms": {
-      "lod": { "type": "float", "value": 0.0, "widget": "slider", "widgetConfig": { "min": 0.0, "max": 10.0 } }
+      "uv_in": {
+        "type": "vec2",
+        "value": [
+          0,
+          0
+        ]
+      },
+      "image": {
+        "type": "sampler2D",
+        "value": null
+      }
     },
-    "outputType": "vec4",
-    "outputs": [{ "id": "res", "name": "Color", "type": "vec4" }]
+    "outputType": "vec4"
   }
 }

@@ -1,3 +1,28 @@
+## [1.2.0] - 2025-12-13
+
+Refactor shader nodes and improve texture handling
+- Updated GLSL functions in clamp, curves, displacement, fluid simulation, image loader, mod, particle system, rgb offset, smoothstep, texture lod, texture size, and twist nodes for better clarity and consistency.
+- Removed the image loader node as it is no longer needed.
+- Changed the uniform type for 'b' in mod node from float to vec4.
+- Enhanced fluid simulation node output identifiers for clarity.
+- Added support for alpha channel in curve texture generation and handling.
+- Introduced a new utility for managing uniform overrides in shaders.
+- Implemented an empty texture to prevent stale sampling in WebGL.
+- Improved texture upload logic to handle updates without creating new WebGLTexture objects.
+- Updated package.json to include a validation script for nodes.
+- Modified types and schemas to accommodate new curve points for alpha channel.
+重构着色器节点并改进纹理处理
+- 更新了 clamp、curves、deplacement、fluid simulation、image loader、mod、particle system、rgb offset、smoothstep、texture lod、texture size 和 twist 节点中的 GLSL 函数，以提高清晰度和一致性。
+- 移除了 image loader 节点，因为它不再需要。
+- 将 mod 节点中 'b' 的 uniform 类型从 float 更改为 vec4。
+- 增强了 fluid simulation 节点的输出标识符，使其更加清晰。
+- 在曲线纹理的生成和处理中添加了对 alpha 通道的支持。
+- 引入了一个用于管理着色器中 uniform 覆盖的新实用程序。
+- 实现了一个空纹理，以防止 WebGL 中出现过时的采样。
+- 改进了纹理上传逻辑，使其能够在不创建新的 WebGLTexture 对象的情况下处理更新。
+- 更新了 package.json 文件，添加了节点验证脚本。
+- 修改了类型和模式，以适应 alpha 通道的新曲线点。
+
 ## [1.1.4] - 2025-12-12
 
 feat: 增强性能监控面板 / Enhanced performance monitoring panel

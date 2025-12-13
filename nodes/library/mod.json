@@ -19,7 +19,7 @@
       { "id": "b", "name": "B", "type": "vec4" }
     ],
     "uniforms": {
-      "b": { "type": "float", "value": 1.0 }
+      "b": { "type": "vec4", "value": [1, 1, 1, 1] }
     },
     "outputType": "vec4",
     "outputs": [{ "id": "res", "name": "Out", "type": "vec4" }]

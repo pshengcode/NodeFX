@@ -10,6 +10,7 @@ import {
   OnConnect,
 } from 'reactflow';
 import { useTranslation } from 'react-i18next';
+import { crc32 } from '../utils/hashUtils';
 
 import { NodeData, CompilationResult, ShaderNodeDefinition } from '../types';
 import { getNodeDefinition } from '../nodes/registry';
@@ -565,11 +566,22 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // AUTO-CASTING LOGIC: Watch edges to update Polymorphic nodes
-  // Use nodesRef instead of nodes to avoid triggering on position-only changes
+  // Compute a signature that changes ONLY when relevant type/GLSL structure changes.
+  // This intentionally ignores positions and uniform VALUES, so dragging sliders/nodes
+  // won't spam inference, but editing GLSL or changing inferred types WILL retrigger.
   const graphTypeSignature = useMemo(() => {
       if (isDragging) return ""; // Skip computation during drag
-      return nodesRef.current.map(n => `${n.id}:${n.data.outputType}`).join('|');
-  }, [isDragging]); // Removed 'nodes' dependency - use nodesRef instead
+
+      return nodes
+          .map(n => {
+              const inputsSig = (n.data.inputs || []).map(i => `${i.id}:${i.type}`).join(',');
+              const outputsSig = (n.data.outputs || []).map(o => `${o.id}:${o.type}`).join(',');
+              const glslSig = n.data.glsl ? crc32(n.data.glsl) : '';
+              const autoTypeSig = n.data.autoType ? '1' : '0';
+              return `${n.id}:${n.type}:${autoTypeSig}:${n.data.outputType}:i[${inputsSig}]:o[${outputsSig}]:g[${glslSig}]`;
+          })
+          .join('|');
+  }, [nodes, isDragging]);
 
   useEffect(() => {
     if (isDragging) return; // Skip heavy inference during drag
