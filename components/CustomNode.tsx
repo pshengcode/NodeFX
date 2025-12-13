@@ -2,7 +2,7 @@ import React, { useState, useCallback, memo, useMemo, useRef, useEffect } from '
 import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps, useReactFlow, useEdges, useStore } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory } from '../types';
-import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers } from 'lucide-react';
+import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronDown } from 'lucide-react';
 import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
@@ -994,8 +994,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   
   const signatures = useMemo(() => extractAllSignatures(data.glsl), [data.glsl]);
-  const [showOverloads, setShowOverloads] = useState(false);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showOverloads, setShowOverloads] = useState(false);
 
   const getDefaultValue = (type: GLSLType) => {
       if (type === 'vec2') return [0,0];
@@ -1005,18 +1004,41 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       return 0;
   };
 
+  const sortedSignatures = useMemo(() => {
+      return signatures
+          .map((sig, idx) => ({
+              sig,
+              idx,
+              order: sig.order ?? 0,
+              originalIndex: sig.originalIndex ?? idx,
+          }))
+          .sort((a, b) => {
+              if (a.order !== b.order) return a.order - b.order;
+              return a.originalIndex - b.originalIndex;
+          });
+  }, [signatures]);
+
   const currentSignatureIndex = useMemo(() => {
       if (signatures.length <= 1) return 0;
+
       for (let i = 0; i < signatures.length; i++) {
           const sig = signatures[i];
           if (sig.inputs.length !== data.inputs.length) continue;
-          const inputsMatch = sig.inputs.every((inp, idx) => 
+          const inputsMatch = sig.inputs.every((inp, idx) =>
               inp.id === data.inputs[idx].id && inp.type === data.inputs[idx].type
           );
           if (inputsMatch) return i;
       }
-      return 0;
-  }, [signatures, data.inputs]);
+
+      // Default overload should be the first item in sorted order.
+      return sortedSignatures[0]?.idx ?? 0;
+  }, [signatures, data.inputs, sortedSignatures]);
+
+  const currentSignatureLabel = useMemo(() => {
+      const entry = sortedSignatures.find(s => s.idx === currentSignatureIndex);
+      const sig = entry?.sig;
+      return sig?.label || null;
+  }, [sortedSignatures, currentSignatureIndex]);
 
   const updateNodeData = useCallback((update: Partial<NodeData> | ((curr: NodeData) => Partial<NodeData>)) => {
     setNodes((nds) =>
@@ -1057,19 +1079,31 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       });
       
       const nextUniforms = { ...data.uniforms };
+
+      const defUniforms: Record<string, UniformVal> | undefined = (nodeDef as any)?.data?.uniforms;
       
       // Initialize new uniforms
       mergedInputs.forEach(inp => {
-          if (!nextUniforms[inp.id] || nextUniforms[inp.id].type !== inp.type) {
-              nextUniforms[inp.id] = { type: inp.type, value: getDefaultValue(inp.type) };
+          const existing = nextUniforms[inp.id];
+          if (!existing || existing.type !== inp.type) {
+              const template = defUniforms?.[inp.id];
+              const templateValue = template && (template as any).value !== undefined ? (template as any).value : undefined;
+              nextUniforms[inp.id] = {
+                  ...(template ? JSON.parse(JSON.stringify(template)) : {}),
+                  type: inp.type,
+                  value: templateValue !== undefined ? templateValue : getDefaultValue(inp.type)
+              };
           }
       });
 
       // Cleanup old uniforms
       const inputIds = new Set(mergedInputs.map(i => i.id));
-      Object.keys(nextUniforms).forEach(key => {
-          if (!inputIds.has(key) && key !== 'value') delete nextUniforms[key];
-      });
+      const preserveUnusedUniforms = !!(nodeDef && (nodeDef as any).data?.autoType === true);
+      if (!preserveUnusedUniforms) {
+          Object.keys(nextUniforms).forEach(key => {
+              if (!inputIds.has(key) && key !== 'value') delete nextUniforms[key];
+          });
+      }
 
       updateNodeData({
           inputs: mergedInputs,
@@ -1077,7 +1111,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           outputType: mergedOutputs.length > 0 ? mergedOutputs[0].type : 'float',
           uniforms: nextUniforms
       });
-  }, [signatures, currentSignatureIndex, data.uniforms, updateNodeData]);
+  }, [signatures, currentSignatureIndex, data.uniforms, updateNodeData, nodeDef]);
 
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -1091,6 +1125,13 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       const closeMenu = () => setContextMenu(null);
       window.addEventListener('click', closeMenu);
       return () => window.removeEventListener('click', closeMenu);
+  }, []);
+
+  // Close overload popup on outside click
+  useEffect(() => {
+      const close = () => setShowOverloads(false);
+      window.addEventListener('click', close);
+      return () => window.removeEventListener('click', close);
   }, []);
 
   // Helper to check visibility
@@ -1321,6 +1362,81 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                 <button onClick={handleDeleteNode} className="p-1 rounded hover:bg-red-900/30 text-zinc-500 hover:text-red-400 transition-colors ml-1"><X size={14} /></button>
             </div>
         </div>
+
+        {signatures.length > 1 && (
+            <div className="px-2 pt-1" onClick={e => e.stopPropagation()}>
+                <div className="relative w-full">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowOverloads(v => !v);
+                        }}
+                        className={`nodrag w-full flex items-center justify-between gap-2 px-2 py-0.5 rounded border text-[10px] transition-colors ${showOverloads ? 'bg-blue-900/20 border-blue-500/30 text-blue-300' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'}`}
+                        title={tGlobal('Overloads')}
+                    >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                            <Layers size={12} className="shrink-0" />
+                            <span className="font-semibold truncate">{currentSignatureLabel ?? tGlobal('Overloads')}</span>
+                        </span>
+                        <ChevronDown size={12} className={`shrink-0 ${showOverloads ? 'text-blue-300' : 'text-zinc-500'}`} />
+                    </button>
+
+                    {showOverloads && (
+                        <div className="absolute top-full left-0 mt-1 z-50" onClick={e => e.stopPropagation()}>
+                            <div className="bg-zinc-900 border border-zinc-700 rounded shadow-xl p-1 min-w-[260px] max-w-[400px] animate-in fade-in zoom-in-95 duration-100 origin-top-left">
+                                <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                    {sortedSignatures.map(({ sig, idx }, listIdx) => {
+                                        const isCurrent = idx === currentSignatureIndex;
+                                        const hasLabel = typeof sig.label === 'string' && sig.label.length > 0;
+                                        return (
+                                            <button
+                                                key={`${idx}_${listIdx}`}
+                                                onClick={() => {
+                                                    setShowOverloads(false);
+                                                    handleSelectSignature(idx);
+                                                }}
+                                                className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-mono border transition-colors ${isCurrent ? 'bg-blue-900/20 border-blue-500/30 cursor-default' : 'bg-zinc-950 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 cursor-pointer'}`}
+                                                disabled={isCurrent}
+                                            >
+                                                {hasLabel ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`font-bold ${isCurrent ? 'text-blue-400' : 'text-zinc-200'}`}>{sig.label}</span>
+                                                        <span className="text-[9px] text-zinc-600">{`(${sig.order ?? 0})`}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
+                                                        <span className={`font-bold mr-1 ${isCurrent ? 'text-blue-400' : 'text-zinc-600'}`}>#{listIdx + 1}</span>
+                                                        <span className="text-zinc-500">run(</span>
+                                                        {sig.inputs.map((i, iIdx) => (
+                                                            <span key={i.id} className="flex items-center">
+                                                                <span className="text-purple-400">{i.type}</span>
+                                                                <span className="text-zinc-300 ml-1">{i.name}</span>
+                                                                {iIdx < sig.inputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                            </span>
+                                                        ))}
+                                                        {sig.outputs.length > 0 && sig.inputs.length > 0 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                        {sig.outputs.map((o, oIdx) => (
+                                                            <span key={o.id} className="flex items-center">
+                                                                <span className="text-orange-400">out {o.type}</span>
+                                                                <span className="text-zinc-300 ml-1">{o.name}</span>
+                                                                {oIdx < sig.outputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
+                                                            </span>
+                                                        ))}
+                                                        <span className="text-zinc-500">)</span>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
         <div className="flex relative">
             <div className="flex-1 flex flex-col py-2 gap-2 min-w-[50%] border-r border-zinc-800/50">
                 {/* RENDER UNIFORMS FOR GLOBAL VARS */}
@@ -1406,60 +1522,6 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             </div>
         )}
         
-        {signatures.length > 1 && (
-            <div 
-                className="absolute bottom-0 left-0 z-20"
-                onMouseEnter={() => {
-                    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-                    hoverTimer.current = setTimeout(() => setShowOverloads(true), 500);
-                }}
-                onMouseLeave={() => {
-                    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-                    setShowOverloads(false);
-                }}
-            >
-                <div className={`w-5 h-5 flex items-center justify-center rounded-bl-lg rounded-tr-lg border-t border-r transition-colors cursor-help ${showOverloads ? 'bg-blue-900/40 border-blue-500/50 text-blue-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800'}`}>
-                    <Layers size={10} />
-                </div>
-
-                {showOverloads && (
-                    <div className="absolute bottom-full left-0 pb-1 z-50" onClick={e => e.stopPropagation()}>
-                        <div className="bg-zinc-900 border border-zinc-700 rounded shadow-xl p-1 min-w-[260px] max-w-[400px] animate-in fade-in zoom-in-95 duration-100 origin-bottom-left">
-                            <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                {signatures.map((sig, idx) => (
-                                    <button 
-                                        key={idx} 
-                                        onClick={() => handleSelectSignature(idx)}
-                                        className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-mono border transition-colors ${idx === currentSignatureIndex ? 'bg-blue-900/20 border-blue-500/30 cursor-default' : 'bg-zinc-950 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 cursor-pointer'}`}
-                                    >
-                                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
-                                            <span className={`font-bold mr-1 ${idx === currentSignatureIndex ? 'text-blue-400' : 'text-zinc-600'}`}>#{idx + 1}</span>
-                                            <span className="text-zinc-500">run(</span>
-                                            {sig.inputs.map((i, iIdx) => (
-                                                <span key={i.id} className="flex items-center">
-                                                    <span className="text-purple-400">{i.type}</span>
-                                                    <span className="text-zinc-300 ml-1">{i.name}</span>
-                                                    {iIdx < sig.inputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
-                                                </span>
-                                            ))}
-                                            {sig.outputs.length > 0 && sig.inputs.length > 0 && <span className="text-zinc-600 ml-0.5">,</span>}
-                                            {sig.outputs.map((o, oIdx) => (
-                                                <span key={o.id} className="flex items-center">
-                                                    <span className="text-orange-400">out {o.type}</span>
-                                                    <span className="text-zinc-300 ml-1">{o.name}</span>
-                                                    {oIdx < sig.outputs.length - 1 && <span className="text-zinc-600 ml-0.5">,</span>}
-                                                </span>
-                                            ))}
-                                            <span className="text-zinc-500">)</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        )}
         </div>
         {showCode && isFloatingCode && createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-8" onClick={() => setIsFloatingCode(false)}>

@@ -12,7 +12,7 @@
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, vec4 color, sampler2D curve, out vec4 result) {\n    // Sample the curve texture for each channel independently\n    // The texture contains pre-calculated curve values: R channel holds R-curve, etc.\n    float r = texture(curve, vec2(color.r, 0.5)).r;\n    float g = texture(curve, vec2(color.g, 0.5)).g;\n    float b = texture(curve, vec2(color.b, 0.5)).b;\n    float a = texture(curve, vec2(color.a, 0.5)).a;\n    \n    result = vec4(r, g, b, a);\n}",
+    "glsl": "void run(vec2 uv, vec4 color, sampler2D curve, out vec4 result) {\n    // Sample the curve texture for each channel independently.\n    // A is identity unless the A curve is edited (curvePointsA present).\n    float r = texture(curve, vec2(color.r, 0.5)).r;\n    float g = texture(curve, vec2(color.g, 0.5)).g;\n    float b = texture(curve, vec2(color.b, 0.5)).b;\n    float a = texture(curve, vec2(color.a, 0.5)).a;\n    \n    result = vec4(r, g, b, a);\n}",
     "inputs": [
       { "id": "color", "name": "Color", "type": "vec4" },
       { "id": "curve", "name": "Curve", "type": "sampler2D" }

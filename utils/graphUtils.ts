@@ -37,15 +37,28 @@ export const cloneNodesAndEdges = (
     edgesToClone: Edge[],
     resolution: { w: number, h: number },
     currentScope: string,
-    positionOffset?: (node: Node<NodeData>, minX: number, minY: number) => { x: number, y: number }
+    positionOffset?: (node: Node<NodeData>, minX: number, minY: number, effectivePos: { x: number, y: number }) => { x: number, y: number },
+    allNodes?: Node<NodeData>[]
 ) => {
     const idMap = new Map<string, string>();
+
+    const clonedIdSet = new Set(nodesToClone.map(n => n.id));
+
+    const getEffectivePosition = (node: Node<NodeData>): { x: number, y: number } => {
+        // If a node is inside a group but we are NOT cloning its parent group,
+        // we need its absolute position because the clone will become top-level.
+        if (node.parentId && !clonedIdSet.has(node.parentId) && allNodes) {
+            return getAbsolutePosition(node.id, allNodes);
+        }
+        return node.position;
+    };
     
     // Calculate bounding box for relative positioning
     let minX = Infinity, minY = Infinity;
     nodesToClone.forEach(n => {
-        minX = Math.min(minX, n.position.x);
-        minY = Math.min(minY, n.position.y);
+        const p = getEffectivePosition(n);
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
     });
 
     const newNodes = nodesToClone.map((node, index) => {
@@ -64,10 +77,12 @@ export const cloneNodesAndEdges = (
             delete newData.customId;
         }
 
+        const effectivePos = getEffectivePosition(node);
+
         // Calculate Position
-        let newPos = { x: node.position.x + 50, y: node.position.y + 50 }; // Default offset
+        let newPos = { x: effectivePos.x + 50, y: effectivePos.y + 50 }; // Default offset
         if (positionOffset) {
-            newPos = positionOffset(node, minX, minY);
+            newPos = positionOffset(node, minX, minY, effectivePos);
         }
 
         return {

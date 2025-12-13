@@ -25,6 +25,17 @@ describe('glslParser', () => {
             expect(stripComments(code)).not.toContain('Block comment');
             expect(stripComments(code)).toContain('void main');
         });
+
+        it('preserves metadata directives in line comments', () => {
+            const code = `
+                //Item[Vec4,2]
+                void run(vec2 uv, out vec4 result) { result = vec4(1.0); }
+                // normal comment should be stripped
+            `;
+            const out = stripComments(code);
+            expect(out).toContain('//Item[Vec4,2]');
+            expect(out).not.toContain('normal comment');
+        });
     });
 
     describe('extractShaderIO', () => {
@@ -88,6 +99,23 @@ describe('glslParser', () => {
             const sigs = extractAllSignatures(code);
             expect(sigs).toHaveLength(1);
             expect(sigs[0].inputs[0].id).toBe('a');
+        });
+
+        it('reads label/order from //Item[name,order] directives', () => {
+            const code = `
+                //Item[Float,1]
+                void run(vec2 uv, vec4 a, out float result) { result = a.x; }
+
+                //Item[Vec4]
+                void run(vec2 uv, vec4 a, out vec4 result) { result = a; }
+            `;
+
+            const sigs = extractAllSignatures(code);
+            expect(sigs).toHaveLength(2);
+            expect(sigs[0].label).toBe('Float');
+            expect(sigs[0].order).toBe(1);
+            expect(sigs[1].label).toBe('Vec4');
+            expect(sigs[1].order).toBe(0);
         });
     });
 });

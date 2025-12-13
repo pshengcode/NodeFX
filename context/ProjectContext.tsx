@@ -80,7 +80,11 @@ interface ProjectContextType {
   canRedo: boolean;
   takeSnapshot: () => void;
   
-  copyShareLink: () => Promise<void>;
+    copyShareLink: (
+        nodes: Node<NodeData>[],
+        edges: Edge[],
+        previewNodeId: string | null
+    ) => Promise<import('../hooks/useUrlSharing').ShareLinkResult | null>;
   
   saveProject: () => void;
   loadProject: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -500,6 +504,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const idMap: Record<string, string> = {};
           pendingShareData.nodes.forEach((n: Node) => { idMap[n.id] = `${n.id}_shared_${timestamp}`; });
 
+          // Remap any uniform values that embed node IDs (e.g. dynamic://<nodeId>)
+          // so merged graphs remain internally consistent after id remapping.
+          const remapEmbeddedNodeId = (val: unknown): unknown => {
+              if (typeof val !== 'string') return val;
+
+              const prefixes = ['dynamic://', 'fluid://', 'particle://', 'image://', 'video://', 'webcam://'];
+              for (const prefix of prefixes) {
+                  if (!val.startsWith(prefix)) continue;
+                  const suffix = val.slice(prefix.length);
+                  const remapped = idMap[suffix];
+                  if (remapped) return `${prefix}${remapped}`;
+              }
+              return val;
+          };
+
+          const remapUniforms = (uniforms: any) => {
+              if (!uniforms || typeof uniforms !== 'object') return uniforms;
+              const next: any = Array.isArray(uniforms) ? [...uniforms] : { ...uniforms };
+              for (const [key, u] of Object.entries(next)) {
+                  if (!u || typeof u !== 'object') continue;
+                  if ('value' in (u as any)) {
+                      (next as any)[key] = { ...(u as any), value: remapEmbeddedNodeId((u as any).value) };
+                  }
+              }
+              return next;
+          };
+
           const newNodes: Node[] = pendingShareData.nodes.map((n: Node) => {
               const newId = idMap[n.id];
               const isChildOfImportedNode = n.parentId && idMap[n.parentId];
@@ -508,6 +539,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const currentScopeId = n.data?.scopeId;
               const newScopeId = (currentScopeId && idMap[currentScopeId]) ? idMap[currentScopeId] : currentScopeId;
 
+              const remappedUniforms = remapUniforms((n as any).data?.uniforms);
+
               return {
                   ...n,
                   id: newId,
@@ -515,7 +548,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   position: isChildOfImportedNode ? n.position : { x: n.position.x + offsetX, y: n.position.y },
                   data: {
                       ...n.data,
-                      scopeId: newScopeId
+                      scopeId: newScopeId,
+                      uniforms: remappedUniforms
                   },
                   selected: true 
               };

@@ -145,15 +145,16 @@ export function useKeyboardShortcuts(
                     clipboard.edges,
                     resolution,
                     currentScope,
-                    (node, minX, minY) => {
+                    (node, minX, minY, effectivePos) => {
                         if (useMousePos) {
-                            const offsetX = node.position.x - minX;
-                            const offsetY = node.position.y - minY;
+                            const offsetX = effectivePos.x - minX;
+                            const offsetY = effectivePos.y - minY;
                             return { x: pasteX + offsetX, y: pasteY + offsetY };
                         } else {
-                            return { x: node.position.x + 50, y: node.position.y + 50 };
+                            return { x: effectivePos.x + 50, y: effectivePos.y + 50 };
                         }
-                    }
+                    },
+                    nodes
                 );
 
                 setNodes((currentNodes) => 
@@ -181,12 +182,35 @@ export function useKeyboardShortcuts(
                     selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
                 );
 
+                let dupX = 0;
+                let dupY = 0;
+                let useMousePos = false;
+
+                if (reactFlowInstance) {
+                    const flowPos = reactFlowInstance.screenToFlowPosition({
+                        x: mousePosRef.current.x,
+                        y: mousePosRef.current.y
+                    });
+                    // Small offset so the duplicate isn't exactly under the cursor.
+                    dupX = flowPos.x + 20;
+                    dupY = flowPos.y + 20;
+                    useMousePos = true;
+                }
+
                 const { nodes: newNodes, edges: newEdges } = cloneNodesAndEdges(
                     duplicatableNodes,
                     internalEdges,
                     resolution,
                     currentScope,
-                    (node) => ({ x: node.position.x + 50, y: node.position.y + 50 })
+                    (node, minX, minY, effectivePos) => {
+                        if (useMousePos) {
+                            const offsetX = effectivePos.x - minX;
+                            const offsetY = effectivePos.y - minY;
+                            return { x: dupX + offsetX, y: dupY + offsetY };
+                        }
+                        return { x: effectivePos.x + 50, y: effectivePos.y + 50 };
+                    },
+                    nodes
                 );
 
                 setNodes((currentNodes) => 

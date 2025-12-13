@@ -31,6 +31,19 @@ export const normalizeNodeDefinition = (json: any): ShaderNodeDefinition => {
         }
     }
 
+    // If overloaded, default ports should follow the first item in //Item[name,order] sorting.
+    // This ensures nodes like Swizzle are created with the default overload, not a hard-coded union.
+    if (obj.data && obj.data.glsl && obj.data.autoType === true) {
+        const parsed = extractShaderIO(obj.data.glsl);
+        if (parsed.valid) {
+            obj.data.inputs = parsed.inputs;
+            obj.data.outputs = parsed.outputs;
+            if (Array.isArray(parsed.outputs) && parsed.outputs.length > 0) {
+                obj.data.outputType = parsed.outputs[0].type;
+            }
+        }
+    }
+
     // Ensure outputs array exists.
     if (!obj.data.outputs) {
         obj.data.outputs = [{ 

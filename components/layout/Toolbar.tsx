@@ -123,8 +123,14 @@ export const Toolbar: React.FC = () => {
                 </button>
                 <button 
                     onClick={async () => {
-                        const url = await copyShareLink(nodes, edges, previewNodeId);
-                        if (url) alert(t("Share link copied to clipboard!"));
+                        const res = await copyShareLink(nodes, edges, previewNodeId);
+                        if (!res) return;
+                        if (res.copied) {
+                            alert(t("Share link copied to clipboard!"));
+                            return;
+                        }
+                        // Fallback for non-secure origins / blocked clipboard permissions.
+                        window.prompt(t("Share"), res.url);
                     }} 
                     className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg shadow-blue-900/20 transition-colors"
                 >

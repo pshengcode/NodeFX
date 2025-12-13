@@ -31,8 +31,11 @@ export const stripComments = (code: string): string => {
         const next = code[i + 1];
 
         if (char === '/' && next === '/') {
-            // Check if it is a metadata directive //[...]
-            if (code[i + 2] === '[') {
+            // Check if it is a metadata directive (kept for overload/UI helpers)
+            // Supported forms:
+            // - //[Item(Name, 0)]  (legacy)
+            // - //Item[Name,0]     (requested)
+            if (code[i + 2] === '[' || code.startsWith('Item[', i + 2)) {
                 // Preserve this line!
                 // We copy the first two slashes and continue
                 out += '//';
@@ -99,8 +102,10 @@ const tokenize = (code: string): Token[] => {
             continue;
         }
 
-        // Metadata Directive //[...]
-        if (char === '/' && code[i+1] === '/' && code[i+2] === '[') {
+        // Metadata Directive (kept as a single token)
+        // - //[...]
+        // - //Item[...]
+        if (char === '/' && code[i+1] === '/' && (code[i+2] === '[' || code.startsWith('Item[', i + 2))) {
             let val = '';
             while (i < len && code[i] !== '\n') {
                 val += code[i];
@@ -166,8 +171,9 @@ export const extractShaderIO = (rawCode: string): ParsedSignature => {
     // If no orders are specified, use the first one (index 0)
     // If orders are specified, sort by order, then by index
     const sorted = [...signatures].sort((a, b) => {
-        const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
-        const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+        // Spec: missing order defaults to 0; ties follow code order.
+        const orderA = a.order ?? 0;
+        const orderB = b.order ?? 0;
         if (orderA !== orderB) return orderA - orderB;
         return (a.originalIndex || 0) - (b.originalIndex || 0);
     });
@@ -214,14 +220,12 @@ export const extractAllSignatures = (rawCode: string): ParsedSignature[] => {
                     // Check if it matches #[Item(...)] or //[Item(...)]
                     
                     // Match #[Item(Identifier, Order)] or //[Item(Identifier, Order)]
-                    const match = t.value.match(new RegExp("^(?:#|//)\\[Item\\s*\\(\\s*([a-zA-Z0-9_]+)\\s*(?:,\\s*(\\d+))?\\s*\\)\\]"));
+                    const legacy = t.value.match(new RegExp("^(?:#|//)\\[Item\\s*\\(\\s*([a-zA-Z0-9_]+)\\s*(?:,\\s*(\\d+))?\\s*\\)\\]"));
+                    const requested = t.value.match(new RegExp("^(?:#|//)Item\\s*\\[\\s*([a-zA-Z0-9_]+)\\s*(?:,\\s*(\\d+))?\\s*\\]"));
+                    const match = requested || legacy;
                     if (match) {
                         label = match[1];
-                        if (match[2]) {
-                            order = parseInt(match[2], 10);
-                        } else {
-                            order = 0; // Default order if not specified
-                        }
+                        order = match[2] ? parseInt(match[2], 10) : 0;
                     }
                     break; // Found the nearest preprocessor, stop looking
                 }

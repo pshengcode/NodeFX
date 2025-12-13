@@ -1,3 +1,12 @@
+## [1.2.1] - 2025-12-13
+
+- Updated glslParser.test.ts to preserve metadata directives in line comments and read label/order from //Item directives.
+- Modified glslParser.ts to support new metadata directive formats and adjust default order handling.
+- Enhanced graphUtils.ts to calculate effective positions for cloned nodes, considering parent group relationships.
+- 更新了 glslParser.test.ts，以保留行注释中的元数据指令，并从 //Item 指令中读取标签/顺序。
+- 修改了 glslParser.ts，以支持新的元数据指令格式并调整默认顺序处理。
+- 增强了 graphUtils.ts，以计算克隆节点的有效位置，并考虑父组关系。
+
 ## [1.2.0] - 2025-12-13
 
 Refactor shader nodes and improve texture handling
