@@ -1,3 +1,7 @@
+## [1.2.2] - 2025-12-13
+
+feat: 添加对动态导入的忽略配置以防止构建错误
+
 ## [1.2.1] - 2025-12-13
 
 - Updated glslParser.test.ts to preserve metadata directives in line comments and read label/order from //Item directives.

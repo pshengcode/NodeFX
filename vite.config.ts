@@ -62,6 +62,12 @@ export default defineConfig(({ mode }) => {
             stringArray: true,
             stringArrayEncoding: ['rc4'],
             stringArrayThreshold: 0.75,
+
+            // 关键：不要混淆 import / dynamic import。
+            // 否则可能会破坏 Vite/Rollup 在构建末尾对 chunk 文件名 hash placeholder 的替换，
+            // 导致运行时请求到形如 `CustomNode-!~{00z}~.js` 的不存在资源。
+            ignoreImports: true,
+            reservedStrings: ['!~\\{[0-9a-zA-Z]+\\}~'],
             // 防止格式化
             selfDefending: true,
             // 禁用控制台输出 (防止用户调试)
