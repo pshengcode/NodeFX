@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen, Layers, BookmarkPlus } from 'lucide-react';
+import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen, BookText, Layers, BookmarkPlus } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory, LibraryItem, CanvasTemplate } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
@@ -367,14 +367,25 @@ export const Sidebar: React.FC = () => {
                     onClick={handleLoadExample}
                     className="flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
                     title={t("Load Example Project")}
+                    aria-label={t("Load Example Project")}
                 >
-                    <BookOpen size={14} /> {t('Example')}
+                    <BookOpen size={14} />
+                </button>
+                <button
+                    onClick={() => window.open('https://doc.node-fx.com/', '_blank', 'noopener,noreferrer')}
+                    className="flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
+                    title={t('Open User Guide')}
+                    aria-label={t('Open User Guide')}
+                >
+                    <BookText size={14} />
                 </button>
                 <button 
                     onClick={() => nodeImportInputRef.current?.click()}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 rounded border border-zinc-700/50 hover:border-zinc-600 transition-all text-xs font-medium"
+                    title={t('Import')}
+                    aria-label={t('Import')}
                 >
-                    <FileJson size={14} /> {t('Import')}
+                    <FileJson size={14} />
                 </button>
             </div>
             

@@ -1,6 +1,6 @@
 {
   "id": "SAMP_TEXTURE",
-  "label": "samptexture",
+  "label": "SampTexture",
   "category": "Generator",
   "description": "Loads an external image texture and outputs RGBA + individual channels.",
   "locales": {

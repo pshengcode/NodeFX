@@ -1,3 +1,8 @@
+## [1.2.4] - 2025-12-13
+
+feat: Added user guide and updated sidebar buttons and internationalized text.
+feat: 添加用户指南并更新侧边栏按钮和国际化文本
+
 ## [1.2.3] - 2025-12-13
 
 Fix: Update node definition to 'SAMP_TEXTURE' to fix image processing logic.
