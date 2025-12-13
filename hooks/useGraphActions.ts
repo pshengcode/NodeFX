@@ -506,9 +506,8 @@ export function useGraphActions(
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         const result = e.target?.result;
-                        const imageDef = getNodeDefinition('IMAGE');
+                        const imageDef = getNodeDefinition('SAMP_TEXTURE');
                         if (imageDef && result) {
-                            // CHANGE: key 'u_image' to 'image' to match source definitions
                             addNode(imageDef, position, { image: { type: 'sampler2D', value: result } });
                         }
                     };

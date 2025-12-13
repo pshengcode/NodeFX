@@ -1,3 +1,8 @@
+## [1.2.3] - 2025-12-13
+
+Fix: Update node definition to 'SAMP_TEXTURE' to fix image processing logic.
+fix: 更新节点定义为'SAMP_TEXTURE'以修复图像处理逻辑
+
 ## [1.2.2] - 2025-12-13
 
 feat: 添加对动态导入的忽略配置以防止构建错误

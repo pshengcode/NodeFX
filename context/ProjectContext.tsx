@@ -30,7 +30,7 @@ import { useUserLibrary } from '../hooks/useUserLibrary';
 import { sanitizeType } from '../utils/inferenceHelpers';
 
 // Initial state helpers
-const initialDef = getNodeDefinition('IMAGE');
+const initialDef = getNodeDefinition('SAMP_TEXTURE');
 const initialNodes: Node<NodeData>[] = initialDef ? [
   {
     id: '1',
