@@ -1318,7 +1318,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   
   const nodeBgClass = data.isCompound
       ? 'bg-zinc-900/95 border-cyan-600/50 shadow-[0_0_15px_rgba(8,145,178,0.2)]'
-      : 'bg-zinc-900';
+      : 'bg-zinc-900/85';
 
   // Check if we have an active Bezier Grid widget
   const hasBezierGrid = useMemo(() => {

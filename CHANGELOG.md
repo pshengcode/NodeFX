@@ -1,3 +1,8 @@
+## [1.2.9] - 2025-12-14
+
+fix: Adjust background opacity for non-compound nodes in CustomNode component
+修复：调整 CustomNode 组件中非复合节点的背景不透明度
+
 ## [1.2.8] - 2025-12-14
 
 feat: Enhance Bevel & Emboss node with new techniques and detail texture support; update shader compilation for multi-output nodes
