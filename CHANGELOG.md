@@ -1,3 +1,8 @@
+## [1.2.6] - 2025-12-14
+
+Feature: Update the flow simulation and population system nodes to standardize the output, add a hybrid normal node.
+feat: 更新流体模拟和粒子系统节点以规范输出，添加混合法线节点
+
 ## [1.2.5] - 2025-12-14
 
 feat: Added support for "Clamp UV" input and updated GLSL logic

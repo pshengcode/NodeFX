@@ -24,13 +24,13 @@
     ],
     "outputs": [
       {
-        "id": "out_image",
+        "id": "image",
         "name": "Image",
         "type": "vec4"
       },
       {
-        "id": "out_flow",
-        "name": "Flow",
+        "id": "flow",
+        "name": "Flow Map",
         "type": "vec4"
       }
     ],

@@ -2548,12 +2548,22 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
                   setNodes(nds => nds.map(n => {
                       if (n.id === id) {
                           // Only update if value changed to avoid loop
-                          if (n.data.uniforms?.tex?.value === dynamicId) return n;
+                          const hasDynamicUniform = n.data.uniforms?.tex?.value === dynamicId;
+
+                          const expectedOutputs = [{ id: 'output', name: 'Particles', type: 'vec4' }];
+                          const currentOutputs = n.data.outputs;
+                          const outputsNeedFix =
+                              !Array.isArray(currentOutputs) ||
+                              currentOutputs.length !== 1 ||
+                              currentOutputs[0]?.id !== 'output';
+
+                          if (hasDynamicUniform && !outputsNeedFix) return n;
                           return { 
                               ...n, 
                               data: { 
                                   ...n.data, 
                                   outputType: 'vec4',
+                                  outputs: outputsNeedFix ? expectedOutputs : n.data.outputs,
                                   uniforms: { 
                                       ...n.data.uniforms, 
                                       tex: { type: 'sampler2D', value: dynamicId } 
@@ -2573,12 +2583,22 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
              setTimeout(() => {
                   setNodes(nds => nds.map(n => {
                       if (n.id === id) {
-                          if (n.data.uniforms?.tex?.value === dynamicId) return n;
+                          const hasDynamicUniform = n.data.uniforms?.tex?.value === dynamicId;
+
+                          const expectedOutputs = [{ id: 'output', name: 'Particles', type: 'vec4' }];
+                          const currentOutputs = n.data.outputs;
+                          const outputsNeedFix =
+                              !Array.isArray(currentOutputs) ||
+                              currentOutputs.length !== 1 ||
+                              currentOutputs[0]?.id !== 'output';
+
+                          if (hasDynamicUniform && !outputsNeedFix) return n;
                           return { 
                               ...n, 
                               data: { 
                                   ...n.data, 
                                   outputType: 'vec4',
+                                  outputs: outputsNeedFix ? expectedOutputs : n.data.outputs,
                                   uniforms: { 
                                       ...n.data.uniforms, 
                                       tex: { type: 'sampler2D', value: dynamicId } 

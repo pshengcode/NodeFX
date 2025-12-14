@@ -1,0 +1,69 @@
+{
+  "id": "MIX_NORMALS",
+  "label": "Mix Normals",
+  "category": "Filter",
+  "description": "Blend two normal maps using reoriented normal mapping (RNM).",
+  "locales": {
+    "zh": {
+      "Mix Normals": "混合法线",
+      "Blend two normal maps using reoriented normal mapping (RNM).": "使用重定向法线混合（RNM）将两张法线贴图进行混合。",
+      "Base Normal": "基础法线",
+      "Detail Normal": "细节法线",
+      "Strength": "强度",
+      "Result": "结果"
+    }
+  },
+  "data": {
+    "glsl": [
+      "// Mix Normals (RNM)",
+      "// - Inputs are expected to be normal maps stored in [0,1] (tangent space).",
+      "// - Output is a normal map in [0,1].",
+      "",
+      "vec3 decodeNormal(vec4 s) {",
+      "    // If a texture input is missing, the engine binds an empty texture (0,0,0,0).",
+      "    // Treat that as a flat normal.",
+      "    if (s.a < 0.0001 && dot(s.rgb, s.rgb) < 0.0001) return vec3(0.0, 0.0, 1.0);",
+      "    vec3 n = s.rgb * 2.0 - 1.0;",
+      "    return normalize(n);",
+      "}",
+      "",
+      "vec3 blendRNM(vec3 baseN, vec3 detailN) {",
+      "    baseN = normalize(baseN);",
+      "    detailN = normalize(detailN);",
+      "    baseN.z += 1.0;",
+      "    detailN.xy = -detailN.xy;",
+      "    vec3 r = baseN * dot(baseN, detailN) / max(0.0001, baseN.z) - detailN;",
+      "    return normalize(r);",
+      "}",
+      "",
+      "void run(vec2 uv, sampler2D base_map, sampler2D detail_map, float strength, out vec4 result) {",
+      "    vec4 s0 = texture(base_map, uv);",
+      "    vec4 s1 = texture(detail_map, uv);",
+      "",
+      "    vec3 n0 = decodeNormal(s0);",
+      "    vec3 n1 = decodeNormal(s1);",
+      "",
+      "    float k = clamp(strength, 0.0, 1.0);",
+      "    // Scale detail contribution (0 -> flat normal, 1 -> full detail)",
+      "    n1 = normalize(vec3(n1.xy * k, n1.z));",
+      "",
+      "    vec3 n = blendRNM(n0, n1);",
+      "    result = vec4(n * 0.5 + 0.5, 1.0);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "base_map", "name": "Base Normal", "type": "sampler2D" },
+      { "id": "detail_map", "name": "Detail Normal", "type": "sampler2D" },
+      { "id": "strength", "name": "Strength", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "base_map": { "type": "sampler2D", "value": null },
+      "detail_map": { "type": "sampler2D", "value": null },
+      "strength": { "type": "float", "value": 1.0, "widget": "slider", "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01 } }
+    },
+    "outputType": "vec4"
+  }
+}

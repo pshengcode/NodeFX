@@ -71,6 +71,7 @@ const BakeNode = memo(({ data, id }: NodeProps) => {
     const frameCountRef = useRef(0);
     const startTimeRef = useRef(0);
     const rafRef = useRef<number>();
+    const stopTimeoutRef = useRef<number | null>(null);
 
     // Input Texture ID
     const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'image');
@@ -124,37 +125,47 @@ void main() {
         );
 
         if (recording) {
-            // Calculate total frames based on mode
-            let totalFrames = Math.floor(duration * fps);
-            if (mode === 'sprite') {
-                totalFrames = columns * rows;
-            }
+            // Video duration should be based on real elapsed time.
+            // Counting requestAnimationFrame ticks causes early stop on high refresh-rate screens.
+            if (mode === 'video') {
+                const durationMs = Math.max(0, Number(duration) * 1000);
+                const elapsedMs = Date.now() - startTimeRef.current;
 
-            const currentFrame = frameCountRef.current;
-
-            if (currentFrame >= totalFrames) {
-                stopRecording();
-                return;
-            }
-
-            if (mode === 'sprite' && spriteCanvasRef.current) {
-                const ctx = spriteCanvasRef.current.getContext('2d');
-                if (ctx) {
-                    const col = currentFrame % columns;
-                    const row = Math.floor(currentFrame / columns);
-                    ctx.drawImage(canvasRef.current, col * width, row * height, width, height);
+                if (durationMs > 0) {
+                    setProgress(Math.min(100, (elapsedMs / durationMs) * 100));
+                    if (elapsedMs >= durationMs) {
+                        stopRecording();
+                        return;
+                    }
                 }
-            } else if (mode === 'gif' && gifRef.current) {
-                gifRef.current.addFrame(canvasRef.current, { delay: 1000 / fps, copy: true });
+            } else {
+                // Frame-counted modes (GIF / Sprite)
+                let totalFrames = Math.floor(duration * fps);
+                if (mode === 'sprite') {
+                    totalFrames = columns * rows;
+                }
+
+                const currentFrame = frameCountRef.current;
+
+                if (currentFrame >= totalFrames) {
+                    stopRecording();
+                    return;
+                }
+
+                if (mode === 'sprite' && spriteCanvasRef.current) {
+                    const ctx = spriteCanvasRef.current.getContext('2d');
+                    if (ctx) {
+                        const col = currentFrame % columns;
+                        const row = Math.floor(currentFrame / columns);
+                        ctx.drawImage(canvasRef.current, col * width, row * height, width, height);
+                    }
+                } else if (mode === 'gif' && gifRef.current) {
+                    gifRef.current.addFrame(canvasRef.current, { delay: 1000 / fps, copy: true });
+                }
+
+                setProgress((currentFrame / totalFrames) * 100);
+                frameCountRef.current++;
             }
-            
-            // For video, MediaRecorder handles it automatically if stream is active
-            // But we need to ensure we are pacing the frames correctly?
-            // Actually, for real-time recording, we just record what we see.
-            // If we want exact FPS, we might need to captureStream(fps).
-            
-            setProgress((currentFrame / totalFrames) * 100);
-            frameCountRef.current++;
         }
 
         rafRef.current = requestAnimationFrame(renderFrame);
@@ -177,7 +188,43 @@ void main() {
 
         if (mode === 'video') {
             const stream = canvasRef.current.captureStream(fps);
-            const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+            // WebM is compressed. To maximize quality, request a very high bitrate.
+            // Note: Some browsers/devices may reject extreme bitrates; we fall back safely.
+            // Estimate bitrate from pixels/sec * target bits-per-pixel.
+            const targetBpp = 1.0; // "max quality" preset (larger files, heavier encode)
+            const pixelsPerSecond = Math.max(1, Number(width) * Number(height) * Math.max(1, Number(fps)));
+            const estimatedBitsPerSecond = Math.round(pixelsPerSecond * targetBpp);
+            const maxVideoBitsPerSecond = 200_000_000; // 200 Mbps cap
+            const videoBitsPerSecond = Math.max(10_000_000, Math.min(maxVideoBitsPerSecond, estimatedBitsPerSecond));
+
+            const preferredMimeTypes = [
+                'video/webm;codecs=vp9',
+                'video/webm;codecs=vp8',
+                'video/webm'
+            ];
+            const mimeType = preferredMimeTypes.find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
+
+            let recorder: MediaRecorder;
+            try {
+                recorder = new MediaRecorder(stream, {
+                    mimeType,
+                    videoBitsPerSecond,
+                    bitsPerSecond: videoBitsPerSecond
+                });
+            } catch {
+                // Fallback: try a more conservative bitrate, then browser defaults.
+                try {
+                    const conservativeBitsPerSecond = Math.max(8_000_000, Math.min(50_000_000, videoBitsPerSecond));
+                    recorder = new MediaRecorder(stream, {
+                        mimeType,
+                        videoBitsPerSecond: conservativeBitsPerSecond,
+                        bitsPerSecond: conservativeBitsPerSecond
+                    });
+                } catch {
+                    recorder = new MediaRecorder(stream, { mimeType });
+                }
+            }
             
             chunksRef.current = [];
             recorder.ondataavailable = (e) => {
@@ -186,6 +233,18 @@ void main() {
             recorder.onstop = saveVideo;
             recorder.start();
             mediaRecorderRef.current = recorder;
+
+            // Stop after the requested duration (best-effort). Also cleared in stopRecording().
+            if (stopTimeoutRef.current !== null) {
+                window.clearTimeout(stopTimeoutRef.current);
+                stopTimeoutRef.current = null;
+            }
+            const durationMs = Math.max(0, Number(duration) * 1000);
+            if (durationMs > 0) {
+                stopTimeoutRef.current = window.setTimeout(() => {
+                    stopRecording();
+                }, durationMs);
+            }
         } else if (mode === 'sprite') {
             // Total frames determined by grid
             const totalFrames = columns * rows;
@@ -216,6 +275,11 @@ void main() {
     };
 
     const stopRecording = () => {
+        if (stopTimeoutRef.current !== null) {
+            window.clearTimeout(stopTimeoutRef.current);
+            stopTimeoutRef.current = null;
+        }
+
         // Don't setRecording(false) immediately for GIF, wait for render
         if (mode !== 'gif') {
             setRecording(false);
