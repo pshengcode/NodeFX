@@ -1,3 +1,8 @@
+## [1.2.8] - 2025-12-14
+
+feat: Enhance Bevel & Emboss node with new techniques and detail texture support; update shader compilation for multi-output nodes
+新增功能：增强倒角和浮雕节点，采用新技术并支持细节纹理；更新多输出节点的着色器编译
+
 ## [1.2.7] - 2025-12-14
 
 feat: Updated fluid simulation nodes to support new input parameters and adjusted GLSL logic to avoid fuzziness.

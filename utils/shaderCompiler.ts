@@ -393,26 +393,57 @@ export const compileGraph = (
   const passes: RenderPass[] = [];
   const getNodeById = (id: string) => nodes.find((n) => n.id === id);
 
+  const sanitizeIdForGlsl = (id: string) => {
+      // GLSL reserves identifiers containing "__" and some implementations are strict.
+      // Collapse any non-alphanumeric runs into a single underscore, trim, and avoid leading digits.
+      const collapsed = id
+          .replace(/[^a-zA-Z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+
+      const safe = collapsed.length > 0 ? collapsed : 'p';
+      return /^[0-9]/.test(safe) ? `p_${safe}` : safe;
+  };
+
+  const getNodeOutputDef = (node: Node<NodeData>, outputId?: string | null): NodeOutput => {
+      const outs = node.data.outputs;
+      if (outs && outs.length > 0) {
+          if (outputId) {
+              const found = outs.find(o => o.id === outputId);
+              if (found) return found;
+          }
+          return outs[0];
+      }
+
+      return { id: 'out', name: 'Output', type: node.data.outputType };
+  };
+
+  const getPassKey = (node: Node<NodeData>, requestedOutputId?: string | null) => {
+      const defaultOutId = getNodeOutputDef(node, null).id;
+      const resolvedOutId = getNodeOutputDef(node, requestedOutputId).id;
+      return resolvedOutId === defaultOutId ? node.id : `${node.id}::${resolvedOutId}`;
+  };
+
   // Stack to detect Pass-Level Cycles (Texture Feedback)
   const activePassStack = new Set<string>();
 
   // Recursive function to generate passes
-  const generatePassForNode = (currentNodeId: string): string => {
+  const generatePassForNode = (nodeId: string, requestedOutputId?: string | null): string => {
+      const currentNode = getNodeById(nodeId);
+      if (!currentNode) throw new Error(`Node ${nodeId} not found`);
+
+      const passKey = getPassKey(currentNode, requestedOutputId);
       // 1. Cache Check
-      if (processedPassIDs.has(currentNodeId)) return currentNodeId;
+      if (processedPassIDs.has(passKey)) return passKey;
 
       // 2. Cycle Detection (Pass Level)
-      if (activePassStack.has(currentNodeId)) {
-          console.warn(`[Compiler] Pass Cycle detected at node ${currentNodeId}. Breaking loop.`);
+      if (activePassStack.has(passKey)) {
+          console.warn(`[Compiler] Pass Cycle detected at pass ${passKey}. Breaking loop.`);
           // Return id but do NOT recurse. The texture uniform will effectively be the "previous frame" 
           // (or null if not rendered yet) which effectively allows feedback-like behavior without infinite compilation.
-          return currentNodeId; 
+          return passKey; 
       }
 
-      const currentNode = getNodeById(currentNodeId);
-      if (!currentNode) throw new Error(`Node ${currentNodeId} not found`);
-
-      activePassStack.add(currentNodeId);
+      activePassStack.add(passKey);
 
       // 3. Identify "Local Graph" for this pass
       const localNodes: Node<NodeData>[] = [];
@@ -446,14 +477,15 @@ export const compileGraph = (
               const targetHandle = node.data.inputs.find(i => i.id === edge.targetHandle);
               if (!targetHandle) continue;
 
-              const sourceType = sanitizeType(sourceNode.data.outputType);
+              const sourceOutDef = getNodeOutputDef(sourceNode, edge.sourceHandle);
+              const sourceType = sanitizeType(sourceOutDef.type);
               const targetType = sanitizeType(targetHandle.type);
 
               // DETECT PASS BOUNDARY
               if (targetType === 'sampler2D' && sourceType !== 'sampler2D') {
                   // Pass Boundary found -> Recurse to create new pass
-                  const dependencyPassId = generatePassForNode(edge.source);
-                  const uniformName = `u_pass_${dependencyPassId.replace(/-/g, '_')}_tex`;
+                  const dependencyPassId = generatePassForNode(edge.source, edge.sourceHandle);
+                  const uniformName = `u_pass_${sanitizeIdForGlsl(dependencyPassId)}_tex`;
                   inputTextureUniforms[`${nid}_${targetHandle.id}`] = uniformName;
               } else {
                   // Standard inline dependency
@@ -467,7 +499,7 @@ export const compileGraph = (
       };
 
       try {
-          traverseLocal(currentNodeId);
+          traverseLocal(nodeId);
       } catch (e: any) {
           throw new Error(`Graph Cycle or Error: ${e.message}`);
       }
@@ -934,8 +966,8 @@ uniform samplerCube u_empty_cube;
       });
 
       // Final Output
-      const targetIdClean = currentNodeId.replace(/-/g, '_');
-      const targetNode = getNodeById(currentNodeId);
+    const targetIdClean = nodeId.replace(/-/g, '_');
+    const targetNode = getNodeById(nodeId);
       
       let finalVar = `out_${targetIdClean}_out`;
       let finalType: GLSLType = 'vec4';
@@ -945,18 +977,16 @@ uniform samplerCube u_empty_cube;
                finalVar = `out_${targetIdClean}_result`;
                finalType = 'vec4';
           } else {
-              const outs = targetNode.data.outputs || [];
-              if (outs.length > 0) {
-                  finalVar = `out_${targetIdClean}_${outs[0].id}`;
-                  finalType = outs[0].type;
-              }
+              const outDef = getNodeOutputDef(targetNode, requestedOutputId);
+              finalVar = `out_${targetIdClean}_${outDef.id}`;
+              finalType = outDef.type;
           }
       }
       
       mainBodyCode += `  fragColor = ${castGLSLVariable(finalVar, sanitizeType(finalType), 'vec4')};\n}`;
 
       passes.push({
-          id: currentNodeId,
+          id: passKey,
           vertexShader: DEFAULT_VERTEX_SHADER,
           fragmentShader: header + functionsCode + mainBodyCode,
           uniforms: globalUniforms,
@@ -964,9 +994,9 @@ uniform samplerCube u_empty_cube;
           inputTextureUniforms
       });
 
-      activePassStack.delete(currentNodeId);
-      processedPassIDs.add(currentNodeId);
-      return currentNodeId;
+      activePassStack.delete(passKey);
+      processedPassIDs.add(passKey);
+      return passKey;
   };
 
   try {

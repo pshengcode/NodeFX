@@ -570,8 +570,15 @@ class WebGLSystem {
                      const match = name.match(/u_pass_(.*)_tex/);
                      if (match && loc) {
                          const depId = match[1];
-                         // Find pass by "clean" ID (replacing - with _)
-                         const srcPass = data.passes.find(p => p.id.replace(/-/g, '_') === depId);
+                         // Find pass by "clean" ID (matching shaderCompiler's sanitizeIdForGlsl)
+                         const clean = (id: string) => {
+                             const collapsed = id
+                                 .replace(/[^a-zA-Z0-9]+/g, '_')
+                                 .replace(/^_+|_+$/g, '');
+                             const safe = collapsed.length > 0 ? collapsed : 'p';
+                             return /^[0-9]/.test(safe) ? `p_${safe}` : safe;
+                         };
+                         const srcPass = data.passes.find(p => clean(p.id) === depId);
                          if (srcPass) {
                              // Get the FBO used by that pass
                              const obj = this.getFBO(srcPass.id, width, height, false);

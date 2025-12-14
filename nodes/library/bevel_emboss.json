@@ -30,7 +30,14 @@
       "Screen": "滤色",
       "Overlay": "叠加",
       "Linear Dodge": "线性减淡 (添加)",
-      "Linear Burn": "线性加深"
+      "Linear Burn": "线性加深",
+      "Contour": "等高线",
+      "Technique": "方法",
+      "Smooth": "平滑",
+      "Chisel Hard": "雕刻清晰",
+      "Chisel Soft": "雕刻柔和",
+      "Texture": "纹理",
+      "Texture Depth": "纹理深度"
     }
   },
   "data": {
@@ -93,34 +100,70 @@
       "    return total / totalWeight;",
       "}",
       "",
-      "void run(vec2 uv, sampler2D inputTex, int style, float depth, float size, float soften, float angle, float altitude, float hiOpacity, float shOpacity, vec3 hiColor, vec3 shColor, int direction, int hiMode, int shMode, out vec4 result) {",
+      "void run(vec2 uv, sampler2D inputTex, int style, int technique, float depth, float size, float soften, float angle, float altitude, float hiOpacity, float shOpacity, vec3 hiColor, vec3 shColor, int direction, int hiMode, int shMode, sampler2D contour, sampler2D detailTex, float detailDepth, out vec4 result, out vec4 normalOut) {",
       "    vec4 original = texture(inputTex, uv);",
       "    ",
-      "    // 1. Calculate Offset",
+      "    float hCenter = getSample(inputTex, uv, soften);",
+      "    ",
+      "    // 1. Calculate Light Vector",
       "    float rad = radians(angle);",
-      "    vec2 dirVec = vec2(cos(rad), sin(rad));",
-      "    vec2 offset = dirVec * (size / u_resolution);",
+      "    float altRad = radians(clamp(altitude, 0.0, 89.0));",
+      "    vec3 lightDir = vec3(cos(rad) * cos(altRad), sin(rad) * cos(altRad), sin(altRad));",
       "    ",
-      "    // 2. Central Difference Sampling with Soften",
-      "    float h1 = getSample(inputTex, uv - offset, soften);",
-      "    float h2 = getSample(inputTex, uv + offset, soften);",
+      "    // 2. 16-Direction Sampling for Gradient",
+      "    vec2 gradient = vec2(0.0);",
       "    ",
-      "    // 3. Calculate Slope",
-      "    float diff = h1 - h2;",
+      "    if (technique == 0) { // Smooth",
+      "        for(int i=0; i<16; i++) {",
+      "            float theta = float(i) * (6.2831853 / 16.0);",
+      "            vec2 dir = vec2(cos(theta), sin(theta));",
+      "            vec2 offset = dir * (size / u_resolution);",
+      "            float hSample = getSample(inputTex, uv + offset, soften);",
+      "            gradient += dir * (hCenter - hSample);",
+      "        }",
+      "        gradient /= 8.0;",
+      "    } else { // Chisel Hard (1) & Chisel Soft (2)",
+      "        float maxDiff = 0.0;",
+      "        vec2 maxDir = vec2(0.0);",
+      "        float sampleSoften = (technique == 2) ? soften : 0.0;",
+      "        ",
+      "        for(int i=0; i<16; i++) {",
+      "            float theta = float(i) * (6.2831853 / 16.0);",
+      "            vec2 dir = vec2(cos(theta), sin(theta));",
+      "            vec2 offset = dir * (size / u_resolution);",
+      "            float hSample = getSample(inputTex, uv + offset, sampleSoften);",
+      "            float diff = hCenter - hSample;",
+      "            if (abs(diff) > abs(maxDiff)) {",
+      "                maxDiff = diff;",
+      "                maxDir = dir;",
+      "            }",
+      "        }",
+      "        gradient = maxDir * maxDiff;",
+      "    }",
+      "    ",
+      "    // Apply Detail Texture (Bump Mapping)",
+      "    if (detailDepth != 0.0) {",
+      "        float dCenter = texture(detailTex, uv).r;",
+      "        float dOffset = 1.0 / u_resolution.x;",
+      "        float dRight = texture(detailTex, uv + vec2(dOffset, 0.0)).r;",
+      "        float dUp = texture(detailTex, uv + vec2(0.0, dOffset)).r;",
+      "        vec2 detailGrad = vec2(dCenter - dRight, dCenter - dUp) * detailDepth;",
+      "        gradient += detailGrad;",
+      "    }",
       "    ",
       "    // Style Adjustments",
-      "    if (style == 3) { // Pillow",
-      "        diff = -diff;",
-      "    }",
+      "    if (style == 3) gradient = -gradient;",
+      "    if (direction == 1) gradient = -gradient;",
       "    ",
-      "    // Direction: Up vs Down",
-      "    if (direction == 1) { // Down",
-      "        diff = -diff;",
-      "    }",
+      "    // 3. Calculate Normal & Intensity",
+      "    float depthFactor = depth / 100.0;",
+      "    vec3 normal = normalize(vec3(gradient * depthFactor * 5.0, 1.0));",
+      "    float ndotl = dot(normal, lightDir);",
       "    ",
-      "    // 4. Calculate Intensity",
-      "    float altFactor = cos(radians(clamp(altitude, 0.0, 89.0)));",
-      "    float intensity = diff * (depth / 100.0) * altFactor;",
+      "    // 4. Apply Contour",
+      "    float t = ndotl * 0.5 + 0.5;",
+      "    float contoured = texture(contour, vec2(t, 0.5)).r;",
+      "    float intensity = contoured * 2.0 - 1.0;",
       "    ",
       "    // 5. Determine Mask",
       "    float mask = 0.0;",
@@ -133,7 +176,7 @@
       "    }",
       "    ",
       "    // Soften mask for Outer/Emboss",
-      "    float edgePresence = smoothstep(0.0, 0.1, abs(diff));",
+      "    float edgePresence = smoothstep(0.0, 0.1, length(gradient));",
       "    if (style != 0) {",
       "        mask *= edgePresence;",
       "    }",
@@ -160,6 +203,7 @@
       "    }",
       "    ",
       "    result = vec4(rgb, outAlpha);",
+      "    normalOut = vec4(normal * 0.5 + 0.5, original.a);",
       "}"
     ],
     "inputs": [
@@ -171,6 +215,11 @@
       {
         "id": "style",
         "name": "Style",
+        "type": "int"
+      },
+      {
+        "id": "technique",
+        "name": "Technique",
         "type": "int"
       },
       {
@@ -232,12 +281,32 @@
         "id": "shMode",
         "name": "Shadow Mode",
         "type": "int"
+      },
+      {
+        "id": "contour",
+        "name": "Contour",
+        "type": "sampler2D"
+      },
+      {
+        "id": "detailTex",
+        "name": "Texture",
+        "type": "sampler2D"
+      },
+      {
+        "id": "detailDepth",
+        "name": "Texture Depth",
+        "type": "float"
       }
     ],
     "outputs": [
       {
         "id": "result",
         "name": "Result",
+        "type": "vec4"
+      },
+      {
+        "id": "normalOut",
+        "name": "Normal",
         "type": "vec4"
       }
     ],
@@ -266,6 +335,59 @@
               "value": 3
             }
           ]
+        }
+      },
+      "technique": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "enumOptions": [
+            {
+              "label": "Smooth",
+              "value": 0
+            },
+            {
+              "label": "Chisel Hard",
+              "value": 1
+            },
+            {
+              "label": "Chisel Soft",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "contour": {
+        "type": "sampler2D",
+        "value": null,
+        "widget": "curve",
+        "widgetConfig": {
+          "curvePoints": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 1,
+              "y": 1
+            }
+          ]
+        }
+      },
+      "detailTex": {
+        "type": "sampler2D",
+        "value": null,
+        "widget": "image"
+      },
+      "detailDepth": {
+        "type": "float",
+        "value": 0,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": -100,
+          "max": 100,
+          "step": 1
         }
       },
       "depth": {

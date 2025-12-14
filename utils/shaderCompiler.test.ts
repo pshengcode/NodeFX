@@ -217,4 +217,54 @@ describe('shaderCompiler', () => {
         expect(code).toContain('node_process_run');
         expect(code).toContain('node_output_run');
     });
+
+    it('renders the correct output when a multi-output node feeds a sampler2D input', () => {
+        const nodes: Node<NodeData>[] = [
+            {
+                id: 'bevel',
+                type: 'customShader',
+                position: { x: 0, y: 0 },
+                data: {
+                    label: 'Bevel (Mock)',
+                    glsl: 'void run(vec2 uv, out vec4 result, out vec4 normalOut) { result = vec4(1.0, 0.0, 0.0, 1.0); normalOut = vec4(0.0, 1.0, 0.0, 1.0); }',
+                    inputs: [],
+                    outputs: [
+                        { id: 'result', name: 'Result', type: 'vec4' },
+                        { id: 'normalOut', name: 'Normal', type: 'vec4' }
+                    ],
+                    outputType: 'vec4',
+                    uniforms: {}
+                }
+            },
+            {
+                id: 'disp',
+                type: 'customShader',
+                position: { x: 100, y: 0 },
+                data: {
+                    label: 'Dispersion (Mock)',
+                    glsl: 'void run(vec2 uv, sampler2D normalMap, out vec4 outCol) { outCol = texture(normalMap, uv); }',
+                    inputs: [{ id: 'normalMap', name: 'Normal Map', type: 'sampler2D' }],
+                    outputs: [{ id: 'outCol', name: 'Out', type: 'vec4' }],
+                    outputType: 'vec4',
+                    uniforms: {}
+                }
+            }
+        ];
+
+        const edges: Edge[] = [
+            { id: 'e1', source: 'bevel', target: 'disp', sourceHandle: 'normalOut', targetHandle: 'normalMap' }
+        ];
+
+        const result = compileGraph(nodes, edges, 'disp');
+        expect(result.error).toBeUndefined();
+
+        // Should create a dependency pass for bevel's normalOut output.
+        const bevelPass = result.passes.find(p => p.id === 'bevel::normalOut');
+        expect(bevelPass).toBeDefined();
+        expect(bevelPass!.fragmentShader).toContain('fragColor = out_bevel_normalOut');
+
+        const dispPass = result.passes.find(p => p.id === 'disp');
+        expect(dispPass).toBeDefined();
+        expect(dispPass!.fragmentShader).toContain('uniform sampler2D u_pass_bevel_normalOut_tex');
+    });
 });
