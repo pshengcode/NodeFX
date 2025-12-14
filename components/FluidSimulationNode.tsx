@@ -1305,7 +1305,11 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
         setNodes((nds) => nds.map((node) => {
             if (node.id === id) {
                 // Only update if not already set to avoid infinite loop
-                const hasDynamicUniforms = node.data.uniforms?.image?.value === dynamicId;
+                const hasDynamicUniforms =
+                    node.data.uniforms?.image_in?.value === dynamicId ||
+                    node.data.uniforms?.flow_in?.value === dynamicId ||
+                    node.data.uniforms?.image?.value === dynamicId ||
+                    node.data.uniforms?.flow?.value === dynamicId;
 
                 // Normalize outputs to match the actual handle IDs used by this component.
                 const expectedOutputs = [
@@ -1329,8 +1333,8 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
                         outputs: outputsNeedFix ? expectedOutputs : node.data.outputs,
                         uniforms: {
                             ...node.data.uniforms,
-                            image: { type: 'sampler2D', value: dynamicId },
-                            flow: { type: 'sampler2D', value: dynamicId }
+                            image_in: { type: 'sampler2D', value: dynamicId },
+                            flow_in: { type: 'sampler2D', value: dynamicId }
                         }
                     }
                 };

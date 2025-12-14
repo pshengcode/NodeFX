@@ -1,3 +1,8 @@
+## [1.2.7] - 2025-12-14
+
+feat: Updated fluid simulation nodes to support new input parameters and adjusted GLSL logic to avoid fuzziness.
+feat: 更新流体仿真节点以支持新的输入参数，并调整GLSL逻辑以避免模糊效果
+
 ## [1.2.6] - 2025-12-14
 
 Feature: Update the flow simulation and population system nodes to standardize the output, add a hybrid normal node.

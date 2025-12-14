@@ -209,8 +209,8 @@ class WebGLSystem {
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
         
-        if (useMipmap) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-        else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        // Mipmaps disabled: keep a single level to avoid mipmap blur when zooming out.
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
@@ -314,8 +314,7 @@ class WebGLSystem {
                 gl.bindTexture(gl.TEXTURE_2D, cached);
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, value.data);
-                gl.generateMipmap(gl.TEXTURE_2D);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
                 const wrap = value.wrapClamp ? gl.CLAMP_TO_EDGE : gl.REPEAT;
@@ -345,8 +344,7 @@ class WebGLSystem {
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-                gl.generateMipmap(gl.TEXTURE_2D);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 gl.activeTexture(prevActive);
             };
@@ -354,8 +352,7 @@ class WebGLSystem {
         } else {
             // Raw Data
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, value.data);
-            gl.generateMipmap(gl.TEXTURE_2D);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         }
 
@@ -452,10 +449,10 @@ class WebGLSystem {
             let mipmap = false;
 
             if (pass.outputTo === 'FBO') {
-                const obj = this.getFBO(pass.id, width, height, true);
+                const obj = this.getFBO(pass.id, width, height, false);
                 fbo = obj.fbo;
                 currentTex = obj.tex;
-                mipmap = true;
+                mipmap = false;
             } else {
                 // Final Pass -> Internal Final Buffer (Not Screen, because we are offscreen)
                 const obj = this.getFBO('__FINAL__', width, height, false);
@@ -577,7 +574,7 @@ class WebGLSystem {
                          const srcPass = data.passes.find(p => p.id.replace(/-/g, '_') === depId);
                          if (srcPass) {
                              // Get the FBO used by that pass
-                             const obj = this.getFBO(srcPass.id, width, height, true);
+                             const obj = this.getFBO(srcPass.id, width, height, false);
 
                              // FEEDBACK GUARD: Check collision
                              if (obj.tex === currentTex) {
@@ -598,10 +595,7 @@ class WebGLSystem {
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-            if (mipmap && currentTex) {
-                gl.bindTexture(gl.TEXTURE_2D, currentTex);
-                gl.generateMipmap(gl.TEXTURE_2D);
-            }
+            // Mipmaps disabled
         }
 
         // --- FINAL DISPLAY TO TARGET 2D CANVAS ---

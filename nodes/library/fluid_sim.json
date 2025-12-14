@@ -9,15 +9,15 @@
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, sampler2D image, sampler2D flow, out vec4 out_image, out vec4 out_flow) { \n    out_image = texture(image, uv);\n    out_flow = texture(flow, uv);\n}",
+    "glsl": "void run(vec2 uv, sampler2D image_in, sampler2D flow_in, out vec4 image, out vec4 flow) { \n    image = texture(image_in, uv);\n    flow = texture(flow_in, uv);\n}",
     "inputs": [
       {
-        "id": "image",
+        "id": "image_in",
         "name": "Image Input",
         "type": "sampler2D"
       },
       {
-        "id": "flow",
+        "id": "flow_in",
         "name": "Flow Input",
         "type": "sampler2D"
       }
@@ -35,11 +35,11 @@
       }
     ],
     "uniforms": {
-      "image": {
+      "image_in": {
         "type": "sampler2D",
         "value": null
       },
-      "flow": {
+      "flow_in": {
         "type": "sampler2D",
         "value": null
       }

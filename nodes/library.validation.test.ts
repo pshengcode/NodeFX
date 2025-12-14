@@ -19,6 +19,23 @@ const comparePortSets = (
   sigPorts: Array<{ id: string; type: GLSLType; name: string }>,
   errors: string[],
 ) => {
+  // Outputs are position/type based: GLSL parameter names are local identifiers and
+  // don't need to match JSON port ids (which are graph handle ids).
+  if (kind === 'outputs') {
+    if (jsonPorts.length !== sigPorts.length) {
+      errors.push(`${kind}: port count mismatch (JSON=${jsonPorts.length}, GLSL=${sigPorts.length}).`);
+      return;
+    }
+    for (let i = 0; i < jsonPorts.length; i++) {
+      const jp = jsonPorts[i];
+      const sp = sigPorts[i];
+      if (jp.type !== sp.type) {
+        errors.push(`${kind}: port[${i}] type mismatch (JSON=${jp.type}, GLSL=${sp.type}).`);
+      }
+    }
+    return;
+  }
+
   const jsonById = new Map(jsonPorts.map(p => [p.id, p] as const));
   const sigById = new Map(sigPorts.map(p => [p.id, p] as const));
 
@@ -54,6 +71,19 @@ const portsCoveredByOverloads = (
   sigs: Array<{ inputs: Array<{ id: string; type: GLSLType }>; outputs: Array<{ id: string; type: GLSLType }> }>,
   kind: 'inputs' | 'outputs',
 ) => {
+  if (kind === 'outputs') {
+    // For outputs, only count/order/type matters.
+    for (const sig of sigs) {
+      if (sig.outputs.length !== jsonPorts.length) return { ok: false, countMismatch: true };
+      for (let i = 0; i < jsonPorts.length; i++) {
+        if (sig.outputs[i].type !== jsonPorts[i].type) {
+          return { ok: false, typeMismatch: { idx: i, json: jsonPorts[i].type, sig: sig.outputs[i].type } };
+        }
+      }
+    }
+    return { ok: true };
+  }
+
   const jsonById = new Map(jsonPorts.map(p => [p.id, p.type] as const));
   const sigPortsAll = sigs.map(s => (kind === 'inputs' ? s.inputs : s.outputs));
 
@@ -88,7 +118,7 @@ const findBestMatchingSignature = (
   sigs: Array<{ inputs: Array<{ id: string; type: GLSLType }>; outputs: Array<{ id: string; type: GLSLType }> }>,
 ) => {
   const jsonIn = new Map(jsonInputs.map(p => [p.id, p.type] as const));
-  const jsonOut = new Map(jsonOutputs.map(p => [p.id, p.type] as const));
+  const jsonOutTypes = jsonOutputs.map(p => p.type);
 
   let bestIdx = -1;
   let bestScore = -1;
@@ -97,7 +127,7 @@ const findBestMatchingSignature = (
   for (let idx = 0; idx < sigs.length; idx++) {
     const sig = sigs[idx];
     const sigIn = new Map(sig.inputs.map(p => [p.id, p.type] as const));
-    const sigOut = new Map(sig.outputs.map(p => [p.id, p.type] as const));
+    const sigOutTypes = sig.outputs.map(p => p.type);
 
     let score = 0;
     let exact = true;
@@ -117,17 +147,14 @@ const findBestMatchingSignature = (
     }
 
     // Outputs
-    for (const [id, t] of jsonOut) {
-      if (!sigOut.has(id)) {
-        exact = false;
-        continue;
+    if (sigOutTypes.length !== jsonOutTypes.length) {
+      exact = false;
+    } else {
+      for (let i = 0; i < jsonOutTypes.length; i++) {
+        score += 2;
+        if (sigOutTypes[i] === jsonOutTypes[i]) score += 3;
+        else exact = false;
       }
-      score += 2;
-      if (sigOut.get(id) === t) score += 3;
-      else exact = false;
-    }
-    for (const [id] of sigOut) {
-      if (!jsonOut.has(id)) exact = false;
     }
 
     if (exact) {
@@ -173,6 +200,15 @@ describe('Node Library (GLSL signature + i18n validation)', () => {
         if (sigs.length === 0) {
           issues.push(`GLSL: missing or unparsable 'void run(...)' signature.`);
         } else {
+          // Reserved identifier rule: never use 'output' as a GLSL run(...) parameter name.
+          for (const sig of sigs) {
+            const bad = [...sig.inputs, ...sig.outputs].find(p => p.id === 'output');
+            if (bad) {
+              issues.push(`GLSL: reserved identifier 'output' is not allowed in run(...) parameters.`);
+              break;
+            }
+          }
+
           const jsonInputs = def.data.inputs ?? [];
           const jsonOutputs = getEffectiveOutputs(def.data);
 
