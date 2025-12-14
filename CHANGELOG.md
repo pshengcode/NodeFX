@@ -1,3 +1,8 @@
+## [1.2.5] - 2025-12-14
+
+feat: Added support for "Clamp UV" input and updated GLSL logic
+feat: 添加对“Clamp UV”输入的支持并更新GLSL逻辑
+
 ## [1.2.4] - 2025-12-13
 
 feat: Added user guide and updated sidebar buttons and internationalized text.
