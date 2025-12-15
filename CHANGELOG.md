@@ -1,3 +1,8 @@
+## [1.2.10] - 2025-12-15
+
+Fix: Fixed the issue of incorrect results from the GIF and sprite sheet functions in the baking node.
+修复：修复烘焙节点的 gif功能和精灵图功能结果不正确的问题
+
 ## [1.2.9] - 2025-12-14
 
 fix: Adjust background opacity for non-compound nodes in CustomNode component

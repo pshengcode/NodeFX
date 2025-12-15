@@ -6,6 +6,7 @@ import GIF from 'gif.js';
 import { useTranslation } from 'react-i18next';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
+import { computeGifTimingPlan, GifTimingPlan, quantizeGifDelayMs } from '../utils/gifTiming';
 
 const edgesSelector = (state: any) => state.edges;
 const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
@@ -72,6 +73,11 @@ const BakeNode = memo(({ data, id }: NodeProps) => {
     const startTimeRef = useRef(0);
     const rafRef = useRef<number>();
     const stopTimeoutRef = useRef<number | null>(null);
+    const gifTimingRef = useRef<GifTimingPlan | null>(null);
+    const nextGifFrameAtRef = useRef<number>(0);
+    const lastGifCaptureAtRef = useRef<number>(0);
+    const gifStopAtRef = useRef<number>(0);
+    const nextSpriteFrameAtRef = useRef<number>(0);
 
     // Input Texture ID
     const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'image');
@@ -138,13 +144,41 @@ void main() {
                         return;
                     }
                 }
-            } else {
-                // Frame-counted modes (GIF / Sprite)
-                let totalFrames = Math.floor(duration * fps);
-                if (mode === 'sprite') {
-                    totalFrames = columns * rows;
+            } else if (mode === 'gif') {
+                const gif = gifRef.current;
+                const timing = gifTimingRef.current;
+                if (!gif || !timing) return;
+
+                const now = Date.now();
+                const stopAt = gifStopAtRef.current;
+                const durationMs = Math.max(0, stopAt - startTimeRef.current);
+
+                // Only attempt capture on our target schedule.
+                if (now >= nextGifFrameAtRef.current) {
+                    const isFirst = frameCountRef.current === 0;
+                    const rawDelayMs = isFirst ? timing.delayMs : Math.max(0, now - lastGifCaptureAtRef.current);
+                    const delayMs = quantizeGifDelayMs(rawDelayMs);
+
+                    gif.addFrame(canvasRef.current, { delay: delayMs, copy: true });
+                    frameCountRef.current++;
+                    lastGifCaptureAtRef.current = now;
+                    nextGifFrameAtRef.current = now + timing.delayMs;
                 }
 
+                if (durationMs > 0) {
+                    const elapsedMs = now - startTimeRef.current;
+                    setProgress(Math.min(100, (elapsedMs / durationMs) * 100));
+                }
+
+                // Stop based on real elapsed time so playback duration matches the requested duration
+                // even if actual capture FPS is lower than requested.
+                if (now >= stopAt && frameCountRef.current > 0) {
+                    stopRecording();
+                    return;
+                }
+            } else {
+                // Sprite: capture on an FPS schedule so the sheet represents time progression
+                const totalFrames = columns * rows;
                 const currentFrame = frameCountRef.current;
 
                 if (currentFrame >= totalFrames) {
@@ -152,19 +186,25 @@ void main() {
                     return;
                 }
 
-                if (mode === 'sprite' && spriteCanvasRef.current) {
-                    const ctx = spriteCanvasRef.current.getContext('2d');
-                    if (ctx) {
-                        const col = currentFrame % columns;
-                        const row = Math.floor(currentFrame / columns);
-                        ctx.drawImage(canvasRef.current, col * width, row * height, width, height);
+                const now = Date.now();
+                const safeFps = Math.max(1, Number(fps) || 1);
+                const intervalMs = 1000 / safeFps;
+
+                if (now >= nextSpriteFrameAtRef.current) {
+                    if (spriteCanvasRef.current) {
+                        const ctx = spriteCanvasRef.current.getContext('2d');
+                        if (ctx) {
+                            const col = currentFrame % columns;
+                            const row = Math.floor(currentFrame / columns);
+                            ctx.drawImage(canvasRef.current, col * width, row * height, width, height);
+                        }
                     }
-                } else if (mode === 'gif' && gifRef.current) {
-                    gifRef.current.addFrame(canvasRef.current, { delay: 1000 / fps, copy: true });
+
+                    frameCountRef.current++;
+                    nextSpriteFrameAtRef.current = now + intervalMs;
                 }
 
-                setProgress((currentFrame / totalFrames) * 100);
-                frameCountRef.current++;
+                setProgress(Math.min(100, (frameCountRef.current / totalFrames) * 100));
             }
         }
 
@@ -185,6 +225,7 @@ void main() {
         setProgress(0);
         frameCountRef.current = 0;
         startTimeRef.current = Date.now();
+        gifTimingRef.current = null;
 
         if (mode === 'video') {
             const stream = canvasRef.current.captureStream(fps);
@@ -246,14 +287,17 @@ void main() {
                 }, durationMs);
             }
         } else if (mode === 'sprite') {
-            // Total frames determined by grid
-            const totalFrames = columns * rows;
-            
             const sc = document.createElement('canvas');
             sc.width = width * columns;
             sc.height = height * rows;
             spriteCanvasRef.current = sc;
+
+            nextSpriteFrameAtRef.current = startTimeRef.current;
         } else if (mode === 'gif') {
+            gifTimingRef.current = computeGifTimingPlan(Number(duration), Number(fps));
+            nextGifFrameAtRef.current = startTimeRef.current;
+            lastGifCaptureAtRef.current = startTimeRef.current;
+            gifStopAtRef.current = startTimeRef.current + Math.max(0, Number(duration) * 1000);
             const gif = new GIF({
                 workers: 2,
                 quality: 10,
@@ -269,6 +313,7 @@ void main() {
                 a.click();
                 setRecording(false); // Ensure UI updates
                 setProgress(0);
+                gifTimingRef.current = null;
             });
             gifRef.current = gif;
         }
