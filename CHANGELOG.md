@@ -1,3 +1,8 @@
+## [1.2.11] - 2025-12-16
+
+Feature: Adds a stroke node, supporting external stroke effects based on brightness/brightness
+feat: 添加描边节点，支持基于透明度/亮度的内外描边效果
+
 ## [1.2.10] - 2025-12-15
 
 Fix: Fixed the issue of incorrect results from the GIF and sprite sheet functions in the baking node.

@@ -5,13 +5,20 @@
   "description": "Loads an external image texture and outputs RGBA + individual channels.",
   "locales": {
     "zh": {
-      "samptexture": "采样纹理",
       "Loads an external image texture and outputs RGBA + individual channels.": "加载外部图片纹理，并输出 RGBA 以及单独通道。",
-      "image": "图片"
+      "image": "图片",
+      "isMultiplyA": "预乘A通道",
+      "SampTexture": "采样贴图",
+      "uv_in": "UV输入",
+      "result": "RGBA",
+      "r": "R",
+      "g": "G",
+      "b": "B",
+      "a": "A"
     }
   },
   "data": {
-    "glsl": "void run(vec2 uv, vec2 uv_in, sampler2D image, out vec4 result, out float r, out float g, out float b, out float a) {\n  vec2 coord = (uv_in == vec2(0.0)) ? uv : uv_in;\n  result = texture2D(image, coord);\n  r = result.r;\n  g = result.g;\n  b = result.b;\n  a = result.a;\n}",
+    "glsl": "void run(vec2 uv, vec2 uv_in, sampler2D image, bool isMultiplyA,out vec4 result, out float r, out float g, out float b, out float a) {\n  vec2 coord = (uv_in == vec2(0.0)) ? uv : uv_in;\n  result = texture2D(image, coord);\n  if(isMultiplyA)\n  {result=result*result.a;}\n  r = result.r;\n  g = result.g;\n  b = result.b;\n  a = result.a;\n}",
     "inputs": [
       {
         "id": "uv_in",
@@ -22,6 +29,11 @@
         "id": "image",
         "name": "image",
         "type": "sampler2D"
+      },
+      {
+        "id": "isMultiplyA",
+        "name": "isMultiplyA",
+        "type": "bool"
       }
     ],
     "outputs": [
@@ -61,7 +73,13 @@
       },
       "image": {
         "type": "sampler2D",
-        "value": null
+        "value": "asset://upload_1765858497447_j143f"
+      },
+      "isMultiplyA": {
+        "type": "bool",
+        "value": false,
+        "widget": "toggle",
+        "widgetConfig": {}
       }
     },
     "outputType": "vec4"

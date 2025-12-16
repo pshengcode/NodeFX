@@ -1,0 +1,228 @@
+{
+  "id": "OUTLINE_STROKE",
+  "label": "Outline Stroke",
+  "category": "Filter",
+  "icon": "PenTool",
+  "description": "Adds an inside/outside outline around alpha or luminance edges.",
+  "locales": {
+    "zh": {
+      "Outline Stroke": "描边",
+      "Adds an inside/outside outline around alpha or luminance edges.": "基于透明度/亮度边缘添加内/外描边效果。",
+
+      "Source": "边缘来源",
+      "Alpha": "透明度",
+      "Luminance": "亮度",
+
+      "Texture": "纹理",
+      "Width (px)": "宽度(像素)",
+      "Color": "颜色",
+      "Threshold": "阈值",
+      "Softness": "柔和",
+      "Side": "描边位置",
+      "Falloff": "描边衰减",
+      "Only Stroke": "只显示描边",
+      "Result": "结果",
+
+      "Outside": "外描边",
+      "Inside": "内描边",
+      "Inside + Outside": "内+外",
+      "Solid": "实心",
+      "Linear": "线性渐变",
+      "Smooth": "平滑渐变"
+    }
+  },
+  "data": {
+    "glsl": [
+      "float computeFalloff(int falloff, float distPx, float widthPx, float softness) {",
+      "    // distPx: 1..widthPx (1 means immediately adjacent to the edge)",
+      "    if (distPx > widthPx) return 0.0;",
+      "    if (falloff == 0) return 1.0; // Solid",
+      "    float denom = max(widthPx - 1.0, 1.0);",
+      "    float t = clamp((distPx - 1.0) / denom, 0.0, 1.0);",
+      "    float m = 1.0 - t; // Linear ramp",
+      "    if (falloff == 1) return m;",
+      "    // Smooth ramp (softness controls curve amount)",
+      "    float s = clamp(softness, 0.0, 1.0);",
+      "    // Blend between linear and smoothstep curve",
+      "    float sm = smoothstep(0.0, 1.0, m);",
+      "    return mix(m, sm, s);",
+      "}",
+      "",
+      "float sampleField(sampler2D tex, vec2 uv, int source) {",
+      "    vec4 c = texture(tex, uv);",
+      "    if (source == 0) {",
+      "        return c.a;",
+      "    }",
+      "    // Luminance (perceptual)",
+      "    return dot(c.rgb, vec3(0.299, 0.587, 0.114));",
+      "}",
+      "",
+      "void run(vec2 uv, sampler2D tex, float widthPx, vec4 color, float threshold, float softness, int side, int falloff, int source, bool onlyStroke, out vec4 result) {",
+      "    vec4 base = texture(tex, uv);",
+      "",
+      "    ivec2 ts = textureSize(tex, 0);",
+      "    vec2 px = 1.0 / vec2(max(ts.x, 1), max(ts.y, 1));",
+      "    float r = clamp(widthPx, 1.0, 64.0);",
+      "    int steps = int(floor(r + 1e-6));",
+      "",
+      "    float f0 = sampleField(tex, uv, source);",
+      "    bool centerIn = (f0 >= threshold);",
+      "",
+      "    // Distance-to-edge search (in pixels), using 16-direction ring sampling.",
+      "    // We record the first radius where the neighborhood crosses the threshold.",
+      "    float outsideDist = 1e9;",
+      "    float insideDist = 1e9;",
+      "    float invSqrt2 = 0.70710678;",
+      "    float invSqrt5 = 0.44721360;",
+      "    for (int i = 1; i <= 64; i++) {",
+      "        if (i > steps) break;",
+      "        float fi = float(i);",
+      "        vec2 dx = vec2(px.x * fi, 0.0);",
+      "        vec2 dy = vec2(0.0, px.y * fi);",
+      "        vec2 d2 = vec2(px.x * fi * invSqrt2, px.y * fi * invSqrt2);",
+      "        vec2 dA = vec2(px.x * fi * (2.0 * invSqrt5), px.y * fi * (1.0 * invSqrt5));",
+      "        vec2 dB = vec2(px.x * fi * (1.0 * invSqrt5), px.y * fi * (2.0 * invSqrt5));",
+      "",
+      "        float s1  = sampleField(tex, uv + dx, source);",
+      "        float s2  = sampleField(tex, uv - dx, source);",
+      "        float s3  = sampleField(tex, uv + dy, source);",
+      "        float s4  = sampleField(tex, uv - dy, source);",
+      "        float s5  = sampleField(tex, uv + d2, source);",
+      "        float s6  = sampleField(tex, uv + vec2(-d2.x, d2.y), source);",
+      "        float s7  = sampleField(tex, uv + vec2(d2.x, -d2.y), source);",
+      "        float s8  = sampleField(tex, uv - d2, source);",
+      "        float s9  = sampleField(tex, uv + dA, source);",
+      "        float s10 = sampleField(tex, uv + vec2(-dA.x, dA.y), source);",
+      "        float s11 = sampleField(tex, uv + vec2(dA.x, -dA.y), source);",
+      "        float s12 = sampleField(tex, uv + vec2(-dA.x, -dA.y), source);",
+      "        float s13 = sampleField(tex, uv + dB, source);",
+      "        float s14 = sampleField(tex, uv + vec2(-dB.x, dB.y), source);",
+      "        float s15 = sampleField(tex, uv + vec2(dB.x, -dB.y), source);",
+      "        float s16 = sampleField(tex, uv + vec2(-dB.x, -dB.y), source);",
+      "",
+      "        float ringMax = max(max(max(max(s1, s2), max(s3, s4)), max(max(s5, s6), max(s7, s8))), max(max(max(s9, s10), max(s11, s12)), max(max(s13, s14), max(s15, s16))));",
+      "        float ringMin = min(min(min(min(s1, s2), min(s3, s4)), min(min(s5, s6), min(s7, s8))), min(min(min(s9, s10), min(s11, s12)), min(min(s13, s14), min(s15, s16))));",
+      "",
+      "        if (!centerIn && outsideDist > 1e8 && ringMax >= threshold) outsideDist = fi;",
+      "        if (centerIn && insideDist > 1e8 && ringMin < threshold) insideDist = fi;",
+      "",
+      "        // Early out when we already found what we need.",
+      "        if (side == 0 && outsideDist <= r) break;",
+      "        if (side == 1 && insideDist <= r) break;",
+      "        if (side == 2 && outsideDist <= r && insideDist <= r) break;",
+      "    }",
+      "",
+      "    float outsideMask = (!centerIn) ? computeFalloff(falloff, outsideDist, r, softness) : 0.0;",
+      "    float insideMask  = ( centerIn) ? computeFalloff(falloff, insideDist,  r, softness) : 0.0;",
+      "",
+      "    float mask = outsideMask;",
+      "    if (side == 1) mask = insideMask;",
+      "    if (side == 2) mask = max(outsideMask, insideMask);",
+      "",
+      "    vec4 stroke = vec4(color.rgb, color.a * mask);",
+      "",
+      "    if (onlyStroke) {",
+      "        result = stroke;",
+      "    } else {",
+      "        vec3 rgb = mix(base.rgb, color.rgb, stroke.a);",
+      "        float outA = max(base.a, stroke.a);",
+      "        result = vec4(rgb, outA);",
+      "    }",
+      "}"
+    ],
+    "outputType": "vec4",
+    "inputs": [
+      { "id": "tex", "name": "Texture", "type": "sampler2D" },
+      { "id": "widthPx", "name": "Width (px)", "type": "float" },
+      { "id": "color", "name": "Color", "type": "vec4" },
+      { "id": "threshold", "name": "Threshold", "type": "float" },
+      { "id": "softness", "name": "Softness", "type": "float" },
+      { "id": "side", "name": "Side", "type": "int" },
+      { "id": "falloff", "name": "Falloff", "type": "int" },
+      { "id": "source", "name": "Source", "type": "int" },
+      { "id": "onlyStroke", "name": "Only Stroke", "type": "bool" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "uniforms": {
+      "widthPx": {
+        "type": "float",
+        "value": 2.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 1.0, "max": 64.0, "step": 1.0 }
+      },
+      "color": {
+        "type": "vec4",
+        "value": [1.0, 1.0, 1.0, 1.0],
+        "widget": "color"
+      },
+      "threshold": {
+        "type": "float",
+        "value": 0.5,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01 }
+      },
+      "softness": {
+        "type": "float",
+        "value": 0.5,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01, "visibleIf": { "uniform": "falloff", "value": 2 } }
+      },
+      "side": {
+        "type": "int",
+        "value": 2,
+        "widget": "enum",
+        "widgetConfig": {
+          "options": [
+            { "label": "Outside", "value": 0 },
+            { "label": "Inside", "value": 1 },
+            { "label": "Inside + Outside", "value": 2 }
+          ],
+          "enumOptions": [
+            { "label": "Outside", "value": 0 },
+            { "label": "Inside", "value": 1 },
+            { "label": "Inside + Outside", "value": 2 }
+          ]
+        }
+      },
+      "falloff": {
+        "type": "int",
+        "value": 1,
+        "widget": "enum",
+        "widgetConfig": {
+          "options": [
+            { "label": "Solid", "value": 0 },
+            { "label": "Linear", "value": 1 },
+            { "label": "Smooth", "value": 2 }
+          ],
+          "enumOptions": [
+            { "label": "Solid", "value": 0 },
+            { "label": "Linear", "value": 1 },
+            { "label": "Smooth", "value": 2 }
+          ]
+        }
+      },
+      "source": {
+        "type": "int",
+        "value": 0,
+        "widget": "enum",
+        "widgetConfig": {
+          "options": [
+            { "label": "Alpha", "value": 0 },
+            { "label": "Luminance", "value": 1 }
+          ],
+          "enumOptions": [
+            { "label": "Alpha", "value": 0 },
+            { "label": "Luminance", "value": 1 }
+          ]
+        }
+      },
+      "onlyStroke": {
+        "type": "bool",
+        "value": false,
+        "widget": "toggle"
+      }
+    }
+  }
+}
