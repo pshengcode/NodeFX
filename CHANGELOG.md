@@ -1,3 +1,8 @@
+## [1.2.12] - 2025-12-16
+
+feat: Add description and category to node data structure in CustomNode and ProjectContext
+新增功能：在 CustomNode 和 ProjectContext 中为节点数据结构添加描述和类别
+
 ## [1.2.11] - 2025-12-16
 
 Feature: Adds a stroke node, supporting external stroke effects based on brightness/brightness

@@ -337,6 +337,7 @@ export function useGraphActions(
             ...JSON.parse(JSON.stringify(def.data)), 
             label: def.label, 
             category: def.category,
+                        description: def.description,
             definitionId: def.id,
             locales: def.locales,
             preview: false,

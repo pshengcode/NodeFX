@@ -1205,6 +1205,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       const nodeDef = {
           id: data.definitionId || 'CUSTOM',
           label: data.label,
+          description: data.description,
           category: data.category || 'Custom',
           locales: data.locales,
           data: {

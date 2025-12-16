@@ -36,7 +36,16 @@ const initialNodes: Node<NodeData>[] = initialDef ? [
     id: '1',
     type: 'customShader',
     position: { x: 250, y: 200 },
-    data: { ...initialDef.data, label: initialDef.label, preview: true, resolution: { w: 512, h: 512 } } as NodeData,
+        data: { 
+            ...initialDef.data,
+            label: initialDef.label,
+            category: initialDef.category,
+            description: initialDef.description,
+            definitionId: initialDef.id,
+            locales: initialDef.locales,
+            preview: true,
+            resolution: { w: 512, h: 512 }
+        } as NodeData,
     zIndex: 10, 
   },
 ] : [];
