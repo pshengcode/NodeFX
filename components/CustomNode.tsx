@@ -1,6 +1,6 @@
 import React, { useState, useCallback, memo, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Handle, Position, NodeProps, useReactFlow, useEdges, useStore } from 'reactflow';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory, NodePass } from '../types';
 import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronDown } from 'lucide-react';
 import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
@@ -13,7 +13,7 @@ import { extractShaderIO, extractAllSignatures } from '../utils/glslParser';
 import { useTranslation } from 'react-i18next';
 import { useNodeTranslation } from '../hooks/useNodeTranslation';
 import { getNodeDefinition } from '../nodes/registry';
-import { useProject } from '../context/ProjectContext';
+import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
 import ShaderPreview from './ShaderPreview';
 
 // --- NODE EDITOR MODAL ---
@@ -975,11 +975,32 @@ const UniformControlWrapper = ({
 };
 
 // ... CustomNode implementation (Wrapper) ...
-const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
-  const { setNodes, deleteElements, setEdges, getNodes, getEdges } = useReactFlow();
-  const { enterGroup, addToLibrary, compiledData } = useProject();
-  const edges = useEdges(); 
+const CustomNodeComponent = ({ id, data, selected }: NodeProps<NodeData>) => {
+        const {
+                setNodes,
+                setEdges,
+                getNodes,
+                getEdges,
+                onNodesDelete,
+                reactFlowInstance,
+                enterGroup,
+                addToLibrary,
+                compiledData,
+        } = useProjectDispatch();
+    const edges = useProjectEdges();
   const { t: tGlobal } = useTranslation();
+
+    const connectedHandles = useMemo(() => {
+            const targetHandles = new Set<string>();
+            const sourceHandles = new Set<string>();
+
+            for (const edge of edges) {
+                    if (edge.target === id && edge.targetHandle) targetHandles.add(edge.targetHandle);
+                    if (edge.source === id && edge.sourceHandle) sourceHandles.add(edge.sourceHandle);
+            }
+
+            return { targetHandles, sourceHandles };
+    }, [edges, id]);
   
   const nodeDef = useMemo(() => data.definitionId ? getNodeDefinition(data.definitionId) : undefined, [data.definitionId]);
   const t = useNodeTranslation(nodeDef, data.locales);
@@ -1191,8 +1212,18 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
 
   const handleDeleteNode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteElements({ nodes: [{ id }] });
-  }, [id, deleteElements]);
+        // Prefer ReactFlow instance API (keeps built-in delete semantics)
+        if (reactFlowInstance && typeof (reactFlowInstance as any).deleteElements === 'function') {
+                (reactFlowInstance as any).deleteElements({ nodes: [{ id }] });
+                return;
+        }
+
+        // Fallback: manual removal
+        const node = getNodes().find(n => n.id === id);
+        if (node) onNodesDelete([node]);
+        setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+    }, [id, reactFlowInstance, getNodes, onNodesDelete, setEdges, setNodes]);
 
   const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
       if (e.altKey) {
@@ -1400,7 +1431,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       return Object.values(data.uniforms).some(u => u && u.widget === 'bezier_grid');
   }, [data.uniforms]);
 
-  return (
+    return (
     <>
         <div className={`relative shadow-xl rounded-lg border transition-all duration-200 min-w-[280px] ${nodeBgClass} ${borderClass}`}>
         {data.executionError && (
@@ -1535,7 +1566,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
 
                 {data.inputs.map((input) => {
                     if (!isInputVisible(input.id)) return null;
-                    const isConnected = edges.some(e => e.target === id && e.targetHandle === input.id);
+                    const isConnected = connectedHandles.targetHandles.has(input.id);
                     const typeColor = TYPE_COLORS[input.type] || '#a1a1aa';
                     return (
                         <div key={input.id} className="relative pl-6 pr-3 group">
@@ -1565,7 +1596,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             </div>
             <div className="flex flex-col py-2 gap-1 shrink-0 items-end min-w-min">
                 {displayOutputs.map((output) => {
-                    const isConnected = edges.some(e => e.source === id && e.sourceHandle === output.id);
+                    const isConnected = connectedHandles.sourceHandles.has(output.id);
                     const typeColor = TYPE_COLORS[output.type] || '#a1a1aa';
                     return (
                         <div key={output.id} className="relative flex items-center h-5 pl-2 pr-5 group justify-end">
@@ -1684,7 +1715,13 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
             />
         )}
     </>
-  );
-});
+    );
+};
 
-export default CustomNode;
+// ReactFlow updates position on every drag frame (xPos/yPos). The node DOM is moved by ReactFlow,
+// so the node component doesn't need to re-render just to move. Keep renders to actual data/UI changes.
+const areNodePropsEqual = (prev: NodeProps<NodeData>, next: NodeProps<NodeData>) => {
+        return prev.id === next.id && prev.selected === next.selected && prev.data === next.data;
+};
+
+export default memo(CustomNodeComponent, areNodePropsEqual);

@@ -1,3 +1,19 @@
+## [1.3.3] - 2025-12-18
+
+perf: reduce drag-time rerenders; harden WebGL uniforms
+中文：
+- 特殊节点改用 ProjectContext 拆分订阅：useProjectDispatch（dispatch-only）+ useProjectEdges（edges-only），减少拖拽期间重渲染
+- 提供 getNodes/getEdges 快照读取，避免节点组件直接订阅 nodes/edges 大对象
+- WebGL uniform 上传增加 TypedArray 兜底与长度归一化，修复 uniform4fv 等因非法值导致的预览崩溃
+- 移除构建混淆相关配置/依赖
+- 更新 components/SPECIAL_NODE_GUIDE.md：新增新节点性能规范与示例
+English:
+- Migrate special nodes to ProjectContext split subscriptions (dispatch-only + edges-only) to cut drag-time rerenders
+- Add getNodes/getEdges snapshot access to avoid subscribing to large nodes/edges objects
+- Harden WebGL uniform uploads with TypedArray coercion and fixed lengths to prevent preview crashes (e.g. uniform4fv)
+- Remove build obfuscation config/deps
+- Update components/SPECIAL_NODE_GUIDE.md with the new node performance guidelines
+
 ## [1.3.2] - 2025-12-18
 
 fix(perf): store textures as asset IDs; skip autosave during drag

@@ -3,7 +3,6 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import obfuscator from 'rollup-plugin-obfuscator';
 
 export default defineConfig(({ mode }) => {
     const isProd = mode === 'production';
@@ -49,33 +48,6 @@ export default defineConfig(({ mode }) => {
       plugins: [
         tailwindcss(),
         react(),
-        isProd && obfuscator({
-          global: true,
-          options: {
-            // 压缩代码
-            compact: true,
-            // 控制流扁平化 (降低性能，但极大增加阅读难度) - 设为 false 以保证图形应用性能
-            controlFlowFlattening: false, 
-            // 变量名混淆
-            identifierNamesGenerator: 'hexadecimal',
-            // 字符串加密 (轻量级)
-            stringArray: true,
-            stringArrayEncoding: ['rc4'],
-            stringArrayThreshold: 0.75,
-
-            // 关键：不要混淆 import / dynamic import。
-            // 否则可能会破坏 Vite/Rollup 在构建末尾对 chunk 文件名 hash placeholder 的替换，
-            // 导致运行时请求到形如 `CustomNode-!~{00z}~.js` 的不存在资源。
-            ignoreImports: true,
-            reservedStrings: ['!~\\{[0-9a-zA-Z]+\\}~'],
-            // 防止格式化
-            selfDefending: true,
-            // 禁用控制台输出 (防止用户调试)
-            disableConsoleOutput: true,
-            // 僵尸代码注入 (增加体积，增加混淆度)
-            deadCodeInjection: false,
-          }
-        })
       ],
       resolve: {
         alias: {

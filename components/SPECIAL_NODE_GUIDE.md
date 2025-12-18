@@ -286,28 +286,46 @@ useEffect(() => {
 
 ### 1. 高性能数据访问
 
-普通节点可能直接使用 `useNodes` 和 `useEdges`，但这会导致特殊节点（通常包含 Canvas）在画布拖动时频繁重渲染，造成严重的性能问题。
+特殊节点（尤其是包含 Canvas/WebGL 的节点）要避免订阅会在拖拽期间每帧变化的数据源，否则会产生“拖拽订阅风暴”，导致严重掉帧。
 
-**推荐做法：**
+**推荐做法（2025-12 性能规范）：**
+
+1) **优先用 ProjectContext 的拆分订阅**
 
 ```typescript
-import { useStore } from 'reactflow';
+import { memo, useMemo } from 'react';
+import { NodeProps } from 'reactflow';
+import { NodeData } from '../types';
+import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 
-// 定义选择器和比较函数（在组件外部）
-const edgesSelector = (state: any) => state.edges;
-const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
-
 const MySpecialNode = memo(({ id, data }: NodeProps<NodeData>) => {
-    // 1. 获取节点列表 (优化版，避免拖拽重渲染)
+    // ✅ Dispatch-only：不会因为任意节点 position 更新而重渲
+    const { getNodes } = useProjectDispatch();
+
+    // ✅ Edges-only：只在 edges 变化时重渲
+    const edges = useProjectEdges();
+
+    // ⚠️ 只有当你确实需要“订阅其他节点 data 的变化”时再用它
     const nodes = useOptimizedNodes();
-    
-    // 2. 获取边列表 (使用 selector + deepEqual)
-    const edges = useStore(edgesSelector, deepEqual);
-    
-    // ...
+
+    const myIncomingEdges = useMemo(
+        () => edges.filter(e => e.target === id),
+        [edges, id]
+    );
+
+    // 如果只是偶尔需要读一次全量 nodes，请在 callback/effect 内调用 getNodes() 拿快照
+    // const nodesSnapshot = getNodes();
+
+    return (
+        <div />
+    );
 });
 ```
+
+2) **尽量不要在节点组件里直接使用 ReactFlow store（`useStore` / `useReactFlow` / `useNodes` / `useEdges`）**
+
+只有在“确实只订阅一个小字段且和节点性能无关”的场景（例如读取 viewport 缩放）才考虑使用，并明确 selector，避免订阅大对象。
 
 ### 2. 标准交互逻辑
 
@@ -318,7 +336,9 @@ const MySpecialNode = memo(({ id, data }: NodeProps<NodeData>) => {
 允许用户按住 Alt 键点击 Handle 来快速断开连接。
 
 ```typescript
-const { setEdges } = useReactFlow();
+import { useProjectDispatch } from '../context/ProjectContext';
+
+const { setEdges } = useProjectDispatch();
 
 const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
     if (e.altKey) {
@@ -358,13 +378,18 @@ useEffect(() => {
 
 ### 性能优化
 *   **防抖 (Debounce)**: `useNodeSettings` 默认有 500ms 的防抖。这意味着当你快速拖动滑块时，React Flow 的数据模型（以及 Undo 栈）不会每毫秒都更新，而是在停止操作 500ms 后更新一次。这对于性能至关重要。
-*   **useOptimizedNodes**: 如果你的节点需要访问其他节点的信息，请使用 `useOptimizedNodes` 替代 `useNodes`，以避免在拖拽画布时发生不必要的重渲染。
+*   **useOptimizedNodes**: 仅在你需要“订阅其他节点的 data 变化”时使用；能用 `getNodes()` 读快照（在 effect/callback 里）就别订阅。
+*   **edges 订阅**: 使用 `useProjectEdges()` 订阅 edges；不要在节点里用 `useStore(state => state.edges)`。
 
 ## 最佳实践
 
 1.  **始终使用 `updateSettings`**：不要尝试手动调用 `setNodes` 来更新设置，除非你有非常特殊的理由。`updateSettings` 处理了防抖和同步逻辑。
 2.  **不要在组件内维护重复状态**：尽量直接使用 `settings` 中的值。如果你必须使用额外的 `useState`（例如为了极高性能的动画循环），请确保你理解数据流向。
 3.  **默认值稳定性**：`useNodeSettings` 会自动处理默认值的引用稳定性，你不需要在组件外定义 `DEFAULT_SETTINGS`，直接在组件内定义对象字面量也是安全的。
+
+4.  **避免 position 驱动的重渲染**：特殊节点组件建议用 `memo(...)` 包裹，并在比较函数中忽略位置字段（例如 `xPos/yPos`、`position`、`positionAbsolute` 等），除非你的 UI 真的依赖它。
+
+5.  **大资源不要塞进 node.data**：图片/二进制/大 JSON 不要放进 `node.data.settings` 或 `node.data.uniforms.value` 里（尤其是 base64/dataURL）。请使用资产系统（`asset://...` / `builtin://...` 引用）保存并在运行时解析。
 
 ## 常见问题
 
@@ -391,6 +416,10 @@ A: 可以，但尽量避免。`useNodeSettings` 已经为你处理了大部分�
 
 2.  **`useNodes()` (React Flow)**
     *   **原因**: 同上，直接订阅整个节点列表会导致对位置变化敏感。
+
+3.  **`useStore(state => state.nodeInternals)` / `useStore(state => state.edges)`（在节点组件里）**
+    *   **原因**: 这是拖拽期最常见的订阅热点之一，会触发大量组件比较与重渲。
+    *   **替代**: `useProjectDispatch()` + `useProjectEdges()`，必要时用 `getNodes()/getEdges()` 获取快照。
 
 ### ✅ 推荐使用 (Recommended)
 
@@ -419,8 +448,24 @@ A: 可以，但尽量避免。`useNodeSettings` 已经为你处理了大部分�
         const zoom = useStore(s => s.transform[2]); // 仅在缩放变化时更新
         ```
 
+4.  **`useProjectDispatch()` + `getNodes()/getEdges()`（读快照）**
+    *   **用途**: 在 callback / effect 中按需读取当前 nodes/edges，而不让组件订阅它们。
+    *   **示例**:
+        ```typescript
+        import { useProjectDispatch } from '../context/ProjectContext';
+
+        const { getNodes, getEdges } = useProjectDispatch();
+        const nodes = getNodes();
+        const edges = getEdges();
+        ```
+
+5.  **`useProjectEdges()`（edges-only 订阅）**
+    *   **用途**: 当你的节点逻辑确实需要随 edges 变化而更新（例如查找连接、断开连接）。
+
 ### ⚠️ 开发注意事项
 
 1.  **拖动测试**: 开发完新节点后，务必进行拖动测试。打开开发者工具的 "Highlight updates"，拖动节点，确保**只有被拖动的节点**在更新，其他节点应当保持静止（不重渲染）。
 2.  **连接逻辑**: 如果需要在连线时执行逻辑（如动态创建端口），请确保逻辑放在 `useGraphActions` 或 `onConnect` 回调中，而不要写在组件的渲染周期里。
+
+3.  **Uniform 值类型**: 如果你的节点通过 `uniformOverrides` / `node.data.uniforms` 传 vec/mat/uvec 值，确保是 number[] / TypedArray 且长度正确（vec4=4，mat4=16 等）。渲染系统会做兜底转换，但从源头给正确类型更稳定。
 

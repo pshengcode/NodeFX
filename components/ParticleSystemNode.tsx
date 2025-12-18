@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Handle, NodeProps, Position, useReactFlow, useStore } from 'reactflow';
+import { Handle, NodeProps, Position } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { useTranslation } from 'react-i18next';
 import { Settings2, Play, Pause, RotateCcw, ChevronDown, ChevronRight, Trash2, Layers, Box, Wind, Activity, Palette, Move, Zap, Camera, ScanEye, Eye, Plus, X, Home } from 'lucide-react';
@@ -13,30 +13,7 @@ import { webglSystem } from '../utils/webglSystem';
 import { buildUniformOverridesFromNodes } from '../utils/uniformOverrides';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
-import { useProjectDispatch } from '../context/ProjectContext';
-
-const edgesSelector = (state: any) => state.edges;
-
-// Optimized edge comparison - only compare relevant edge properties, not object references
-const edgesEqual = (a: any[], b: any[]) => {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    
-    // Only check if edges structurally changed (source, target, handles)
-    // Ignore style/animation properties that might change during drag
-    for (let i = 0; i < a.length; i++) {
-        const edgeA = a[i];
-        const edgeB = b[i];
-        if (edgeA.id !== edgeB.id ||
-            edgeA.source !== edgeB.source ||
-            edgeA.target !== edgeB.target ||
-            edgeA.sourceHandle !== edgeB.sourceHandle ||
-            edgeA.targetHandle !== edgeB.targetHandle) {
-            return false;
-        }
-    }
-    return true;
-};
+import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
 
 // --- TYPES ---
 
@@ -2097,11 +2074,11 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
     const { id, data, selected } = props;
     
     const { t } = useTranslation();
-    const { setNodes, deleteElements, getNode, setEdges, getNodes } = useReactFlow();
+    const { setNodes, setEdges, getNodes, onNodesDelete, reactFlowInstance } = useProjectDispatch();
     
     // Don't subscribe to any context - get values on demand
     // This prevents re-renders when context values change
-    const edges = useStore(edgesSelector, edgesEqual);
+    const edges = useProjectEdges();
 
     // Subscribe to node DATA changes (but not position drags) so upstream uniform edits
     // can update input previews in real time.
@@ -2775,7 +2752,7 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
                     // Fallback: Check if upstream node has 'output' or 'image' uniform with a texture value (Asset ID)
                     if (!shouldUseInput) {
                          // We can try to find the upstream node by ID
-                         const sourceNode = getNode(inputEdge.source);
+                         const sourceNode = getNodes().find((n) => n.id === inputEdge.source);
                          
                          if (sourceNode) {
                              // Check for uniform value in source node (e.g. Image Loader)
@@ -3370,8 +3347,16 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
 
     const handleDeleteNode = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        deleteElements({ nodes: [{ id }] });
-    }, [id, deleteElements]);
+        if (reactFlowInstance && typeof (reactFlowInstance as any).deleteElements === 'function') {
+            (reactFlowInstance as any).deleteElements({ nodes: [{ id }] });
+            return;
+        }
+
+        const node = getNodes().find(n => n.id === id);
+        if (node) onNodesDelete([node]);
+        setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+    }, [getNodes, id, onNodesDelete, reactFlowInstance, setEdges, setNodes]);
 
     const borderClass = selected ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700';
 

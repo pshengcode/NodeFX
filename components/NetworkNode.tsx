@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { Wifi, X, AlertCircle, CheckCircle, RefreshCw, Settings2, UploadCloud, Send, ShieldAlert, Download, Hash } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
@@ -8,19 +8,15 @@ import { SmartNumberInput } from './UniformWidgets';
 import { useTranslation } from 'react-i18next';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
-
-const edgesSelector = (state: any) => state.edges;
-
-// Deep compare for selector
-const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
 
 const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
-  const { setNodes, deleteElements, setEdges } = useReactFlow();
+    const { setNodes, setEdges, onNodesDelete, reactFlowInstance, getNodes } = useProjectDispatch();
   
   // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
   const nodes = useOptimizedNodes();
-  const edges = useStore(edgesSelector, deepEqual);
+    const edges = useProjectEdges();
 
   const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
       if (e.altKey) {
@@ -32,6 +28,19 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           }));
       }
   }, [id, setEdges]);
+
+    const handleDeleteNode = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (reactFlowInstance && typeof (reactFlowInstance as any).deleteElements === 'function') {
+            (reactFlowInstance as any).deleteElements({ nodes: [{ id }] });
+            return;
+        }
+
+        const node = getNodes().find(n => n.id === id);
+        if (node) onNodesDelete([node]);
+        setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+    }, [getNodes, id, onNodesDelete, reactFlowInstance, setEdges, setNodes]);
 
   // Check connection status
   const isConnected = edges.some(e => e.target === id && e.targetHandle === 'in_1');
@@ -217,11 +226,6 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       }
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      deleteElements({ nodes: [{ id }] });
-  };
-
   const borderClass = selected ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700';
   
   const statusColor = {
@@ -244,7 +248,7 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
              <button onClick={() => setShowConfig(!showConfig)} className={`p-1 rounded hover:bg-zinc-700 ${showConfig ? 'text-blue-400' : 'text-zinc-400'}`} title={t('Configure')}>
                 <Settings2 size={14} />
             </button>
-             <button onClick={handleDelete} className="p-1 rounded hover:bg-red-900/30 text-zinc-500 hover:text-red-400" title={t('Delete')}>
+             <button onClick={handleDeleteNode} className="p-1 rounded hover:bg-red-900/30 text-zinc-500 hover:text-red-400" title={t('Delete')}>
                 <X size={14} />
             </button>
         </div>

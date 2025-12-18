@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { webglSystem } from '../utils/webglSystem';
 import { CompilationResult } from '../types';
 import GIF from 'gif.js';
@@ -7,9 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { computeGifTimingPlan, GifTimingPlan, quantizeGifDelayMs } from '../utils/gifTiming';
-
-const edgesSelector = (state: any) => state.edges;
-const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
 
 const PASS_THROUGH_VERT = `#version 300 es
 in vec2 position;
@@ -21,11 +19,11 @@ void main() {
 
 const BakeNode = memo(({ data, id }: NodeProps) => {
     const { t } = useTranslation();
-    const { setNodes, setEdges } = useReactFlow();
+    const { setNodes, setEdges } = useProjectDispatch();
     
     // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
     const nodes = useOptimizedNodes();
-    const edges = useStore(edgesSelector, deepEqual);
+    const edges = useProjectEdges();
 
     const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
         if (e.altKey) {

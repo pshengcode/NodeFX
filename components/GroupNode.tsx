@@ -1,13 +1,14 @@
 
 import React, { memo, useState, useCallback, useEffect } from 'react';
-import { NodeProps, NodeResizer, useReactFlow, useViewport } from 'reactflow';
+import { NodeProps, NodeResizer, useViewport } from 'reactflow';
 import { NodeData } from '../types';
 import { useTranslation } from 'react-i18next';
+import { useProjectDispatch } from '../context/ProjectContext';
 
 const GroupNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
   const { zoom } = useViewport();
-  const { setNodes } = useReactFlow();
+  const { setNodes } = useProjectDispatch();
 
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);

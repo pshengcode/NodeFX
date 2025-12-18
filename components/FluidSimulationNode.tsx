@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps, useReactFlow, useStore } from 'reactflow';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { Play, Pause, Settings, RotateCcw, Download, Wind, MousePointer2, History, Square, Magnet, Trash2, X, Maximize2, Minimize2, RotateCw, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { registerDynamicTexture, unregisterDynamicTexture } from '../utils/dynamicRegistry';
@@ -9,11 +9,7 @@ import { compileGraph } from '../utils/shaderCompiler';
 import ShaderPreview from './ShaderPreview';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
-
-const edgesSelector = (state: any) => state.edges;
-
-// Deep compare for selector
-const deepEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
 
 interface ForceField {
     id: string;
@@ -1155,16 +1151,24 @@ class GPUFluidSolver {
 const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
     // console.log('FluidSimulationNode render', id, Date.now());
     const { t } = useTranslation();
-    const { setNodes, deleteElements, setEdges } = useReactFlow();
+    const { setNodes, setEdges, onNodesDelete, reactFlowInstance, getNodes } = useProjectDispatch();
     
     // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
     const nodes = useOptimizedNodes();
-    const edges = useStore(edgesSelector, deepEqual);
+    const edges = useProjectEdges();
     
     const handleDeleteNode = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        deleteElements({ nodes: [{ id }] });
-    }, [id, deleteElements]);
+        if (reactFlowInstance && typeof (reactFlowInstance as any).deleteElements === 'function') {
+            (reactFlowInstance as any).deleteElements({ nodes: [{ id }] });
+            return;
+        }
+
+        const node = getNodes().find(n => n.id === id);
+        if (node) onNodesDelete([node]);
+        setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+    }, [getNodes, id, onNodesDelete, reactFlowInstance, setEdges, setNodes]);
 
     const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
         if (e.altKey) {

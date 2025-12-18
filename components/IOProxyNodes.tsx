@@ -1,9 +1,10 @@
 import React, { memo, useState, useEffect } from 'react';
-import { Handle, Position, NodeProps, useReactFlow } from 'reactflow';
+import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData, GLSLType } from '../types';
 import { TYPE_COLORS } from '../constants';
 import { ArrowRight, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useProjectDispatch } from '../context/ProjectContext';
 
 const handleStyle = { width: 10, height: 10 };
 
@@ -31,7 +32,7 @@ const EditableLabel = ({ value, onChange, align = 'left' }: { value: string, onC
 
 export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
-  const { setNodes, setEdges } = useReactFlow();
+  const { setNodes, setEdges } = useProjectDispatch();
 
   const handleNameChange = (inputId: string, newName: string) => {
       setNodes(nds => nds.map(n => {
@@ -124,7 +125,7 @@ export const GraphInputNode = memo(({ id, data }: NodeProps<NodeData>) => {
 
 export const GraphOutputNode = memo(({ id, data }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
-  const { setNodes, setEdges } = useReactFlow();
+  const { setNodes, setEdges } = useProjectDispatch();
 
   const handleNameChange = (outputId: string, newName: string) => {
       setNodes(nds => nds.map(n => {

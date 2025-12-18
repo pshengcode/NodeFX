@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useReactFlow } from 'reactflow';
 import { NodeData } from '../types';
+import { useProjectDispatch } from '../context/ProjectContext';
 
 // Helper for deep comparison
 const isEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
@@ -23,7 +23,7 @@ export function useNodeSettings<T extends Record<string, any>>(
   defaultSettings: T,
   debounceTime = 500
 ) {
-  const { setNodes } = useReactFlow();
+  const { setNodes } = useProjectDispatch();
   
   // Memoize defaultSettings to avoid unnecessary updates if the object reference changes but values don't
   const defaults = useMemo(() => defaultSettings, [JSON.stringify(defaultSettings)]);

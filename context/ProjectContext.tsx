@@ -57,6 +57,8 @@ interface ProjectContextType {
   edges: Edge[];
   setNodes: React.Dispatch<React.SetStateAction<Node<NodeData>[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+    getNodes: () => Node<NodeData>[];
+    getEdges: () => Edge[];
   performanceStats: { undoStackSize: number; redoStackSize: number };
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -144,6 +146,7 @@ interface ProjectContextType {
 // Split Contexts for Performance
 const ProjectContext = createContext<ProjectContextType | null>(null);
 const ProjectDispatchContext = createContext<Omit<ProjectContextType, 'nodes' | 'edges'> | null>(null);
+const ProjectEdgesContext = createContext<Edge[] | null>(null);
 
 export const useProject = () => {
   const context = useContext(ProjectContext);
@@ -159,6 +162,15 @@ export const useProjectDispatch = () => {
       throw new Error('useProjectDispatch must be used within a ProjectProvider');
     }
     return context;
+};
+
+// Edges-only subscription: avoids rerenders on node position changes.
+export const useProjectEdges = () => {
+    const edges = useContext(ProjectEdgesContext);
+    if (!edges) {
+        throw new Error('useProjectEdges must be used within a ProjectProvider');
+    }
+    return edges;
 };
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -467,6 +479,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
+    const edgesRef = useRef(edges);
+    useEffect(() => { edgesRef.current = edges; }, [edges]);
+
   // const prevPreviewNodeId = useRef<string | null>(null); // Removed
 
 
@@ -698,6 +713,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Stable Dispatch Context Value (Memoized to avoid updates on node position changes)
   const dispatchValue = useMemo(() => ({
     setNodes, setEdges, onNodesChange: onNodesChangeAction, onEdgesChange,
+        getNodes: () => nodesRef.current,
+        getEdges: () => edgesRef.current,
     previewNodeId, setPreviewNodeId,
     compiledData, setCompiledData,
     resolution, setResolution,
@@ -745,9 +762,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   return (
     <ProjectDispatchContext.Provider value={dispatchValue}>
-        <ProjectContext.Provider value={value}>
-            {children}
-        </ProjectContext.Provider>
+        <ProjectEdgesContext.Provider value={edges}>
+            <ProjectContext.Provider value={value}>
+                {children}
+            </ProjectContext.Provider>
+        </ProjectEdgesContext.Provider>
     </ProjectDispatchContext.Provider>
   );
 };
