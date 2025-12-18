@@ -1,3 +1,17 @@
+## [1.3.1] - 2025-12-18
+
+perf: reduce GC and canvas resize thrash
+EN:
+- Stabilize ShaderPreview RAF loop (avoid effect re-creation); debounce ResizeObserver updates.
+- WebGLSystem: normalize sizes to integers; cache display/program locations; reduce per-frame allocations.
+- Fix multi-preview contention by using grow-only internal canvas and copying from the bottom region.
+- Throttle cleanup to reduce GC pressure.
+中文：
+- 稳定 ShaderPreview 的 RAF 渲染循环（避免频繁重建）；对 ResizeObserver 尺寸更新做去抖。
+- WebGLSystem：尺寸取整；缓存 shader location；减少每帧临时对象分配。
+- 修复多预览同时渲染时共享单例互相抢 canvas 尺寸导致的频繁 set width（内部 canvas 只增不减，并从底部区域拷贝）。
+- 对 cleanup 做节流以降低 GC 压力。
+
 ## [1.3.0] - 2025-12-18
 
 feat: add multi-pass support with ping-pong buffering and shader dependency management

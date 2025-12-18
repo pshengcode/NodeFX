@@ -35,9 +35,38 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
   const [isDarkBg, setIsDarkBg] = useState(true);
   const animationFrameRef = useRef<number>(0);
   const [lastError, setLastError] = useState<string | null>(null);
+  const lastErrorRef = useRef<string | null>(null);
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const dimensionsRef = useRef({ width: 0, height: 0 });
+
+  const dataRef = useRef<CompilationResult | null>(null);
+  useEffect(() => {
+      dataRef.current = data;
+  }, [data]);
+
+  const renderStateRef = useRef({
+      paused: false,
+      width: undefined as number | undefined,
+      height: undefined as number | undefined,
+      channelMode: 0 as ChannelMode,
+      tiling: false,
+      zoom: 1,
+      pan: { x: 0, y: 0 },
+      onNodeError: undefined as Props['onNodeError']
+  });
+
+  useEffect(() => {
+      renderStateRef.current.paused = !!paused;
+      renderStateRef.current.width = width;
+      renderStateRef.current.height = height;
+      renderStateRef.current.channelMode = channelMode;
+      renderStateRef.current.tiling = tiling;
+      renderStateRef.current.zoom = zoom;
+      renderStateRef.current.pan = pan;
+      renderStateRef.current.onNodeError = onNodeError;
+  }, [paused, width, height, channelMode, tiling, zoom, pan, onNodeError]);
 
     // Keep latest override map without restarting RAF loop.
     const uniformOverridesRef = useRef<Record<string, UniformVal> | undefined>(undefined);
@@ -70,10 +99,12 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
       if (!containerRef.current) return;
       const observer = new ResizeObserver(entries => {
           for (let entry of entries) {
-              setDimensions({
-                  width: Math.floor(entry.contentRect.width),
-                  height: Math.floor(entry.contentRect.height)
-              });
+              const nextW = Math.max(0, Math.round(entry.contentRect.width));
+              const nextH = Math.max(0, Math.round(entry.contentRect.height));
+              const prev = dimensionsRef.current;
+              if (prev.width === nextW && prev.height === nextH) continue;
+              dimensionsRef.current = { width: nextW, height: nextH };
+              setDimensions(dimensionsRef.current);
           }
       });
       observer.observe(containerRef.current);
@@ -95,46 +126,52 @@ const ShaderPreview = forwardRef<HTMLCanvasElement, Props>(({ data, className, p
 
   useEffect(() => {
       const render = () => {
-          if (!paused && canvasRef.current && data && !data.error) {
-             // Use prop width/height if provided (fixed resolution), otherwise use container dimensions
-             const w = width || dimensions.width || canvasRef.current.clientWidth || 512;
-             const h = height || dimensions.height || canvasRef.current.clientHeight || 512;
-             
-             let hasRenderError = false;
+          const currentData = dataRef.current;
+          const state = renderStateRef.current;
 
-             // Delegate rendering to the global system
-             webglSystem.render(
-                 data, 
-                 canvasRef.current, 
-                 w, 
-                 h, 
-                 channelMode,
-                 (passId, err) => {
-                     // Error Callback
-                     hasRenderError = true;
-                     if (err !== lastError) {
-                         setLastError(err);
-                         if (onNodeError) onNodeError(passId, err);
-                     }
-                 },
-                 tiling,
-                 zoom,
-                 pan,
-                 uniformOverridesRef.current // Pass current uniforms override
-             );
-             
-             // LOOP FIX: Only clear the error if the current frame rendered SUCCESSFULLY.
-             if (!hasRenderError && lastError && !data.error) {
-                 setLastError(null);
-                 if (onNodeError) onNodeError("CLEAR_ALL", null);
-             }
+          if (!state.paused && canvasRef.current && currentData && !currentData.error) {
+              // Use prop width/height if provided (fixed resolution), otherwise use tracked container dimensions.
+              // Always round to integers to avoid canvas resize thrash.
+              const baseW = state.width ?? dimensionsRef.current.width ?? 0;
+              const baseH = state.height ?? dimensionsRef.current.height ?? 0;
+              const w = Math.max(1, Math.round(baseW || 512));
+              const h = Math.max(1, Math.round(baseH || 512));
+
+              let hasRenderError = false;
+
+              webglSystem.render(
+                  currentData,
+                  canvasRef.current,
+                  w,
+                  h,
+                  state.channelMode,
+                  (passId, err) => {
+                      hasRenderError = true;
+                      if (err !== lastErrorRef.current) {
+                          lastErrorRef.current = err;
+                          setLastError(err);
+                          state.onNodeError?.(passId, err);
+                      }
+                  },
+                  state.tiling,
+                  state.zoom,
+                  state.pan,
+                  uniformOverridesRef.current
+              );
+
+              if (!hasRenderError && lastErrorRef.current && !currentData.error) {
+                  lastErrorRef.current = null;
+                  setLastError(null);
+                  state.onNodeError?.('CLEAR_ALL', null);
+              }
           }
+
           animationFrameRef.current = requestAnimationFrame(render);
       };
-      
+
       render();
       return () => cancelAnimationFrame(animationFrameRef.current);
-    }, [data, paused, width, height, channelMode, onNodeError, lastError, tiling, zoom, pan]);
+  }, []);
 
   const handleCopyCode = () => {
       if (!data) return;

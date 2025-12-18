@@ -35,11 +35,19 @@ void main() {
     else if (uChannel == 4) fragColor = vec4(tex.aaa, 1.0);
 }`;
 
+const sanitizeIdForGlsl = (id: string) => {
+    const collapsed = id
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    const safe = collapsed.length > 0 ? collapsed : 'p';
+    return /^[0-9]/.test(safe) ? `p_${safe}` : safe;
+};
+
 class WebGLSystem {
     private canvas: HTMLCanvasElement;
     private gl: WebGL2RenderingContext;
     
-    private programs: Map<string, { prog: WebGLProgram, uniforms: Map<string, WebGLUniformLocation | null>, lastUsed: number }> = new Map();
+    private programs: Map<string, { prog: WebGLProgram, uniforms: Map<string, WebGLUniformLocation | null>, positionLoc: number, lastUsed: number }> = new Map();
     private sourceCache: Map<string, { v: string; f: string }> = new Map();
     private fboCache: Map<string, { fbo: WebGLFramebuffer, tex: WebGLTexture, w: number, h: number, lastUsed: number }> = new Map();
     private textureCache: Map<string, WebGLTexture> = new Map();
@@ -56,12 +64,21 @@ class WebGLSystem {
     }> = new Map();
     
     private displayProgram: WebGLProgram | null = null;
+    private displayPositionLoc: number = -1;
+    private displayTexLoc: WebGLUniformLocation | null = null;
+    private displayModeLoc: WebGLUniformLocation | null = null;
+    private displayOffsetLoc: WebGLUniformLocation | null = null;
+    private displayZoomLoc: WebGLUniformLocation | null = null;
+    private displayTilingLoc: WebGLUniformLocation | null = null;
     private quadBuffer: WebGLBuffer | null = null;
 
     private emptyTexture: WebGLTexture | null = null;
     
     private startTime: number = Date.now();
     private lastCleanupTime: number = Date.now();
+
+    private lastTargetCanvas: HTMLCanvasElement | null = null;
+    private lastTargetCtx: CanvasRenderingContext2D | null = null;
 
     constructor() {
         this.canvas = document.createElement('canvas');
@@ -98,6 +115,14 @@ class WebGLSystem {
         const frag = this.createShader(gl.FRAGMENT_SHADER, DISPLAY_FRAG);
         if (vert && frag) {
             this.displayProgram = this.createProgram(vert, frag);
+            if (this.displayProgram) {
+                this.displayPositionLoc = gl.getAttribLocation(this.displayProgram, 'position');
+                this.displayTexLoc = gl.getUniformLocation(this.displayProgram, 'tDiffuse');
+                this.displayModeLoc = gl.getUniformLocation(this.displayProgram, 'uChannel');
+                this.displayOffsetLoc = gl.getUniformLocation(this.displayProgram, 'uOffset');
+                this.displayZoomLoc = gl.getUniformLocation(this.displayProgram, 'uZoom');
+                this.displayTilingLoc = gl.getUniformLocation(this.displayProgram, 'uTiling');
+            }
         }
     }
 
@@ -527,14 +552,18 @@ class WebGLSystem {
         if (!data || data.error || !this.displayProgram) return;
 
         const gl = this.gl;
+
+        // Normalize to integer pixel sizes to avoid per-frame canvas resize thrash.
+        // If `width/height` are fractional (common with DPR math), `canvas.width` is int and will never equal.
+        const w = Math.max(1, Math.floor(width));
+        const h = Math.max(1, Math.floor(height));
         
-        // Resize Global Canvas to match exactly.
-        // This is crucial because WebGL draws to bottom-left, but drawImage reads from top-left.
-        // If the canvas is larger than the viewport, we might read empty pixels from the top.
-        if (this.canvas.width !== width || this.canvas.height !== height) {
-            this.canvas.width = width;
-            this.canvas.height = height;
-        }
+        // Resize Global Canvas (grow-only) to avoid resize thrash when multiple ShaderPreview
+        // instances render at different resolutions using the shared WebGLSystem.
+        // WebGL renders into the lower-left region (viewport origin 0,0). When copying via 2D
+        // drawImage (top-left origin), we sample from the bottom region (sy = canvasH - h).
+        if (this.canvas.width < w) this.canvas.width = w;
+        if (this.canvas.height < h) this.canvas.height = h;
 
         // --- COMPILATION PHASE ---
         for (const pass of data.passes) {
@@ -569,7 +598,8 @@ class WebGLSystem {
                     }
                 }
 
-                this.programs.set(pass.id, { prog, uniforms: uniformCache, lastUsed: Date.now() });
+                const positionLoc = gl.getAttribLocation(prog, 'position');
+                this.programs.set(pass.id, { prog, uniforms: uniformCache, positionLoc, lastUsed: Date.now() });
                 this.sourceCache.set(pass.id, { v: pass.vertexShader, f: pass.fragmentShader });
             }
         }
@@ -577,6 +607,25 @@ class WebGLSystem {
         // --- RENDER PHASE ---
         let lastTex: WebGLTexture | null = null;
         const activePassIds: string[] = [];
+
+        const nowMs = Date.now();
+        const timeSec = (nowMs - this.startTime) / 1000;
+
+        const uniformOverrideExact = uniformOverrides ?? null;
+        const uniformOverrideEntries = uniformOverrideExact
+            ? (Object.entries(uniformOverrideExact) as Array<[string, UniformVal]>)
+            : null;
+        const uniformOverrideSuffixEntries = uniformOverrideEntries
+            ? uniformOverrideEntries.map(([key, v]) => [`_${key}`, v] as const)
+            : null;
+
+        const passBySanitizedId = new Map<string, (typeof data.passes)[number]>();
+        for (const p of data.passes) {
+            passBySanitizedId.set(sanitizeIdForGlsl(p.id), p);
+        }
+
+        const outputTexByPassId = new Map<string, WebGLTexture>();
+        const boundInputUniforms = new Set<string>();
         
         for (const pass of data.passes) {
             activePassIds.push(pass.id);
@@ -585,7 +634,7 @@ class WebGLSystem {
             
             programData.lastUsed = Date.now();
 
-            const { prog, uniforms } = programData;
+            const { prog, uniforms, positionLoc } = programData;
             gl.useProgram(prog);
 
             // Determine Target - Check if Ping-Pong is enabled
@@ -599,7 +648,7 @@ class WebGLSystem {
             if (ppConfig?.enabled) {
                 // Ping-Pong Mode
                 const bufferName = ppConfig.bufferName || `${pass.id}_pingpong`;
-                const buffer = this.getPingPongBuffer(bufferName, width, height);
+                const buffer = this.getPingPongBuffer(bufferName, w, h);
                 
                 // Initialize buffer on first use
                 if (!buffer.initialized) {
@@ -622,13 +671,13 @@ class WebGLSystem {
                 currentTex = buffer.write;
                 
             } else if (pass.outputTo === 'FBO') {
-                const obj = this.getFBO(pass.id, width, height, false);
+                const obj = this.getFBO(pass.id, w, h, false);
                 fbo = obj.fbo;
                 currentTex = obj.tex;
                 mipmap = false;
             } else {
                 // Final Pass -> Internal Final Buffer (Not Screen, because we are offscreen)
-                const obj = this.getFBO('__FINAL__', width, height, false);
+                const obj = this.getFBO('__FINAL__', w, h, false);
                 fbo = obj.fbo;
                 currentTex = obj.tex;
             }
@@ -637,23 +686,24 @@ class WebGLSystem {
             lastTex = currentTex;
 
             gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-            gl.viewport(0, 0, width, height);
+            gl.viewport(0, 0, w, h);
 
             // Clear buffer to prevent ghosting
             gl.clearColor(0, 0, 0, 0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             // Bind Quad
-            const posLoc = gl.getAttribLocation(prog, "position");
             gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
-            gl.enableVertexAttribArray(posLoc);
-            gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+            if (positionLoc >= 0) {
+                gl.enableVertexAttribArray(positionLoc);
+                gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+            }
 
             // Uniforms
             const timeLoc = uniforms.get("u_time");
             const resLoc = uniforms.get("u_resolution");
-            if (timeLoc) gl.uniform1f(timeLoc, (Date.now() - this.startTime) / 1000);
-            if (resLoc) gl.uniform2f(resLoc, width, height);
+            if (timeLoc) gl.uniform1f(timeLoc, timeSec);
+            if (resLoc) gl.uniform2f(resLoc, w, h);
 
             // Always bind a known empty texture to unit 0.
             // This prevents "stale" sampling from previous draws when a sampler uniform is unset
@@ -665,71 +715,60 @@ class WebGLSystem {
             let texUnit = 1;
             
             // Standard Uniforms
-            Object.entries(pass.uniforms).forEach(([name, val]) => {
-                // Use cached location instead of getUniformLocation
+            for (const name in pass.uniforms) {
                 const loc = uniforms.get(name) || null;
-                if (loc) {
-                    let u = val as { type: GLSLType; value: any };
-                    
-                    // Apply Overrides if available (match by uniform name suffix)
-                    // pass.uniforms keys are like "u_nodeId_uniformId"
-                    // uniformOverrides keys are like "uniformId" (but we don't know nodeId easily here)
-                    // Actually, uniformOverrides passed from ShaderPreview are raw node uniforms: { "u_offsets": { ... } }
-                    // But the shader uses "u_grid_warp_1_u_offsets".
-                    // We need a way to map them.
-                    // However, for the PREVIEW node (which is the one being dragged), its uniforms are usually direct?
-                    // No, shaderCompiler renames everything.
-                    
-                    if (uniformOverrides) {
-                        // Preferred: exact match by full GLSL uniform name
-                        const exact = uniformOverrides[name];
-                        if (exact) {
-                            u = { type: exact.type, value: exact.value };
-                        } else {
-                            // Back-compat: heuristic match by suffix (older callers pass raw node uniform keys)
-                            for (const [key, overrideVal] of Object.entries(uniformOverrides)) {
-                                if (name.endsWith(`_${key}`)) {
-                                    u = { type: overrideVal.type, value: overrideVal.value };
-                                    break;
-                                }
+                if (!loc) continue;
+
+                let u = pass.uniforms[name] as { type: GLSLType; value: any };
+
+                if (uniformOverrideExact) {
+                    const exact = uniformOverrideExact[name];
+                    if (exact) {
+                        u = { type: exact.type, value: exact.value };
+                    } else if (uniformOverrideSuffixEntries) {
+                        for (let i = 0; i < uniformOverrideSuffixEntries.length; i++) {
+                            const [suffix, overrideVal] = uniformOverrideSuffixEntries[i];
+                            if (name.endsWith(suffix)) {
+                                u = { type: overrideVal.type, value: overrideVal.value };
+                                break;
                             }
                         }
                     }
-
-                    if (u.type === 'sampler2D') {
-                        const tex = u.value ? this.getTexture(u.value) : null;
-
-                        // FEEDBACK GUARD + missing input: use the bound empty texture on unit 0.
-                        if (!tex || tex === currentTex) {
-                            gl.uniform1i(loc, 0);
-                        } else {
-                            gl.activeTexture(gl.TEXTURE0 + texUnit);
-                            gl.bindTexture(gl.TEXTURE_2D, tex);
-                            gl.uniform1i(loc, texUnit++);
-                        }
-                    } else if (u.type === 'float') gl.uniform1f(loc, u.value);
-                    else if (u.type === 'vec2') gl.uniform2fv(loc, u.value);
-                    else if (u.type === 'vec3') gl.uniform3fv(loc, u.value);
-                    else if (u.type === 'vec4') gl.uniform4fv(loc, u.value);
-                    else if (u.type === 'int') gl.uniform1i(loc, u.value);
-                    else if (u.type === 'uint') gl.uniform1ui(loc, u.value);
-                    else if (u.type === 'uvec2') gl.uniform2uiv(loc, u.value);
-                    else if (u.type === 'uvec3') gl.uniform3uiv(loc, u.value);
-                    else if (u.type === 'uvec4') gl.uniform4uiv(loc, u.value);
-                    else if (u.type === 'bool') gl.uniform1i(loc, u.value ? 1 : 0);
-                    else if (u.type === 'mat2') gl.uniformMatrix2fv(loc, false, u.value);
-                    else if (u.type === 'mat3') gl.uniformMatrix3fv(loc, false, u.value);
-                    else if (u.type === 'mat4') gl.uniformMatrix4fv(loc, false, u.value);
-                    else if (u.type === 'vec2[]') {
-                        // Flatten array of arrays or use Float32Array directly
-                        let data = u.value;
-                        if (Array.isArray(data) && Array.isArray(data[0])) {
-                            data = new Float32Array(data.flat());
-                        }
-                        gl.uniform2fv(loc, data);
-                    }
                 }
-            });
+
+                if (u.type === 'sampler2D') {
+                    const tex = u.value ? this.getTexture(u.value) : null;
+
+                    // FEEDBACK GUARD + missing input: use the bound empty texture on unit 0.
+                    if (!tex || tex === currentTex) {
+                        gl.uniform1i(loc, 0);
+                    } else {
+                        gl.activeTexture(gl.TEXTURE0 + texUnit);
+                        gl.bindTexture(gl.TEXTURE_2D, tex);
+                        gl.uniform1i(loc, texUnit++);
+                    }
+                } else if (u.type === 'float') gl.uniform1f(loc, u.value);
+                else if (u.type === 'vec2') gl.uniform2fv(loc, u.value);
+                else if (u.type === 'vec3') gl.uniform3fv(loc, u.value);
+                else if (u.type === 'vec4') gl.uniform4fv(loc, u.value);
+                else if (u.type === 'int') gl.uniform1i(loc, u.value);
+                else if (u.type === 'uint') gl.uniform1ui(loc, u.value);
+                else if (u.type === 'uvec2') gl.uniform2uiv(loc, u.value);
+                else if (u.type === 'uvec3') gl.uniform3uiv(loc, u.value);
+                else if (u.type === 'uvec4') gl.uniform4uiv(loc, u.value);
+                else if (u.type === 'bool') gl.uniform1i(loc, u.value ? 1 : 0);
+                else if (u.type === 'mat2') gl.uniformMatrix2fv(loc, false, u.value);
+                else if (u.type === 'mat3') gl.uniformMatrix3fv(loc, false, u.value);
+                else if (u.type === 'mat4') gl.uniformMatrix4fv(loc, false, u.value);
+                else if (u.type === 'vec2[]') {
+                    // Flatten array of arrays or use Float32Array directly
+                    let data = u.value;
+                    if (Array.isArray(data) && Array.isArray(data[0])) {
+                        data = new Float32Array(data.flat());
+                    }
+                    gl.uniform2fv(loc, data);
+                }
+            }
 
             // Bind Ping-Pong source texture to u_previousFrame
             if (sourceTex) {
@@ -743,61 +782,52 @@ class WebGLSystem {
 
             // Pass Inputs
             if (pass.inputTextureUniforms) {
-                 const boundUniforms = new Set<string>();
-                 Object.entries(pass.inputTextureUniforms).forEach(([_, uName]) => {
-                     const name = uName as string;
-                     if (boundUniforms.has(name)) return;
-                     boundUniforms.add(name);
+                boundInputUniforms.clear();
+                for (const k in pass.inputTextureUniforms) {
+                    const name = pass.inputTextureUniforms[k] as unknown as string;
+                    if (boundInputUniforms.has(name)) continue;
+                    boundInputUniforms.add(name);
 
-                     const loc = gl.getUniformLocation(prog, name);
-                     const match = name.match(/u_pass_(.*)_tex/);
-                     if (match && loc) {
-                         const depId = match[1];
-                         // Find pass by "clean" ID (matching shaderCompiler's sanitizeIdForGlsl)
-                         const clean = (id: string) => {
-                             const collapsed = id
-                                 .replace(/[^a-zA-Z0-9]+/g, '_')
-                                 .replace(/^_+|_+$/g, '');
-                             const safe = collapsed.length > 0 ? collapsed : 'p';
-                             return /^[0-9]/.test(safe) ? `p_${safe}` : safe;
-                         };
-                         const srcPass = data.passes.find(p => clean(p.id) === depId);
-                         if (srcPass) {
-                                 // If the source pass is a Ping-Pong pass, bind its persistent buffer READ texture.
-                                 // After the Ping-Pong pass renders, we swap buffers, so `read` holds the latest output.
-                                 let sourceTexture: WebGLTexture | null = null;
+                    const loc = uniforms.get(name) || null;
+                    if (!loc) continue;
 
-                                 if (srcPass.pingPong?.enabled) {
-                                     const bufferName = srcPass.pingPong.bufferName || `${srcPass.id}_pingpong`;
-                                     const buffer = this.getPingPongBuffer(bufferName, width, height);
+                    // Parse u_pass_${sanitizedPassId}_tex without regex
+                    if (!name.startsWith('u_pass_') || !name.endsWith('_tex')) {
+                        gl.uniform1i(loc, 0);
+                        continue;
+                    }
 
-                                     // Ensure initialized so sampling before first render is defined
-                                     if (!buffer.initialized) {
-                                         this.initializePingPongBuffer(buffer, srcPass.pingPong.initValue, width, height);
-                                         buffer.initialized = true;
-                                     }
+                    const depId = name.slice('u_pass_'.length, -'_tex'.length);
+                    const srcPass = passBySanitizedId.get(depId);
+                    if (!srcPass) {
+                        gl.uniform1i(loc, 0);
+                        continue;
+                    }
 
-                                     sourceTexture = buffer.read;
-                                 } else {
-                                     // Non ping-pong pass: sample its FBO texture
-                                     sourceTexture = this.getFBO(srcPass.id, width, height, false).tex;
-                                 }
+                    let sourceTexture = outputTexByPassId.get(srcPass.id) || null;
+                    if (!sourceTexture) {
+                        if (srcPass.pingPong?.enabled) {
+                            const bufferName = srcPass.pingPong.bufferName || `${srcPass.id}_pingpong`;
+                            const buffer = this.getPingPongBuffer(bufferName, w, h);
+                            if (!buffer.initialized) {
+                                this.initializePingPongBuffer(buffer, srcPass.pingPong.initValue, width, height);
+                                buffer.initialized = true;
+                            }
+                            sourceTexture = buffer.read;
+                        } else {
+                            sourceTexture = this.getFBO(srcPass.id, w, h, false).tex;
+                        }
+                    }
 
-                                 // FEEDBACK GUARD: Check collision
-                                 if (!sourceTexture || sourceTexture === currentTex) {
-                                     gl.uniform1i(loc, 0);
-                                 } else {
-                                     gl.activeTexture(gl.TEXTURE0 + texUnit);
-                                     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
-                                     gl.uniform1i(loc, texUnit++);
-                                 }
-                         } else {
-                             gl.uniform1i(loc, 0);
-                         }
-                     } else if (loc) {
-                         gl.uniform1i(loc, 0);
-                     }
-                 });
+                    // FEEDBACK GUARD: Check collision
+                    if (!sourceTexture || sourceTexture === currentTex) {
+                        gl.uniform1i(loc, 0);
+                    } else {
+                        gl.activeTexture(gl.TEXTURE0 + texUnit);
+                        gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+                        gl.uniform1i(loc, texUnit++);
+                    }
+                }
             }
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -811,6 +841,10 @@ class WebGLSystem {
                 if (buffer) {
                     lastTex = buffer.read;
                 }
+            }
+
+            if (lastTex) {
+                outputTexByPassId.set(pass.id, lastTex);
             }
 
             // Mipmaps disabled
@@ -829,18 +863,14 @@ class WebGLSystem {
             // Reuse __FINAL__ FBO content, but we need to apply the Display Shader (Channel Select)
             // So we render ONE MORE TIME to the screen buffer (or another FBO)
             
-            gl.viewport(0, 0, width, height);
+            gl.viewport(0, 0, w, h);
             gl.useProgram(this.displayProgram);
             
-            const posLoc = gl.getAttribLocation(this.displayProgram, "position");
             gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
-            gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
-            const texLoc = gl.getUniformLocation(this.displayProgram, "tDiffuse");
-            const modeLoc = gl.getUniformLocation(this.displayProgram, "uChannel");
-            const offsetLoc = gl.getUniformLocation(this.displayProgram, "uOffset");
-            const zoomLoc = gl.getUniformLocation(this.displayProgram, "uZoom");
-            const tilingLoc = gl.getUniformLocation(this.displayProgram, "uTiling");
+            if (this.displayPositionLoc >= 0) {
+                gl.enableVertexAttribArray(this.displayPositionLoc);
+                gl.vertexAttribPointer(this.displayPositionLoc, 2, gl.FLOAT, false, 0, 0);
+            }
             
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, lastTex);
@@ -850,34 +880,43 @@ class WebGLSystem {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
 
-            gl.uniform1i(texLoc, 0);
-            gl.uniform1i(modeLoc, channelMode);
-            gl.uniform2f(offsetLoc, pan.x / width, -pan.y / height);
-            gl.uniform1f(zoomLoc, zoom);
-            gl.uniform1i(tilingLoc, tiling ? 1 : 0);
+            if (this.displayTexLoc) gl.uniform1i(this.displayTexLoc, 0);
+            if (this.displayModeLoc) gl.uniform1i(this.displayModeLoc, channelMode);
+            if (this.displayOffsetLoc) gl.uniform2f(this.displayOffsetLoc, pan.x / w, -pan.y / h);
+            if (this.displayZoomLoc) gl.uniform1f(this.displayZoomLoc, zoom);
+            if (this.displayTilingLoc) gl.uniform1i(this.displayTilingLoc, tiling ? 1 : 0);
 
             // Draw to the Global Canvas's Backbuffer
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
 
             // Now Copy to Target 2D Canvas
-            const ctx = targetCanvas.getContext('2d');
+            let ctx: CanvasRenderingContext2D | null = null;
+            if (this.lastTargetCanvas === targetCanvas) {
+                ctx = this.lastTargetCtx;
+            } else {
+                ctx = targetCanvas.getContext('2d');
+                this.lastTargetCanvas = targetCanvas;
+                this.lastTargetCtx = ctx;
+            }
             if (ctx) {
                 // Ensure target dimensions match
-                if (targetCanvas.width !== width || targetCanvas.height !== height) {
-                    targetCanvas.width = width;
-                    targetCanvas.height = height;
+                if (targetCanvas.width !== w || targetCanvas.height !== h) {
+                    targetCanvas.width = w;
+                    targetCanvas.height = h;
                 }
                 
-                // DrawImage is the fastest way to transfer
-                // Note: sx, sy, sw, sh are needed because global canvas might be larger than width/height
-                ctx.clearRect(0, 0, width, height);
-                ctx.drawImage(this.canvas, 0, 0, width, height, 0, 0, width, height);
+                // DrawImage is the fastest way to transfer.
+                // Since WebGL draws to the bottom-left of the (potentially larger) internal canvas,
+                // copy from the bottom region.
+                const sy = Math.max(0, this.canvas.height - h);
+                ctx.clearRect(0, 0, w, h);
+                ctx.drawImage(this.canvas, 0, sy, w, h, 0, 0, w, h);
             }
         }
 
         // Perform Cleanup (Garbage Collection)
-        if (!preventCleanup) {
+        if (!preventCleanup && (nowMs - this.lastCleanupTime) > 1000) {
             this.cleanup(activePassIds);
         }
     }
