@@ -2831,15 +2831,29 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
             } else {
                 // Existing Image Upload Logic
                 if (settings.shape && settings.shape.image && settings.shape.image !== (system as any)._lastImageSrc) {
-                    const img = new Image();
-                    img.crossOrigin = "Anonymous";
-                    img.onload = () => {
-                        // Only update if we are NOT using input, or if input was disconnected
-                        // Actually, this block runs in 'else', so we are not using input.
-                        system.updateShapeTexture(img);
-                        (system as any)._lastImageSrc = settings.shape.image;
+                    const imageId = settings.shape.image;
+                    (system as any)._lastImageSrc = imageId;
+
+                    const loadLocalShapeImage = async () => {
+                        let src: any = imageId;
+                        if (typeof src === 'string' && (src.startsWith('asset://') || src.startsWith('builtin://'))) {
+                            src = await assetManager.get(src);
+                        }
+                        if (typeof src !== 'string' || !src) return;
+
+                        // Avoid races if the user changed the image while we were awaiting.
+                        if ((system as any)._lastImageSrc !== imageId) return;
+
+                        const img = new Image();
+                        img.crossOrigin = "Anonymous";
+                        img.onload = () => {
+                            if ((system as any)._lastImageSrc !== imageId) return;
+                            system.updateShapeTexture(img);
+                        };
+                        img.src = src;
                     };
-                    img.src = settings.shape.image;
+
+                    loadLocalShapeImage();
                 } else if (!settings.shape.image && (system as any)._lastImageSrc) {
                      system.updateShapeTexture(null);
                      (system as any)._lastImageSrc = null;
@@ -2848,12 +2862,23 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
                 // Restore uploaded image if input disconnected
                 // If we just switched from input=true to input=false, we need to re-upload the local image texture
                 if ((system as any)._wasUsingInput && !shouldUseInput && settings.shape.image) {
-                     const img = new Image();
-                     img.crossOrigin = "Anonymous";
-                     img.onload = () => {
-                        system.updateShapeTexture(img);
+                     const imageId = settings.shape.image;
+                     const restoreLocalShapeImage = async () => {
+                         let src: any = imageId;
+                         if (typeof src === 'string' && (src.startsWith('asset://') || src.startsWith('builtin://'))) {
+                             src = await assetManager.get(src);
+                         }
+                         if (typeof src !== 'string' || !src) return;
+
+                         const img = new Image();
+                         img.crossOrigin = "Anonymous";
+                         img.onload = () => {
+                             system.updateShapeTexture(img);
+                         };
+                         img.src = src;
                      };
-                     img.src = settings.shape.image;
+
+                     restoreLocalShapeImage();
                 }
                 
                 // Determine enabled state based on settings
@@ -3048,23 +3073,33 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
          
          if (modId === 'shape' && prop === 'image' && value) {
              // Load image to check ratio
-             const img = new Image();
-             img.onload = () => {
-                 if (img.width > 0 && img.height > 0) {
-                     const ratio = img.height / img.width;
-                     // Update BoxY to match BoxX * ratio
-                     // We need current BoxX. We can get it from state setter or assume default/current
-                     setModules(prev => {
-                         const currentShape = prev.find(m => m.id === 'shape');
-                         const boxX = currentShape?.properties.boxX || 1.0;
-                         return prev.map(m => m.id === 'shape' ? {
-                             ...m,
-                             properties: { ...m.properties, boxY: boxX * ratio }
-                         } : m);
-                     });
+             const loadForRatio = async () => {
+                 let src = value;
+                 if (typeof src === 'string' && (src.startsWith('asset://') || src.startsWith('builtin://'))) {
+                     const resolved = await assetManager.get(src);
+                     if (typeof resolved === 'string') src = resolved;
                  }
+
+                 if (typeof src !== 'string' || !src) return;
+
+                 const img = new Image();
+                 img.onload = () => {
+                     if (img.width > 0 && img.height > 0) {
+                         const ratio = img.height / img.width;
+                         setModules(prev => {
+                             const currentShape = prev.find(m => m.id === 'shape');
+                             const boxX = currentShape?.properties.boxX || 1.0;
+                             return prev.map(m => m.id === 'shape' ? {
+                                 ...m,
+                                 properties: { ...m.properties, boxY: boxX * ratio }
+                             } : m);
+                         });
+                     }
+                 };
+                 img.src = src;
              };
-             img.src = value;
+
+             loadForRatio();
          }
     };
 

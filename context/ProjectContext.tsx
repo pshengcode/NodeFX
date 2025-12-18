@@ -426,7 +426,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       reactFlowWrapper, reactFlowInstance, allFullRegistry, currentScope, setIsDragging
   );
 
-  const { clearPersistence } = usePersistence(nodes, edges, previewNodeId, setNodes, setEdges, initialNodes, initialEdges);
+    const { clearPersistence } = usePersistence(nodes, edges, previewNodeId, isDragging, setNodes, setEdges, initialNodes, initialEdges);
   const { undo, redo, canUndo, canRedo, takeSnapshot, undoStackSize, redoStackSize } = useUndoRedo(nodes, edges, setNodes, setEdges);
   const { copyShareLink } = useUrlSharing();
   const { runTypeInference } = useTypeInference();

@@ -1,3 +1,15 @@
+## [1.3.2] - 2025-12-18
+
+fix(perf): store textures as asset IDs; skip autosave during drag
+中文
+- 图片上传与拖拽导入改为写入 IndexedDB（asset://），节点/项目只持久化 assetId，避免 glsl-app-flow 体积膨胀与 QuotaExceededError
+- ParticleSystem 支持解析 asset:// / builtin:// 并用于贴图加载与自动比例计算
+- 拖动期间跳过自动保存，减少 JSON.stringify/GC 对交互的影响（unload 保存仍保留）
+English
+- Save uploaded/dropped images to IndexedDB (asset://) and persist only asset IDs in the graph to prevent glsl-app-flow bloat and QuotaExceededError
+- Resolve asset:// / builtin:// in ParticleSystem for texture loading and auto ratio calculation
+- Skip debounced autosave while dragging to reduce JSON.stringify/GC overhead (unload save still runs)
+
 ## [1.3.1] - 2025-12-18
 
 perf: reduce GC and canvas resize thrash

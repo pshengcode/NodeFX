@@ -7,6 +7,7 @@ export function usePersistence(
     nodes: Node[], 
     edges: Edge[], 
     previewNodeId: string | null,
+    isDragging: boolean,
     setNodes: (nodes: Node[]) => void, 
     setEdges: (edges: Edge[]) => void,
     initialNodes: Node[],
@@ -45,6 +46,7 @@ export function usePersistence(
     // Auto-save with debounce
     useEffect(() => {
         if (!isLoaded) return; // Don't save before loading
+        if (isDragging) return; // Skip autosave during drag for performance
 
         const saveTimeout = setTimeout(() => {
             try {
@@ -58,7 +60,7 @@ export function usePersistence(
         }, 500); // Reduced to 500ms
 
         return () => clearTimeout(saveTimeout);
-    }, [nodes, edges, previewNodeId, isLoaded]);
+    }, [nodes, edges, previewNodeId, isLoaded, isDragging]);
 
     const clearPersistence = useCallback(() => {
         localStorage.removeItem(STORAGE_KEY);

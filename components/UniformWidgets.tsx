@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Upload, X, Settings, MousePointer2, Scan, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { WidgetConfig } from '../types';
 import { generateGradientTexture } from '../utils/textureGen';
+import { assetManager } from '../utils/assetManager';
 import { useTranslation } from 'react-i18next';
 
 // --- WIDGETS ---
@@ -1212,13 +1213,54 @@ export const CurveEditor = ({ config, onChangeValue, onConfigChange }: {
 export const ImageUploadWidget = ({ value, onChange }: any) => {
     const { t } = useTranslation();
     const [dimensions, setDimensions] = useState<{w: number, h: number} | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    // Resolve preview if value is an Asset ID
+    useEffect(() => {
+        let cancelled = false;
+
+        const resolvePreview = async () => {
+            if (typeof value !== 'string' || !value) {
+                setPreviewUrl(null);
+                return;
+            }
+
+            if (value.startsWith('asset://') || value.startsWith('builtin://')) {
+                try {
+                    const res = await assetManager.get(value);
+                    if (!cancelled) setPreviewUrl(typeof res === 'string' ? res : null);
+                } catch {
+                    if (!cancelled) setPreviewUrl(null);
+                }
+                return;
+            }
+
+            setPreviewUrl(value);
+        };
+
+        resolvePreview();
+        return () => { cancelled = true; };
+    }, [value]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => {
-                if(event.target?.result) onChange(event.target.result);
+            reader.onload = async (event) => {
+                if (!event.target?.result) return;
+                const dataUrl = event.target.result as string;
+
+                // Save to Asset Manager (IndexedDB) and store only the ID in node data.
+                try {
+                    const id = assetManager.createId('upload');
+                    await assetManager.save(id, dataUrl);
+                    onChange(id);
+                    setPreviewUrl(dataUrl);
+                } catch {
+                    // Fallback to inline DataURL (legacy behavior) if IndexedDB is unavailable.
+                    onChange(dataUrl);
+                    setPreviewUrl(dataUrl);
+                }
             };
             reader.readAsDataURL(file);
         }
@@ -1237,10 +1279,10 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
     
     return (
         <div className="flex flex-col gap-1 w-full">
-            {value && typeof value === 'string' && (
+            {previewUrl && (
                 <div className="relative w-full h-16 bg-black/50 rounded overflow-hidden border border-zinc-700 group flex items-center justify-center">
                     <img 
-                        src={value} 
+                        src={previewUrl} 
                         className="max-w-full max-h-full object-contain" 
                         alt="Texture" 
                         onLoad={(e) => setDimensions({w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight})}

@@ -12,6 +12,7 @@ import {
 } from 'reactflow';
 import { NodeData, ShaderNodeDefinition, UniformVal, CompilationResult, SerializedNode, SerializedEdge } from '../types';
 import { getNodeDefinition, validateNodeDefinition, normalizeNodeDefinition } from '../nodes/registry';
+import { assetManager } from '../utils/assetManager';
 import { useTranslation } from 'react-i18next';
 
 export function useGraphActions(
@@ -505,11 +506,19 @@ export function useGraphActions(
                 // Handle Images
                 if (file.type.startsWith('image/')) {
                     const reader = new FileReader();
-                    reader.onload = (e) => {
+                    reader.onload = async (e) => {
                         const result = e.target?.result;
                         const imageDef = getNodeDefinition('SAMP_TEXTURE');
                         if (imageDef && result) {
-                            addNode(imageDef, position, { image: { type: 'sampler2D', value: result } });
+                            const dataUrl = result as string;
+                            try {
+                                const id = assetManager.createId('drop');
+                                await assetManager.save(id, dataUrl);
+                                addNode(imageDef, position, { image: { type: 'sampler2D', value: id } });
+                            } catch {
+                                // Fallback to legacy DataURL behavior when IndexedDB isn't available.
+                                addNode(imageDef, position, { image: { type: 'sampler2D', value: dataUrl } });
+                            }
                         }
                     };
                     reader.readAsDataURL(file);
