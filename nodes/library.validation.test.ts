@@ -185,64 +185,92 @@ describe('Node Library (GLSL signature + i18n validation)', () => {
       if (!parsed.success) return;
 
       const def = parsed.data;
-      const glsl = toGlslString(def.data.glsl);
       const issues: string[] = [];
       const warnings: string[] = [];
 
+      const dataAny = def.data as any;
+      const isMultiPass = Array.isArray(dataAny?.passes);
+      const glsl = isMultiPass ? '' : toGlslString((def.data as any).glsl);
+
       const isNonGlslNode =
-        !glsl ||
-        glsl.trim().length === 0 ||
         (def.data as any).isGlobalVar === true ||
-        (def.data as any).isCompound === true;
+        (def.data as any).isCompound === true ||
+        (!isMultiPass && (!glsl || glsl.trim().length === 0));
 
       if (!isNonGlslNode) {
-        const sigs = extractAllSignatures(glsl);
-        if (sigs.length === 0) {
-          issues.push(`GLSL: missing or unparsable 'void run(...)' signature.`);
-        } else {
-          // Reserved identifier rule: never use 'output' as a GLSL run(...) parameter name.
-          for (const sig of sigs) {
-            const bad = [...sig.inputs, ...sig.outputs].find(p => p.id === 'output');
-            if (bad) {
-              issues.push(`GLSL: reserved identifier 'output' is not allowed in run(...) parameters.`);
-              break;
+        const jsonInputs = def.data.inputs ?? [];
+
+        if (isMultiPass) {
+          const passes = (def.data as any).passes as Array<{ id?: string; name?: string; glsl?: string }>;
+          if (!passes || passes.length === 0) {
+            issues.push(`GLSL: multi-pass node is missing 'passes'.`);
+          } else {
+            for (const pass of passes) {
+              const passGlsl = (pass?.glsl ?? '').toString();
+              const passName = pass?.id || pass?.name || 'unknown-pass';
+              const sigs = extractAllSignatures(passGlsl);
+              if (sigs.length === 0) {
+                issues.push(`GLSL: pass '${passName}' missing or unparsable 'void run(...)' signature.`);
+                continue;
+              }
+
+              for (const sig of sigs) {
+                const bad = [...sig.inputs, ...sig.outputs].find(p => p.id === 'output');
+                if (bad) {
+                  issues.push(`GLSL: pass '${passName}' uses reserved identifier 'output' in run(...) parameters.`);
+                  break;
+                }
+              }
             }
           }
-
-          const jsonInputs = def.data.inputs ?? [];
-          const jsonOutputs = getEffectiveOutputs(def.data);
-
-          const best = findBestMatchingSignature(jsonInputs, jsonOutputs, sigs);
-          if (!best) {
+        } else {
+          const sigs = extractAllSignatures(glsl);
+          if (sigs.length === 0) {
             issues.push(`GLSL: missing or unparsable 'void run(...)' signature.`);
-          } else if (best.isPerfect) {
-            comparePortSets('inputs', path, jsonInputs, best.sig.inputs as any, issues);
-            comparePortSets('outputs', path, jsonOutputs, best.sig.outputs as any, issues);
           } else {
-            // Union-style overload interface: JSON ports can be a superset of any single signature,
-            // but must be fully covered across all overloads.
-            const inputCoverage = portsCoveredByOverloads(jsonInputs, sigs, 'inputs');
-            const outputCoverage = portsCoveredByOverloads(jsonOutputs, sigs, 'outputs');
-            const isUnionCompatible = inputCoverage.ok && outputCoverage.ok;
+            for (const sig of sigs) {
+              const bad = [...sig.inputs, ...sig.outputs].find(p => p.id === 'output');
+              if (bad) {
+                issues.push(`GLSL: reserved identifier 'output' is not allowed in run(...) parameters.`);
+                break;
+              }
+            }
 
-            if (!isUnionCompatible) {
+            const jsonOutputs = getEffectiveOutputs(def.data);
+            const best = findBestMatchingSignature(jsonInputs, jsonOutputs, sigs);
+            if (!best) {
+              issues.push(`GLSL: missing or unparsable 'void run(...)' signature.`);
+            } else if (best.isPerfect) {
               comparePortSets('inputs', path, jsonInputs, best.sig.inputs as any, issues);
               comparePortSets('outputs', path, jsonOutputs, best.sig.outputs as any, issues);
             } else {
-              warnings.push(`GLSL: node ports look like a union across overloads (no single run() matches all ports).`);
+              const inputCoverage = portsCoveredByOverloads(jsonInputs, sigs, 'inputs');
+              const outputCoverage = portsCoveredByOverloads(jsonOutputs, sigs, 'outputs');
+              const isUnionCompatible = inputCoverage.ok && outputCoverage.ok;
+
+              if (!isUnionCompatible) {
+                comparePortSets('inputs', path, jsonInputs, best.sig.inputs as any, issues);
+                comparePortSets('outputs', path, jsonOutputs, best.sig.outputs as any, issues);
+              } else {
+                warnings.push(`GLSL: node ports look like a union across overloads (no single run() matches all ports).`);
+              }
             }
           }
+        }
 
-          // uniforms: keys must map to an input id and types must match
-          const uniforms = def.data.uniforms ?? {};
-          const inputById = new Map(jsonInputs.map(i => [i.id, i] as const));
-          for (const [uKey, uVal] of Object.entries(uniforms)) {
-            const input = inputById.get(uKey);
-            if (!input) {
-              issues.push(`uniforms: key '${uKey}' has no matching input id.`);
-            } else if (uVal.type !== input.type) {
-              issues.push(`uniforms: '${uKey}' type mismatch (uniform=${uVal.type}, input=${input.type}).`);
-            }
+        // uniforms: keys must map to an input id and types must match
+        const uniforms = def.data.uniforms ?? {};
+        const inputById = new Map(jsonInputs.map(i => [i.id, i] as const));
+        for (const [uKey, uVal] of Object.entries(uniforms)) {
+          const input = inputById.get(uKey);
+          if (!input) {
+            issues.push(`uniforms: key '${uKey}' does not match any input id.`);
+            continue;
+          }
+
+          const uType = (uVal as any)?.type;
+          if (uType && uType !== input.type) {
+            issues.push(`uniforms: key '${uKey}' type '${uType}' does not match input type '${input.type}'.`);
           }
         }
       }

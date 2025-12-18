@@ -97,7 +97,17 @@
 ### 6.1 `run()` 函数约定
 
 - 节点入口函数为：`void run(...)`。
-- **第一个参数必须是 `vec2 uv`**（通常表示 0~1 的纹理坐标）。
+- **第一个参数通常是 `vec2 uv`**（表示 0~1 的纹理坐标）。
+- **输出参数**：使用 `out` 关键字声明输出（如 `out vec4 color`）。
+- **Pass 依赖（多 Pass 节点）**：
+    - 你可以**直接使用** `u_prevPass`（上一个 Pass）、`u_firstPass`（第一个 Pass）或 `u_pass_ID`（特定 ID 的 Pass）。
+    - **无需**在 `run` 函数的参数列表中声明它们，系统会自动注入。
+```glsl
+void run(vec2 uv, out vec4 color) {
+    // 直接使用 u_prevPass，无需在参数中声明
+    color = texture(u_prevPass, uv);
+}
+```
 - 输出参数使用 `out` 关键字声明（节点输出端口来自这些 `out` 参数）。
 - 示例（只写函数签名，不写函数体）：
 

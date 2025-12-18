@@ -1,0 +1,65 @@
+{
+  "id": "DEMO_LOOP",
+  "label": "Demo: Loop Iterations",
+  "category": "Custom",
+  "description": "演示Loop循环迭代：通过多次迭代逐步增强图像效果。可以观察到每次迭代如何累积处理结果。支持自定义迭代次数和处理强度。",
+  "data": {
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "iterations", "name": "Iterations", "type": "int" },
+      { "id": "strength", "name": "Strength", "type": "float" },
+      { "id": "showStats", "name": "Show Stats", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "image": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "iterations": {
+        "type": "int",
+        "value": 5,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 1,
+          "max": 20,
+          "step": 1
+        }
+      },
+      "strength": {
+        "type": "float",
+        "value": 0.1,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 0.5,
+          "step": 0.01
+        }
+      },
+      "showStats": {
+        "type": "float",
+        "value": 1.0,
+        "widget": "toggle",
+        "widgetConfig": {}
+      }
+    },
+    "passes": [
+      {
+        "id": "enhance",
+        "name": "Enhancement Loop",
+        "target": "self",
+        "loop": 5,
+        "glsl": "// 使用Loop进行迭代增强\n// 声明image参数建立输入连接，但在代码中使用u_prevPass访问\n// u_prevPass在第一次迭代时指向image，后续迭代指向上一次的输出\nvoid run(vec2 uv, \n         sampler2D image,\n         float strength,\n         out vec4 color) {\n    \n    // 注意：这个pass会根据loop=5设置执行5次\n    // 第一次迭代：u_prevPass = image输入\n    // 后续迭代：u_prevPass = 上一次迭代的结果\n    \n    vec4 data = texture(u_prevPass, uv);\n    \n    // 方法1: 逐步增强对比度\n    vec3 enhanced = data.rgb;\n    enhanced = (enhanced - 0.5) * (1.0 + strength) + 0.5;\n    \n    // 方法2: 添加锐化效果\n    vec2 texSize = vec2(textureSize(u_prevPass, 0));\n    vec2 pixelSize = 1.0 / texSize;\n    \n    // 拉普拉斯算子（边缘检测/锐化）\n    vec3 laplacian = vec3(0.0);\n    laplacian += texture(u_prevPass, uv + vec2(-1, 0) * pixelSize).rgb * -1.0;\n    laplacian += texture(u_prevPass, uv + vec2(1, 0) * pixelSize).rgb * -1.0;\n    laplacian += texture(u_prevPass, uv + vec2(0, -1) * pixelSize).rgb * -1.0;\n    laplacian += texture(u_prevPass, uv + vec2(0, 1) * pixelSize).rgb * -1.0;\n    laplacian += data.rgb * 4.0;\n    \n    // 混合增强和锐化\n    vec3 result = mix(enhanced, data.rgb + laplacian * strength * 0.5, 0.5);\n    \n    // 防止过度处理\n    result = clamp(result, 0.0, 1.0);\n    \n    color = vec4(result, data.a);\n    \n    // 迭代完成\n}"
+      },
+      {
+        "id": "final",
+        "name": "Final Display",
+        "target": "self",
+        "glsl": "// 最终Pass: 显示迭代结果和统计信息\n// u_prevPass 是自动注入的uniform，不需要在参数中声明\nvoid run(vec2 uv, float showStats, out vec4 color) {\n    color = texture(u_prevPass, uv);\n    \n    // 如果showStats > 0.5，在图像上叠加统计信息\n    if (showStats > 0.5) {\n        // 顶部显示处理强度条\n        if (uv.y > 0.95) {\n            float intensity = length(color.rgb) / 1.732;\n            vec3 heatmap = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), intensity);\n            color = vec4(heatmap, 1.0);\n        }\n        \n        // 底部显示迭代完成指示器\n        if (uv.y < 0.05) {\n            float bar = smoothstep(0.0, 1.0, uv.x);\n            color = vec4(bar, 1.0 - bar, 0.5, 1.0);\n        }\n    }\n}"
+      }
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "id": "DEMO_PING_PONG_LOOP",
+  "label": "Demo: Ping-Pong + Loop",
+  "category": "Custom",
+  "description": "演示 Ping-Pong 与 Loop 组合：\n- Pass seed 生成全画面底纹 + 运动注入\n- Pass pp_loop 同时启用 ping-pong（跨帧持久）与 loop（单帧多次迭代），做扩散/平滑并累积上一帧\n- Pass visualize 对比 seed vs pp_loop，差异越大说明 loop 迭代越明显\n\n预期：画面会持续累积并留下明显拖影；下方左右两半（seed/pp_loop）可看到平滑程度差异；上方差异热力图大体为紫色（差异）而不是纯黑。",
+  "data": {
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "decay", "name": "Decay", "type": "float" },
+      { "id": "diffuse", "name": "Diffuse", "type": "float" },
+      { "id": "inject", "name": "Inject", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "image": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "decay": {
+        "type": "float",
+        "value": 0.985,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.90, "max": 0.999, "step": 0.001 }
+      },
+      "diffuse": {
+        "type": "float",
+        "value": 0.35,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01 }
+      },
+      "inject": {
+        "type": "float",
+        "value": 1.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 2.0, "step": 0.01 }
+      }
+    },
+    "passes": [
+      {
+        "id": "seed",
+        "name": "Seed (Per-Frame Source)",
+        "target": "self",
+        "glsl": "// Seed pass: always non-black full-frame signal + moving marker\n// u_prevPass is not used here; this is the first pass.\n\nfloat sdCircle(vec2 p, float r) {\n    return length(p) - r;\n}\n\nvoid run(vec2 uv, sampler2D image, float inject, out vec4 color) {\n    // Base gradient + stripes\n    float stripes = 0.5 + 0.5 * sin(uv.x * 18.0 + u_time * 1.7);\n    vec3 base = vec3(0.10 + 0.12 * uv.x, 0.10 + 0.12 * uv.y, 0.11) + 0.05 * stripes;\n\n    // Moving marker\n    vec2 center = vec2(0.5) + 0.20 * vec2(sin(u_time * 1.1), cos(u_time * 1.3));\n    float d = sdCircle(uv - center, 0.06);\n    float dot = 1.0 - smoothstep(0.0, 0.012, d);\n    vec3 dotColor = vec3(0.10, 0.90, 1.00) * dot * inject;\n\n    // Optional image contribution\n    vec3 img = texture(image, uv + 0.01 * vec2(sin(u_time * 1.7), cos(u_time * 1.9))).rgb;\n\n    vec3 outRgb = max(max(img, base), dotColor);\n    color = vec4(outRgb, 1.0);\n}\n"
+      },
+      {
+        "id": "pp_loop",
+        "name": "Ping-Pong + Loop (Iterate + Accumulate)",
+        "target": "self",
+        "loop": 8,
+        "pingPong": {
+          "enabled": true,
+          "bufferName": "demo_ping_pong_loop",
+          "initValue": [0, 0, 0, 1],
+          "persistent": true,
+          "clearEachFrame": false
+        },
+        "glsl": "#pragma pingpong\n#pragma pingpong_init black\n\n// Ping-pong loop pass:\n// - u_previousFrame: last frame persistent buffer\n// - u_prevPass: for loop iteration feedback (first iteration starts from seed pass)\n//\n// We run a small diffusion step per-iteration and blend with previous frame,\n// so you can see both: (1) within-frame smoothing via loop, (2) across-frame trails via pingpong.\n\nvec3 diffuse4(sampler2D tex, vec2 uv) {\n    vec2 ts = vec2(textureSize(tex, 0));\n    vec2 px = 1.0 / max(ts, vec2(1.0));\n    vec3 c = texture(tex, uv).rgb;\n    vec3 l = texture(tex, uv + vec2(-1.0, 0.0) * px).rgb;\n    vec3 r = texture(tex, uv + vec2( 1.0, 0.0) * px).rgb;\n    vec3 d = texture(tex, uv + vec2( 0.0,-1.0) * px).rgb;\n    vec3 u = texture(tex, uv + vec2( 0.0, 1.0) * px).rgb;\n    return (c * 4.0 + l + r + d + u) / 8.0;\n}\n\nvoid run(vec2 uv, float decay, float diffuse, out vec4 color) {\n    vec4 prevFrame = texture(u_previousFrame, uv);\n\n    // Start from iteration feedback\n    vec4 state = texture(u_prevPass, uv);\n\n    // Heuristic init: if state is still near-black (common on the very first loop iteration), use seed\n    float s = dot(state.rgb, vec3(0.333));\n    vec3 seedRgb = texture(u_pass_seed, uv).rgb;\n    vec3 base = mix(seedRgb, prevFrame.rgb, 0.6);\n    vec3 cur = (s < 0.001) ? base : state.rgb;\n\n    // One diffusion step per iteration\n    vec3 blurred = diffuse4(u_prevPass, uv);\n    cur = mix(cur, blurred, clamp(diffuse, 0.0, 1.0));\n\n    // Across-frame accumulation\n    cur = max(cur * decay, prevFrame.rgb * decay);\n    color = vec4(cur, 1.0);\n}\n"
+      },
+      {
+        "id": "visualize",
+        "name": "Visualize (Diff + A/B)",
+        "target": "self",
+        "glsl": "// Visualize: top diff heatmap, bottom A/B compare\n// A = seed, B = pp_loop\n\nvec3 checkerBg(vec2 uv) {\n    float cx = step(0.5, fract(uv.x * 14.0));\n    float cy = step(0.5, fract(uv.y * 14.0));\n    float checker = abs(cx - cy);\n    float pulse = 0.35 + 0.25 * sin(u_time * 2.0);\n    return mix(vec3(0.02, 0.03, 0.05), vec3(0.12, 0.18, 0.26) * pulse, checker);\n}\n\nvoid run(vec2 uv, out vec4 color) {\n    vec4 a = texture(u_pass_seed, uv);\n    vec4 b = texture(u_pass_pp_loop, uv);\n\n    vec3 bg = checkerBg(uv);\n\n    if (uv.y > 0.25) {\n        float diff = length(a.rgb - b.rgb);\n        float d = clamp(diff * 10.0, 0.0, 1.0);\n        vec3 heat = vec3(d, 0.0, d);\n        heat = mix(heat, vec3(1.0), smoothstep(0.80, 1.0, d));\n        vec3 outRgb = clamp(bg * 0.85 + vec3(0.06) + heat * 0.95, 0.0, 1.0);\n        float alarm = step(0.10, diff);\n        outRgb = mix(outRgb, vec3(1.0, 0.10, 0.10), alarm * 0.90);\n        color = vec4(outRgb, 1.0);\n        return;\n    }\n\n    // Bottom: striped A/B preview (if A==B stripes disappear)\n    float amp = 14.0;\n    vec3 aAmp = clamp(a.rgb * amp, 0.0, 1.0);\n    vec3 bAmp = clamp(b.rgb * amp, 0.0, 1.0);\n\n    float stripe = step(0.5, fract(uv.x * 22.0));\n    vec3 ab = mix(aAmp, bAmp, stripe);\n    vec3 outRgb = mix(bg * 0.75 + vec3(0.05), ab, 0.92);\n\n    if (abs(uv.x - 0.5) < 0.002) {\n        outRgb = vec3(1.0);\n    }\n\n    color = vec4(outRgb, 1.0);\n}\n"
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "id": "DEMO_PING_PONG_DEPENDENCY",
+  "label": "Demo: Ping-Pong Dependency Binding",
+  "category": "Custom",
+  "description": "用于验证后续 Pass 通过 u_prevPass / u_pass_<passId> 采样 Ping-Pong Pass 输出时，WebGL 绑定是否取到了正确的持久缓冲纹理。\n\n用法：拖入该节点（Image 可不连接）。\n预期：你会看到明显的运动拖影；上方差异热力图应基本保持黑色；下方对照条左右两半应一致。\n若上方大面积出现亮紫/白或红色报警，则通常意味着 u_pass_* 绑定没有从 ping-pong buffer 取到正确纹理。",
+  "data": {
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "decay", "name": "Decay", "type": "float" },
+      { "id": "blend", "name": "Blend", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "image": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "decay": {
+        "type": "float",
+        "value": 0.97,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.8,
+          "max": 1.0,
+          "step": 0.001
+        }
+      },
+      "blend": {
+        "type": "float",
+        "value": 0.8,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
+      }
+    },
+    "passes": [
+      {
+        "id": "feedback",
+        "name": "Feedback (Ping-Pong)",
+        "target": "self",
+        "pingPong": {
+          "enabled": true,
+          "bufferName": "demo_ping_pong_dependency",
+          "initValue": [0, 0, 0, 1],
+          "persistent": true,
+          "clearEachFrame": false
+        },
+        "glsl": "#pragma pingpong\n#pragma pingpong_init black\n\n// Ping-Pong feedback pass\n// Writes into a persistent buffer; reads last frame via u_previousFrame.\n//\n// Design goal for this demo:\n// - Always produce a non-black full-frame signal (so downstream sampling is obvious)\n// - Also include a bright moving marker to make motion/trails easy to see\n\nfloat sdCircle(vec2 p, float r) {\n    return length(p) - r;\n}\n\nvoid run(vec2 uv,\n         sampler2D image,\n         float decay,\n         float blend,\n         out vec4 color) {\n\n    vec4 prev = texture(u_previousFrame, uv);\n\n    // Full-frame base pattern (prevents large black areas)\n    float stripes = 0.5 + 0.5 * sin(uv.x * 18.0 + u_time * 1.7);\n    vec3 base = vec3(0.10 + 0.12 * uv.x, 0.10 + 0.12 * uv.y, 0.11) + 0.05 * stripes;\n\n    // Bright moving dot marker\n    vec2 center = vec2(0.5) + 0.18 * vec2(sin(u_time * 1.1), cos(u_time * 1.3));\n    float d = sdCircle(uv - center, 0.055);\n    float dot = 1.0 - smoothstep(0.0, 0.01, d);\n    vec3 dotColor = vec3(0.10, 0.90, 1.00) * dot;\n\n    // Optional image contribution (black if not connected)\n    vec2 wobble = 0.01 * vec2(sin(u_time * 1.7), cos(u_time * 1.9));\n    vec3 img = texture(image, uv + wobble).rgb;\n\n    vec3 currentRgb = max(max(img, base), dotColor);\n    vec4 current = vec4(currentRgb, 1.0);\n\n    // Exponential trail + blend\n    vec4 trail = prev * decay;\n    color = mix(trail, current, blend);\n    color.a = 1.0;\n}\n"
+      },
+      {
+        "id": "visualize",
+        "name": "Visualize Dependency (u_prevPass vs u_pass_*)",
+        "target": "self",
+        "glsl": "// Diagnostic visualization for ping-pong dependency binding\n// Reads previous pass in TWO ways:\n// - u_prevPass (previous pass link)\n// - u_pass_feedback (explicit dependency on pass id)\n//\n// Layout:\n// - Top 75%: diff heatmap (bright when mismatch)\n// - Bottom 25%: split view of sampled textures (left=u_prevPass, right=u_pass_feedback)\n//\n// This version always renders a visible background + amplified previews (no per-pixel noSignal gating).\n\nvec3 checkerBg(vec2 uv) {\n    float cx = step(0.5, fract(uv.x * 14.0));\n    float cy = step(0.5, fract(uv.y * 14.0));\n    float checker = abs(cx - cy);\n    float pulse = 0.35 + 0.25 * sin(u_time * 2.0);\n    return mix(vec3(0.02, 0.03, 0.05), vec3(0.12, 0.18, 0.26) * pulse, checker);\n}\n\nvoid run(vec2 uv, out vec4 color) {\n    vec4 a = texture(u_prevPass, uv);\n    vec4 b = texture(u_pass_feedback, uv);\n\n    float diff = length(a.rgb - b.rgb);\n    vec3 bg = checkerBg(uv);\n\n    // Top: diff heatmap with background\n    if (uv.y > 0.25) {\n        float gain = 14.0;\n        float d = clamp(diff * gain, 0.0, 1.0);\n\n        // Heatmap: black -> magenta -> white\n        vec3 heat = mix(vec3(0.0), vec3(1.0, 0.0, 1.0), d);\n        heat = mix(heat, vec3(1.0), smoothstep(0.75, 1.0, d));\n\n        // Red alarm when mismatch is obvious\n        float alarm = step(0.08, diff);\n        vec3 alarmColor = vec3(1.0, 0.10, 0.10);\n        vec3 outRgb = mix(heat, alarmColor, alarm * 0.85);\n\n        // Compose over background so even near-zero diff is visible\n        outRgb = mix(bg * 0.35, outRgb, 0.85);\n\n        color = vec4(outRgb, 1.0);\n        return;\n    }\n\n    // Bottom: amplified split preview over background\n    float amp = 18.0;\n    vec3 aAmp = clamp(a.rgb * amp, 0.0, 1.0);\n    vec3 bAmp = clamp(b.rgb * amp, 0.0, 1.0);\n    vec3 split = mix(aAmp, bAmp, step(0.5, uv.x));\n    vec3 outRgb = mix(bg, split, 0.88);\n\n    // Divider line\n    if (abs(uv.x - 0.5) < 0.002) {\n        outRgb = vec3(1.0);\n    }\n\n    color = vec4(outRgb, 1.0);\n}\n"
+      }
+    ]
+  }
+}

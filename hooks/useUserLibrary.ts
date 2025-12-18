@@ -32,6 +32,8 @@ export const useUserLibrary = () => {
     }, []);
 
     const addToLibrary = useCallback((nodeData: NodeData) => {
+        const isMultiPass = Array.isArray((nodeData as any).passes) && (nodeData as any).passes.length > 0;
+
         const def: ShaderNodeDefinition = {
             id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             label: nodeData.label,
@@ -39,13 +41,16 @@ export const useUserLibrary = () => {
             description: nodeData.description || 'User saved node',
             locales: nodeData.locales,
             data: {
-                glsl: nodeData.glsl,
+                // IMPORTANT: For multi-pass nodes, omit `glsl` to ensure schema union matches the multi-pass branch.
+                // Otherwise Zod may parse as single-pass and strip `passes`, causing data loss on load/validate.
+                ...(isMultiPass ? {} : { glsl: nodeData.glsl }),
                 inputs: nodeData.inputs,
                 outputs: nodeData.outputs,
                 uniforms: nodeData.uniforms,
                 outputType: nodeData.outputType,
                 autoType: nodeData.autoType,
                 isCompound: nodeData.isCompound,
+                ...(isMultiPass ? { passes: (nodeData as any).passes } : {}),
                 internalNodes: nodeData.isCompound ? nodeData.internalNodes : undefined,
                 internalEdges: nodeData.isCompound ? nodeData.internalEdges : undefined
             }

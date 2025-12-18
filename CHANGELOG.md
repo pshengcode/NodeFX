@@ -1,3 +1,20 @@
+## [1.3.0] - 2025-12-18
+
+feat: add multi-pass support with ping-pong buffering and shader dependency management
+- Introduced multi-pass support in shader nodes, allowing multiple passes to be defined and processed.
+- Implemented ping-pong buffering for efficient frame-to-frame data transfer, including initialization and clearing options.
+- Enhanced GLSL parsing to detect pass dependencies and manage shader inputs/outputs accordingly.
+- Updated WebGL system to handle ping-pong buffers, including texture management and framebuffer operations.
+- Added validation and normalization for new node data structures to accommodate multi-pass configurations.
+- Improved shader compilation logic to support dynamic pass generation and dependency resolution.
+新增功能：支持多通道渲染，并采用pingpong缓冲和着色器依赖关系管理
+- 在着色器节点中引入多通道渲染支持，允许定义和处理多个渲染通道。
+- 实现pingpong缓冲，以高效地进行帧间数据传输，包括初始化和清除选项。
+- 增强 GLSL 解析，以检测渲染通道依赖关系并相应地管理着色器输入/输出。
+- 更新 WebGL 系统以处理乒乓缓冲，包括纹理管理和帧缓冲区操作。
+- 为新的节点数据结构添加验证和归一化机制，以适应多通道渲染配置。
+- 改进着色器编译逻辑，以支持动态渲染通道生成和依赖关系解析
+
 ## [1.2.12] - 2025-12-16
 
 feat: Add description and category to node data structure in CustomNode and ProjectContext

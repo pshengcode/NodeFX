@@ -3,7 +3,7 @@ import { Edge, Node } from 'reactflow';
 import { NodeData, CompilationResult, GLSLType, RenderPass, UniformVal, NodeOutput, UniformValueType } from '../types';
 import { DEFAULT_VERTEX_SHADER, GLSL_BUILTINS } from '../constants';
 import { generateGradientTexture, generateCurveTexture } from './textureGen';
-import { stripComments } from './glslParser';
+import { stripComments, extractShaderIO } from './glslParser';
 
 // Helper to sanitize types
 const sanitizeType = (type: string): GLSLType => {
@@ -427,13 +427,420 @@ export const compileGraph = (
   const activePassStack = new Set<string>();
 
   // Recursive function to generate passes
-  const generatePassForNode = (nodeId: string, requestedOutputId?: string | null): string => {
+  const generatePassForNode = (nodeId: string, requestedOutputId?: string | null, targetPassId?: string): string => {
       const currentNode = getNodeById(nodeId);
       if (!currentNode) throw new Error(`Node ${nodeId} not found`);
 
       const passKey = getPassKey(currentNode, requestedOutputId);
       // 1. Cache Check
       if (processedPassIDs.has(passKey)) return passKey;
+
+      // CHECK FOR MULTI-PASS
+      if (currentNode.data.passes && currentNode.data.passes.length > 0) {
+          // If targetPassId is specified, only process that specific pass
+          const passesToProcess = targetPassId 
+              ? currentNode.data.passes.filter(p => p.id === targetPassId)
+              : currentNode.data.passes;
+          
+          if (targetPassId && passesToProcess.length === 0) {
+              console.warn(`[Compiler] Target pass "${targetPassId}" not found in node ${nodeId}`);
+              return nodeId; // Fallback
+          }
+          
+          let lastPassId = '';
+          const allPassIds = currentNode.data.passes.map(p => p.id);
+          
+          for (let i = 0; i < passesToProcess.length; i++) {
+              const passDef = passesToProcess[i];
+              const passId = `${currentNode.id}_pass_${passDef.id}`;
+              
+              if (processedPassIDs.has(passId)) {
+                  lastPassId = passId;
+                  continue;
+              }
+
+              const nodeIdClean = currentNode.id.replace(/-/g, '_');
+
+              const inputTextureUniforms: Record<string, string> = {};
+              
+              // Parse pass dependencies from GLSL code
+              const parsedIO = extractShaderIO(passDef.glsl || '');
+              const passDeps = parsedIO.passDependencies || [];
+              
+              // Build texture references for each dependency
+              for (const dep of passDeps) {
+                  if (dep.type === 'specific') {
+                      // Reference a specific pass by ID: u_pass_<passId>
+                      // Check if this pass exists in current node
+                      if (allPassIds.includes(dep.passId)) {
+                          // Recursively generate the dependent pass
+                          const depGeneratedId = generatePassForNode(currentNode.id, undefined, dep.passId);
+                          const texUniformName = `u_pass_${sanitizeIdForGlsl(depGeneratedId)}_tex`;
+                          inputTextureUniforms[dep.uniformName] = texUniformName;
+                      } else {
+                          console.warn(`[Compiler] Pass dependency "${dep.passId}" not found in node ${currentNode.id}`);
+                      }
+                  } else if (dep.type === 'first') {
+                      // Reference first pass: u_firstPass
+                      const firstPassId = allPassIds[0];
+                      const depGeneratedId = generatePassForNode(currentNode.id, undefined, firstPassId);
+                      const texUniformName = `u_pass_${sanitizeIdForGlsl(depGeneratedId)}_tex`;
+                      inputTextureUniforms[dep.uniformName] = texUniformName;
+                  }
+                  // Note: u_prevPass (type: 'prev') is handled below
+              }
+
+              // Trigger traversal for all inputs connected to the node
+              // For MultiPass, we treat all inputs as external (textures/uniforms)
+              const inputEdges = edges.filter(e => e.target === currentNode.id);
+              let firstInputTexture: string | null = null;
+              for (const edge of inputEdges) {
+                   const sourceNode = getNodeById(edge.source);
+                   if (!sourceNode) continue;
+                   if (!edge.targetHandle) continue;
+                   
+                   // Force Pass Boundary for all inputs
+                   const dependencyPassId = generatePassForNode(edge.source, edge.sourceHandle);
+                   const uniformName = `u_pass_${sanitizeIdForGlsl(dependencyPassId)}_tex`;
+                   inputTextureUniforms[`${currentNode.id}_${edge.targetHandle}`] = uniformName;
+                   
+                   // Remember first input texture for u_prevPass fallback
+                   if (!firstInputTexture) {
+                       firstInputTexture = uniformName;
+                   }
+              }
+              
+              // Handle Previous Pass Feedback
+              if (lastPassId) {
+                   const uniformName = `u_pass_${sanitizeIdForGlsl(lastPassId)}_tex`;
+                   inputTextureUniforms[`u_prevPass`] = uniformName;
+              } else if (passDeps.some(dep => dep.uniformName === 'u_prevPass')) {
+                   // For first pass that uses u_prevPass
+                   if (firstInputTexture) {
+                       // Use edge connection if available
+                       inputTextureUniforms[`u_prevPass`] = firstInputTexture;
+                   } else {
+                       // Fallback: try node-level texture input (image selected on the node UI without wiring)
+                       const nodeInputs = currentNode.data.inputs || [];
+                       const firstTextureInput = nodeInputs.find(inp => inp.type === 'sampler2D');
+
+                       if (firstTextureInput && currentNode.data.uniforms?.[firstTextureInput.id]?.type === 'sampler2D') {
+                           // Reuse the node uniform name (declared later in the shader)
+                           inputTextureUniforms[`u_prevPass`] = `u_${nodeIdClean}_${firstTextureInput.id}`;
+                       } else {
+                           // Final fallback: defined empty texture
+                           inputTextureUniforms[`u_prevPass`] = 'u_empty_tex';
+                       }
+                   }
+              }
+
+              // Auto-detect Ping-Pong from GLSL pragmas or u_previousFrame usage
+              // Support multiple pragmas:
+              // - #pragma pingpong - enable ping-pong
+              // - #pragma pingpong_init r,g,b,a - set initial color
+              // - #pragma pingpong_init black|white|transparent - presets
+              // - #pragma pingpong_clear - clear buffer each frame
+              // - #pragma pingpong_temporary - non-persistent buffer
+              if (!passDef.pingPong?.enabled) {
+                  const hasPragma = /^\s*#pragma\s+pingpong/m.test(passDef.glsl);
+                  const usesPreviousFrame = /\bu_previousFrame\b/.test(passDef.glsl);
+                  
+                  if (hasPragma || usesPreviousFrame) {
+                      // Auto-enable ping-pong
+                      if (!passDef.pingPong) {
+                          passDef.pingPong = { enabled: true };
+                      } else {
+                          passDef.pingPong.enabled = true;
+                      }
+                  }
+              }
+              
+              // Parse Ping-Pong configuration from pragmas (code-first approach)
+              if (passDef.pingPong?.enabled) {
+                  // Parse init value: #pragma pingpong_init r,g,b,a or preset
+                  const initMatch = /^\s*#pragma\s+pingpong_init\s+(.+)/m.exec(passDef.glsl);
+                  if (initMatch && !passDef.pingPong.initValue) {
+                      const initStr = initMatch[1].trim();
+                      if (initStr === 'black') {
+                          passDef.pingPong.initValue = [0, 0, 0, 1];
+                      } else if (initStr === 'white') {
+                          passDef.pingPong.initValue = [1, 1, 1, 1];
+                      } else if (initStr === 'transparent') {
+                          passDef.pingPong.initValue = [0, 0, 0, 0];
+                      } else {
+                          // Parse comma-separated values
+                          const values = initStr.split(',').map(v => parseFloat(v.trim()));
+                          if (values.length >= 3 && values.every(v => !isNaN(v))) {
+                              passDef.pingPong.initValue = [
+                                  values[0],
+                                  values[1],
+                                  values[2],
+                                  values[3] !== undefined ? values[3] : 1.0
+                              ] as [number, number, number, number];
+                          }
+                      }
+                  }
+                  
+                  // Parse clear flag: #pragma pingpong_clear
+                  if (/^\s*#pragma\s+pingpong_clear/m.test(passDef.glsl)) {
+                      if (passDef.pingPong.clearEachFrame === undefined) {
+                          passDef.pingPong.clearEachFrame = true;
+                      }
+                  }
+                  
+                  // Parse temporary flag: #pragma pingpong_temporary
+                  if (/^\s*#pragma\s+pingpong_temporary/m.test(passDef.glsl)) {
+                      if (passDef.pingPong.persistent === undefined) {
+                          passDef.pingPong.persistent = false;
+                      }
+                  }
+                  
+                  // Set defaults if not specified
+                  if (passDef.pingPong.persistent === undefined) {
+                      passDef.pingPong.persistent = true;
+                  }
+                  if (passDef.pingPong.clearEachFrame === undefined) {
+                      passDef.pingPong.clearEachFrame = false;
+                  }
+              }
+              
+              // Auto-detect Loop from GLSL pragma
+              // Support: #pragma loop N (where N is a number)
+              if (!passDef.loop || passDef.loop <= 1) {
+                  const loopMatch = /^\s*#pragma\s+loop\s+(\d+)/m.exec(passDef.glsl);
+                  if (loopMatch) {
+                      const loopCount = parseInt(loopMatch[1], 10);
+                      if (loopCount > 1) {
+                          passDef.loop = loopCount;
+                      }
+                  }
+              }
+
+              // Generate Shader Code
+              let code = `#version 300 es
+precision mediump float;
+in vec2 vUv;
+out vec4 fragColor;
+#define texture2D texture
+#define gl_FragColor fragColor
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform sampler2D u_empty_tex;
+uniform samplerCube u_empty_cube;
+#define iTime u_time
+#define iResolution vec3(u_resolution, 1.0)
+`;
+              
+              // Inject u_previousFrame for Ping-Pong passes
+              if (passDef.pingPong?.enabled) {
+                  code += `uniform sampler2D u_previousFrame;\n`;
+              }
+              
+              // Inject Uniforms
+              const nodeUniformKeys = new Set(
+                  Object.keys(currentNode.data.uniforms || {})
+                      .filter(k => k !== 'value')
+                      .map(k => `u_${nodeIdClean}_${k}`)
+              );
+
+              const uniqueTextureUniforms = new Set(Object.values(inputTextureUniforms));
+              uniqueTextureUniforms.forEach(uName => {
+                  // Avoid redeclaring built-ins and node uniforms
+                  if (uName === 'u_empty_tex') return;
+                  if (nodeUniformKeys.has(uName)) return;
+                  code += `uniform sampler2D ${uName};\n`;
+              });
+              
+              // Inject pass dependency uniform mappings
+              // Map user-facing names (u_pass_xxx, u_prevPass, u_firstPass) to actual texture uniforms
+              for (const dep of passDeps) {
+                  if (inputTextureUniforms[dep.uniformName]) {
+                      code += `#define ${dep.uniformName} ${inputTextureUniforms[dep.uniformName]}\n`;
+                  }
+              }
+              
+              // Map u_prevPass if present
+              if (inputTextureUniforms['u_prevPass']) {
+                  code += `#define u_prevPass ${inputTextureUniforms['u_prevPass']}\n`;
+              }
+              
+              code += '// Inject Node Uniforms\n';
+              // Inject Node Uniforms
+              const passUniforms: Record<string, { type: GLSLType; value: UniformValueType }> = {};
+
+              Object.entries(currentNode.data.uniforms).forEach(([key, u]) => {
+                  if (key === 'value') return; // Skip internal value
+                  
+                  // Use unique name to match buildUniformOverridesFromNodes logic
+                  const uniqueKey = `u_${nodeIdClean}_${key}`;
+                  
+                  code += `uniform ${u.type} ${uniqueKey};\n`;
+                  code += `#define ${key} ${uniqueKey}\n`;
+                  
+                  passUniforms[uniqueKey] = u;
+              });
+              
+              // Add pass dependency uniforms to passUniforms (for direct reference in GLSL)
+              // These were collected earlier in inputTextureUniforms
+              for (const dep of passDeps) {
+                  if (inputTextureUniforms[dep.uniformName]) {
+                      passUniforms[dep.uniformName] = {
+                          type: 'sampler2D',
+                          value: inputTextureUniforms[dep.uniformName]
+                      };
+                  }
+              }
+              
+              // Add u_prevPass if present
+              if (inputTextureUniforms['u_prevPass']) {
+                  passUniforms['u_prevPass'] = {
+                      type: 'sampler2D',
+                      value: inputTextureUniforms['u_prevPass']
+                  };
+              }
+
+              // Inject User Code (strip custom pragmas first)
+              let userCode = passDef.glsl;
+              // Remove all custom pragmas that are not standard GLSL
+              userCode = userCode.replace(/^\s*#pragma\s+pingpong(_init\s+[^\n]*|_clear|_temporary)?\s*$/gm, '');
+              userCode = userCode.replace(/^\s*#pragma\s+loop\s+\d+\s*$/gm, '');
+              code += `\n${userCode}\n`;
+              
+              // If user code has `run` but no `main`, generate main.
+              if (!/\bvoid\s+main\s*\(/.test(passDef.glsl)) {
+                  // Parse THIS pass to get its specific inputs
+                  // Note: extractShaderIO already filters out pass dependencies (u_pass_*, u_prevPass, u_firstPass)
+                  // and internal uniforms (u_previousFrame). These are available as uniforms, not parameters.
+                  const { inputs: passInputs } = extractShaderIO(passDef.glsl);
+                  
+                  const args = ['vUv'];
+                  
+                  // Map all remaining inputs (pass dependencies already filtered out)
+                  passInputs.forEach(inp => {
+                      const key = `${currentNode.id}_${inp.id}`;
+                      const uName = inputTextureUniforms[key];
+                      
+                      // Check if it's a uniform (not a texture input)
+                      const isUniform = currentNode.data.uniforms[inp.id] !== undefined;
+
+                      if (uName) {
+                          if (inp.type === 'float') args.push(`texture(${uName}, vUv).r`);
+                          else if (inp.type === 'vec3') args.push(`texture(${uName}, vUv).rgb`);
+                          else if (inp.type === 'sampler2D') args.push(uName);
+                          else args.push(`texture(${uName}, vUv)`);
+                      } else if (isUniform) {
+                          // It's a uniform value (slider, etc.)
+                          // We use the original key here because we added a #define above
+                          args.push(inp.id);
+                      } else {
+                          // Fallback for missing inputs
+                          args.push(getDefaultGLSLValue(inp.type));
+                      }
+                  });
+                  args.push('fragColor');
+                  code += `\nvoid main() { run(${args.join(', ')}); }\n`;
+              }
+              
+              const renderPass: RenderPass = {
+                  id: passId,
+                  vertexShader: DEFAULT_VERTEX_SHADER,
+                  fragmentShader: code,
+                  uniforms: passUniforms,
+                  outputTo: 'FBO', // Always FBO for internal passes
+                  inputTextureUniforms: inputTextureUniforms
+              };
+              
+              // Add Ping-Pong configuration if enabled
+              if (passDef.pingPong?.enabled) {
+                  renderPass.pingPong = {
+                      enabled: true,
+                      bufferName: passDef.pingPong.bufferName || `${currentNode.id}_${passDef.id}`,
+                      initValue: passDef.pingPong.initValue,
+                      persistent: passDef.pingPong.persistent ?? true,
+                      clearEachFrame: passDef.pingPong.clearEachFrame ?? false
+                  };
+              }
+              
+              // Handle loop: repeat the pass multiple times
+              const loopCount = passDef.loop && passDef.loop > 1 ? passDef.loop : 1;
+              for (let loopIdx = 0; loopIdx < loopCount; loopIdx++) {
+                  // For looped passes, create unique IDs for each iteration
+                  let loopInputTextureUniforms = { ...inputTextureUniforms };
+                  
+                  // For iterations after the first, u_prevPass should reference previous iteration
+                  if (loopIdx > 0) {
+                      const prevIterationTex = `u_pass_${sanitizeIdForGlsl(`${passId}_loop${loopIdx - 1}`)}_tex`;
+                      loopInputTextureUniforms['u_prevPass'] = prevIterationTex;
+                  }
+                  // For first iteration, u_prevPass is already set from lastPassId (if exists)
+                  // or from input connections
+                  
+                  // Regenerate shader code with updated inputTextureUniforms for loop iterations
+                  let loopCode = code;
+                  if (loopIdx > 0) {
+                      // Need to regenerate the #define section with updated u_prevPass
+                      // Find the end of uniforms section (before user code)
+                      const uniformsEndMarker = '// Inject pass dependency uniform mappings';
+                      const markerPos = code.indexOf(uniformsEndMarker);
+                      if (markerPos !== -1) {
+                          // Keep everything up to the marker
+                          loopCode = code.substring(0, markerPos);
+                          
+                          // Add updated pass dependency mappings
+                          loopCode += '// Inject pass dependency uniform mappings\n';
+                          for (const dep of passDeps) {
+                              if (loopInputTextureUniforms[dep.uniformName]) {
+                                  loopCode += `#define ${dep.uniformName} ${loopInputTextureUniforms[dep.uniformName]}\n`;
+                              }
+                          }
+                          
+                          // Map u_prevPass if present
+                          if (loopInputTextureUniforms['u_prevPass']) {
+                              loopCode += `#define u_prevPass ${loopInputTextureUniforms['u_prevPass']}\n`;
+                          }
+                          
+                          // Add the rest of the code (after the original mappings)
+                          const restStart = code.indexOf('\n// Inject Node Uniforms', markerPos);
+                          if (restStart !== -1) {
+                              loopCode += code.substring(restStart);
+                          }
+                      }
+                  }
+                  
+                  const loopedPass = loopIdx === 0 ? {
+                      ...renderPass,
+                      inputTextureUniforms: loopInputTextureUniforms
+                  } : {
+                      ...renderPass,
+                      id: `${passId}_loop${loopIdx}`,
+                      fragmentShader: loopCode,
+                      inputTextureUniforms: loopInputTextureUniforms
+                  };
+                  
+                  passes.push(loopedPass);
+                  processedPassIDs.add(loopedPass.id);
+                  lastPassId = loopedPass.id;
+              }
+          }
+          
+          // Register the Node ID as processed, mapping to the last pass
+          // But processedPassIDs is a Set<string>.
+          // We can't map.
+          // But we return lastPassId.
+          // The caller (if any) will use lastPassId.
+          // But if we are called again with currentNode.id, we need to return lastPassId.
+          // We can't easily do that with a Set.
+          // But wait, getPassKey returns currentNode.id.
+          // If we add currentNode.id to processedPassIDs, next time we return currentNode.id.
+          // But currentNode.id is NOT a valid pass ID in the `passes` array!
+          // This is a problem.
+          
+          // Solution: We need a map `nodeIdToPassId`.
+          // Or we just re-run this loop (it checks processedPassIDs internally so it's fast).
+          // Yes, re-running the loop is fine. It will find all passes processed and return lastPassId.
+          
+          return lastPassId;
+      }
 
       // 2. Cycle Detection (Pass Level)
       if (activePassStack.has(passKey)) {
@@ -482,7 +889,8 @@ export const compileGraph = (
               const targetType = sanitizeType(targetHandle.type);
 
               // DETECT PASS BOUNDARY
-              if (targetType === 'sampler2D' && sourceType !== 'sampler2D') {
+              const isSourceMultiPass = sourceNode.data.passes && sourceNode.data.passes.length > 0;
+              if ((targetType === 'sampler2D' && sourceType !== 'sampler2D') || isSourceMultiPass) {
                   // Pass Boundary found -> Recurse to create new pass
                   const dependencyPassId = generatePassForNode(edge.source, edge.sourceHandle);
                   const uniformName = `u_pass_${sanitizeIdForGlsl(dependencyPassId)}_tex`;
@@ -537,6 +945,21 @@ uniform samplerCube u_empty_cube;
       const uniqueTextureUniforms = new Set(Object.values(inputTextureUniforms));
       uniqueTextureUniforms.forEach(uName => {
           header += `uniform sampler2D ${uName};\n`;
+      });
+      
+      // Add pass dependency mappings (#define for u_pass_xxx, u_prevPass, etc.)
+      // Map user-facing names to actual texture uniform names
+      Object.entries(inputTextureUniforms).forEach(([key, texUniform]) => {
+          // Extract the pass dependency name from the key
+          // Keys are in format: "nodeId_uniformName" (e.g., "node123_u_pass_blur")
+          const parts = key.split('_');
+          if (parts.length >= 3 && (parts[1] === 'pass' || parts[1] === 'prevPass' || parts[1] === 'firstPass' || parts[1] === 'previousFrame')) {
+              // Extract the uniform name (everything after the first underscore in nodeId)
+              const uniformName = key.substring(key.indexOf('_', key.indexOf('_') + 1) + 1);
+              if (uniformName && uniformName.startsWith('u_')) {
+                  header += `#define ${uniformName} ${texUniform}\n`;
+              }
+          }
       });
 
       const injectUniformsRecursive = (n: Node<NodeData>) => {
@@ -825,7 +1248,12 @@ uniform samplerCube u_empty_cube;
               inputs.forEach(input => {
                   const passTextureUniform = inputTextureUniforms[`${node.id}_${input.id}`];
                   if (passTextureUniform) {
-                      callArgs.push(passTextureUniform);
+                      if (input.type === 'sampler2D') {
+                          callArgs.push(passTextureUniform);
+                      } else {
+                          const sample = `texture(${passTextureUniform}, uv)`;
+                          callArgs.push(castGLSLVariable(sample, 'vec4', sanitizeType(input.type)));
+                      }
                   } else {
                       const edge = edges.find(e => e.target === node.id && e.targetHandle === input.id);
                       if (edge) {
@@ -880,7 +1308,12 @@ uniform samplerCube u_empty_cube;
           (node.data.inputs || []).forEach(input => {
               const passTextureUniform = inputTextureUniforms[`${node.id}_${input.id}`];
               if (passTextureUniform) {
-                  callArgs.push(passTextureUniform);
+                  if (input.type === 'sampler2D') {
+                      callArgs.push(passTextureUniform);
+                  } else {
+                      const sample = `texture(${passTextureUniform}, uv)`;
+                      callArgs.push(castGLSLVariable(sample, 'vec4', sanitizeType(input.type)));
+                  }
               } else {
                   const edge = edges.find(e => e.target === node.id && e.targetHandle === input.id);
                   // Check if source node exists in Local Graph to prevent dead links from breaking compilation

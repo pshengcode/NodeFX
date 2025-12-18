@@ -1,0 +1,58 @@
+{
+  "id": "DEMO_LOOP_SPIRAL",
+  "label": "Demo: Loop Spiral",
+  "category": "Custom",
+  "description": "演示Loop循环效果：每次迭代旋转图像，形成螺旋扭曲效果。可以清楚地看到循环迭代的累积效果。",
+  "data": {
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "rotationStep", "name": "Rotation Step", "type": "float" },
+      { "id": "zoomFactor", "name": "Zoom Factor", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "image": {
+        "type": "sampler2D",
+        "value": null
+      },
+      "rotationStep": {
+        "type": "float",
+        "value": 15.0,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 45.0,
+          "step": 1.0
+        }
+      },
+      "zoomFactor": {
+        "type": "float",
+        "value": 0.95,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.8,
+          "max": 1.2,
+          "step": 0.01
+        }
+      }
+    },
+    "passes": [
+      {
+        "id": "spiral",
+        "name": "Spiral Transform",
+        "target": "self",
+        "loop": 5,
+        "glsl": "// 涡旋扭曲(真正的 swirl)：旋转角度随半径变化（中心扭得更厉害）\n// u_prevPass 在第一次迭代时指向输入图像，后续迭代指向上一次的输出\nvoid run(vec2 uv, \n         sampler2D image,\n         float rotationStep,\n         float zoomFactor,\n         out vec4 color) {\n    \n    // 将UV坐标转换到中心原点\n    vec2 centered = uv - 0.5;\n    float r = length(centered);\n\n    // swirlStrength: 0..1，中心=1，边缘=0（可调曲线让中心更明显）\n    float swirlStrength = smoothstep(0.55, 0.0, r);\n\n    // rotationStep(度)作为基础角度；乘上swirlStrength并加大系数得到明显涡旋\n    float angle = radians(rotationStep) * swirlStrength * 6.0;\n    float cosA = cos(angle);\n    float sinA = sin(angle);\n    mat2 rotation = mat2(cosA, -sinA, sinA, cosA);\n\n    // 应用涡旋旋转，并让中心略微更“卷”进去（缩放也随swirlStrength变化）\n    vec2 warped = rotation * centered;\n    float scale = mix(1.0, zoomFactor, swirlStrength);\n    warped /= max(scale, 0.001);\n    warped += 0.5;\n    \n    // 采样上一次迭代的结果（或原始图像）\n    if (warped.x >= 0.0 && warped.x <= 1.0 && warped.y >= 0.0 && warped.y <= 1.0) {\n        color = texture(u_prevPass, warped);\n    } else {\n        // 超出边界，使用边缘颜色\n        color = vec4(0.0, 0.0, 0.0, 1.0);\n    }\n}"
+      },
+      {
+        "id": "final",
+        "name": "Add Iteration Markers",
+        "target": "self",
+        "glsl": "// 添加视觉标记显示迭代次数\nvoid run(vec2 uv, out vec4 color) {\n    color = texture(u_prevPass, uv);\n    \n    // 在左下角添加5个小圆点，代表5次迭代\n    vec2 markerStart = vec2(0.02, 0.05);\n    float markerSize = 0.01;\n    \n    for (int i = 0; i < 5; i++) {\n        vec2 markerPos = markerStart + vec2(float(i) * 0.025, 0.0);\n        float dist = distance(uv, markerPos);\n        if (dist < markerSize) {\n            // 彩虹色标记\n            float hue = float(i) / 5.0;\n            vec3 markerColor = vec3(\n                0.5 + 0.5 * cos(6.28318 * hue),\n                0.5 + 0.5 * cos(6.28318 * (hue + 0.33)),\n                0.5 + 0.5 * cos(6.28318 * (hue + 0.67))\n            );\n            color.rgb = mix(color.rgb, markerColor, 0.8);\n        }\n    }\n}"
+      }
+    ]
+  }
+}

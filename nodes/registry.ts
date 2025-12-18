@@ -17,13 +17,23 @@ export const validateNodeDefinition = (obj: any): obj is ShaderNodeDefinition =>
 export const normalizeNodeDefinition = (json: any): ShaderNodeDefinition => {
     // Deep clone to avoid mutating source
     const obj = JSON.parse(JSON.stringify(json));
+
+    // Handle multi-pass: allow passes[].glsl to be an array of strings
+    if (obj.data && Array.isArray(obj.data.passes)) {
+        obj.data.passes = obj.data.passes.map((p: any) => {
+            if (p && Array.isArray(p.glsl)) {
+                return { ...p, glsl: p.glsl.join('\n') };
+            }
+            return p;
+        });
+    }
     
     // Handle "glsl": ["line 1", "line 2"]
     if (obj.data && Array.isArray(obj.data.glsl)) {
         obj.data.glsl = obj.data.glsl.join('\n');
     }
 
-    // Auto-detect overloading if not explicitly set
+    // Auto-detect overloading if not explicitly set (single-pass only)
     if (obj.data && obj.data.glsl && obj.data.autoType === undefined) {
         const { isOverloaded } = extractShaderIO(obj.data.glsl);
         if (isOverloaded) {

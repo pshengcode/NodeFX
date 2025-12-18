@@ -1,0 +1,47 @@
+{
+  "id": "DEMO_PING_PONG",
+  "label": "Demo: Ping-Pong (Frame Buffer)",
+  "category": "Custom",
+  "description": "演示Ping-Pong双缓冲技术：展示如何在当前帧访问上一帧的数据，创建运动轨迹和反馈效果。可调节衰减速度和混合强度。",
+  "data": {
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "decay", "name": "Decay", "type": "float" },
+      { "id": "blend", "name": "Blend", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "decay": {
+        "type": "float",
+        "value": 0.95,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
+      },
+      "blend": {
+        "type": "float",
+        "value": 0.1,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
+      }
+    },
+    "passes": [
+      {
+        "id": "feedback",
+        "name": "Feedback Pass",
+        "target": "self",
+        "glsl": "#pragma pingpong\n#pragma pingpong_init black\n\n// 使用Ping-Pong创建运动轨迹效果\n// u_previousFrame 是自动注入的uniform，不需要在参数中声明\nvoid run(vec2 uv, \n         sampler2D image,\n         float decay,\n         float blend,\n         out vec4 color) {\n    \n    // 获取当前帧图像\n    vec4 current = texture(image, uv);\n    \n    // 获取上一帧结果\n    vec4 previous = texture(u_previousFrame, uv);\n    \n    // 方法1: 简单混合 - 创建运动轨迹\n    vec4 trail = mix(previous * decay, current, blend);\n    \n    // 方法2: 添加运动模糊效果（可选）\n    vec2 texSize = vec2(textureSize(u_previousFrame, 0));\n    vec2 pixelSize = 1.0 / texSize;\n    \n    vec4 blurred = vec4(0.0);\n    float totalWeight = 0.0;\n    \n    // 采样周围5x5区域\n    for (int y = -2; y <= 2; y++) {\n        for (int x = -2; x <= 2; x++) {\n            vec2 offset = vec2(float(x), float(y)) * pixelSize * 0.5;\n            float weight = 1.0 - length(vec2(x, y)) * 0.1;\n            weight = max(weight, 0.0);\n            blurred += texture(u_previousFrame, uv + offset) * weight;\n            totalWeight += weight;\n        }\n    }\n    blurred /= totalWeight;\n    \n    // 结合轨迹和模糊效果\n    vec4 feedback = mix(trail, blurred * decay, 0.3);\n    \n    // 最终输出\n    color = feedback;\n    \n    // 添加可视化标记：右上角显示当前效果强度\n    if (uv.x > 0.9 && uv.y > 0.9) {\n        float intensity = length(color.rgb);\n        color = vec4(intensity, 0.5, 1.0 - intensity, 1.0);\n    }\n    \n    // 添加帧数指示器（左下角闪烁）\n    float pulse = sin(u_time * 3.0) * 0.5 + 0.5;\n    if (length(uv - vec2(0.05, 0.05)) < 0.02) {\n        color = vec4(pulse, 1.0, pulse, 1.0);\n    }\n}"
+      }
+    ]
+  }
+}

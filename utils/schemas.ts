@@ -100,6 +100,28 @@ export const NodeOutputSchema = z.object({
     type: GLSLTypeSchema
 });
 
+// Multi-Pass Support (node library JSON)
+export const PingPongConfigSchema = z.object({
+    enabled: z.boolean(),
+    bufferName: z.string().optional(),
+    initValue: z.union([
+        z.tuple([z.number(), z.number(), z.number()]),
+        z.tuple([z.number(), z.number(), z.number(), z.number()]),
+        z.string()
+    ]).optional(),
+    persistent: z.boolean().optional(),
+    clearEachFrame: z.boolean().optional()
+}).optional();
+
+export const NodePassSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    glsl: z.string(),
+    target: z.string().optional(),
+    loop: z.number().int().positive().optional(),
+    pingPong: PingPongConfigSchema
+});
+
 // Serialized Structures for Compound Nodes
 export const SerializedEdgeSchema = z.object({
     id: z.string(),
@@ -126,8 +148,7 @@ export const SerializedNodeSchema = z.object({
     height: z.number().optional().nullable()
 });
 
-export const ShaderNodeDataSchema = z.object({
-    glsl: z.union([z.string(), z.array(z.string())]), // Allow array of strings for multiline JSON convenience
+const ShaderNodeDataBaseSchema = z.object({
     inputs: z.array(NodeInputSchema),
     outputs: z.array(NodeOutputSchema).optional(),
     uniforms: z.record(z.string(), UniformValSchema).optional(),
@@ -138,6 +159,19 @@ export const ShaderNodeDataSchema = z.object({
     internalNodes: z.array(SerializedNodeSchema).optional(),
     internalEdges: z.array(SerializedEdgeSchema).optional()
 });
+
+const ShaderNodeDataSinglePassSchema = ShaderNodeDataBaseSchema.extend({
+    glsl: z.union([z.string(), z.array(z.string())]) // Allow array of strings for overloads/multiline convenience
+});
+
+const ShaderNodeDataMultiPassSchema = ShaderNodeDataBaseSchema.extend({
+    passes: z.array(NodePassSchema).min(1)
+});
+
+export const ShaderNodeDataSchema = z.union([
+    ShaderNodeDataSinglePassSchema,
+    ShaderNodeDataMultiPassSchema
+]);
 
 export const ShaderNodeDefinitionSchema = z.object({
     id: z.string(),

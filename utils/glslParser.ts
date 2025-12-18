@@ -22,6 +22,7 @@ interface Token {
  * This is crucial before performing any regex or parsing logic.
  */
 export const stripComments = (code: string): string => {
+    if (!code) return '';
     let out = '';
     let i = 0;
     const len = code.length;
@@ -141,6 +142,12 @@ const tokenize = (code: string): Token[] => {
     return tokens;
 };
 
+export interface PassDependency {
+    uniformName: string;  // e.g. "u_pass_seed", "u_pass_step_256"
+    passId: string;       // e.g. "seed", "step_256"
+    type: 'specific' | 'prev' | 'first';  // Type of reference
+}
+
 export interface ParsedSignature {
     inputs: NodeInput[];
     outputs: NodeOutput[];
@@ -149,6 +156,7 @@ export interface ParsedSignature {
     label?: string;
     order?: number;
     originalIndex?: number;
+    passDependencies?: PassDependency[];  // Pass dependencies detected from parameters
 }
 
 /**
@@ -158,12 +166,53 @@ export interface ParsedSignature {
 export const extractShaderIO = (rawCode: string): ParsedSignature => {
     const signatures = extractAllSignatures(rawCode);
     
+    // Detect pass dependencies from entire GLSL code (not just from function signatures)
+    // Search for u_pass_*, u_prevPass, u_firstPass, u_previousFrame usage
+    const passDependencies: PassDependency[] = [];
+    const codeForDependencyScan = stripComments(rawCode);
+    
+    // Pattern 1: u_pass_<passId> - find all occurrences
+    const passPattern = /\bu_pass_([a-zA-Z0-9_]+)\b/g;
+    let match;
+    const foundPasses = new Set<string>();
+    while ((match = passPattern.exec(codeForDependencyScan)) !== null) {
+        const passId = match[1];
+        const uniformName = `u_pass_${passId}`;
+        if (!foundPasses.has(uniformName)) {
+            foundPasses.add(uniformName);
+            passDependencies.push({
+                uniformName: uniformName,
+                passId: passId,
+                type: 'specific'
+            });
+        }
+    }
+    
+    // Pattern 2: u_firstPass
+    if (/\bu_firstPass\b/.test(codeForDependencyScan)) {
+        passDependencies.push({
+            uniformName: 'u_firstPass',
+            passId: '__first__',
+            type: 'first'
+        });
+    }
+    
+    // Pattern 3: u_prevPass
+    if (/\bu_prevPass\b/.test(codeForDependencyScan)) {
+        passDependencies.push({
+            uniformName: 'u_prevPass',
+            passId: '__prev__',
+            type: 'prev'
+        });
+    }
+    
     if (signatures.length === 0) {
         return {
             inputs: [],
             outputs: [],
             isOverloaded: false,
-            valid: false
+            valid: false,
+            passDependencies
         };
     }
 
@@ -180,14 +229,29 @@ export const extractShaderIO = (rawCode: string): ParsedSignature => {
 
     const bestSig = sorted[0];
 
+    // Filter out pass dependency parameters and internal uniforms from inputs
+    // These should not appear in the UI as external inputs
+    const passDepNames = new Set(passDependencies.map(dep => dep.uniformName));
+    
+    // Also filter out internal uniforms used by the system
+    const internalUniforms = new Set([
+        'u_previousFrame',  // Ping-Pong buffer
+    ]);
+    
+    const filteredInputs = bestSig.inputs.filter(input => {
+        // Remove pass dependencies and internal uniforms from UI inputs
+        return !passDepNames.has(input.id) && !internalUniforms.has(input.id);
+    });
+
     return {
-        inputs: bestSig.inputs,
+        inputs: filteredInputs,
         outputs: bestSig.outputs,
         isOverloaded: signatures.length > 1,
         valid: true,
         label: bestSig.label,
         order: bestSig.order,
-        originalIndex: bestSig.originalIndex
+        originalIndex: bestSig.originalIndex,
+        passDependencies: passDependencies  // Use pass dependencies detected from entire code
     };
 };
 
@@ -196,6 +260,7 @@ export const extractShaderIO = (rawCode: string): ParsedSignature => {
  * Useful for overload resolution.
  */
 export const extractAllSignatures = (rawCode: string): ParsedSignature[] => {
+    if (!rawCode) return [];
     const cleanCode = stripComments(rawCode);
     const tokens = tokenize(cleanCode);
     const signatures: ParsedSignature[] = [];

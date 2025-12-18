@@ -1,7 +1,7 @@
 import React, { useState, useCallback, memo, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps, useReactFlow, useEdges, useStore } from 'reactflow';
-import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory } from '../types';
+import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory, NodePass } from '../types';
 import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronDown } from 'lucide-react';
 import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
@@ -987,13 +987,41 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const [showCode, setShowCode] = useState(false);
   const [isFloatingCode, setIsFloatingCode] = useState(false);
   const [localCode, setLocalCode] = useState(data.glsl);
+  const [activePassId, setActivePassId] = useState<string>('main');
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [tempLabel, setTempLabel] = useState(data.label);
   
   const [showEditor, setShowEditor] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   
-  const signatures = useMemo(() => extractAllSignatures(data.glsl), [data.glsl]);
+  // Sync localCode when active pass changes or data updates
+  useEffect(() => {
+      if (data.passes && data.passes.length > 0) {
+          const pass = data.passes.find(p => p.id === activePassId);
+          if (pass) {
+              if (pass.glsl !== localCode) setLocalCode(pass.glsl);
+          } else {
+              // Fallback to first pass if active is invalid
+              if (data.passes[0].glsl !== localCode) {
+                  setLocalCode(data.passes[0].glsl);
+                  setActivePassId(data.passes[0].id);
+              }
+          }
+      } else {
+          // Legacy/Single pass mode
+          if (data.glsl !== localCode && !showCode) { // Only sync from data if not editing (rough heuristic)
+             // Actually, we should be careful here. 
+             // If we just opened the node, localCode is init from data.glsl.
+             // If data.glsl changes from outside (e.g. undo/redo), we want to update localCode.
+             setLocalCode(data.glsl);
+          }
+      }
+  }, [activePassId, data.passes, data.glsl, showCode]);
+
+  const signatures = useMemo(() => {
+      const glslCode = data.glsl || (data.passes && data.passes.length > 0 ? data.passes[0].glsl : '');
+      return extractAllSignatures(glslCode || '');
+  }, [data.glsl, data.passes]);
     const [showOverloads, setShowOverloads] = useState(false);
 
   const getDefaultValue = (type: GLSLType) => {
@@ -1190,14 +1218,15 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   }, [data.label]);
 
   const handleDownloadNode = useCallback(() => {
+      const isMultiPass = !!(data.passes && data.passes.length > 0);
+
       const allNodes = getNodes();
       const allEdges = getEdges();
 
-      const internalNodes = data.isCompound 
-          ? allNodes.filter(n => n.data.scopeId === id) 
+      const internalNodes = data.isCompound
+          ? allNodes.filter(n => n.data.scopeId === id)
           : [];
-      
-      // Filter edges that are connected to internal nodes
+
       const internalEdges = data.isCompound
           ? allEdges.filter(e => internalNodes.some(n => n.id === e.source || n.id === e.target))
           : [];
@@ -1209,17 +1238,18 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           category: data.category || 'Custom',
           locales: data.locales,
           data: {
-              glsl: data.glsl,
+              ...(isMultiPass ? {} : { glsl: data.glsl }),
+              ...(isMultiPass ? { passes: data.passes } : {}),
               inputs: data.inputs,
               outputs: data.outputs,
               uniforms: data.uniforms,
               outputType: data.outputType,
               isCompound: data.isCompound,
-              internalNodes: data.isCompound ? internalNodes as any : undefined,
+              internalNodes: data.isCompound ? (internalNodes as any) : undefined,
               internalEdges: data.isCompound ? internalEdges : undefined
           }
       };
-      
+
       const blob = new Blob([JSON.stringify(nodeDef, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1254,26 +1284,68 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
       if (data.isCompound) return; // Prevent compiling manual edits for compound nodes
 
       const code = localCode;
-      const nextUniforms = { ...data.uniforms };
-      
-      // USE ROBUST PARSER instead of regex
-      const { inputs: newInputs, outputs: newOutputs, isOverloaded, valid } = extractShaderIO(code);
+      let nextPasses = data.passes ? [...data.passes] : [];
 
-      if (!valid) {
+      // Update the active pass if we have passes
+      if (nextPasses.length > 0) {
+          const idx = nextPasses.findIndex(p => p.id === activePassId);
+          if (idx !== -1) {
+              nextPasses[idx] = { ...nextPasses[idx], glsl: code };
+          }
+      }
+
+      // NEW LOGIC: Parse each pass individually to collect ALL inputs
+      let allInputs: NodeInput[] = [];
+      let allOutputs: NodeOutput[] = [];
+      let isAnyOverloaded = false;
+      let anyValid = false;
+
+      const passesToProcess = nextPasses.length > 0 ? nextPasses : [{ glsl: code, id: 'main' }];
+
+      passesToProcess.forEach(pass => {
+          const { inputs, outputs, isOverloaded, valid } = extractShaderIO(pass.glsl);
+          if (valid) {
+              anyValid = true;
+              // Merge inputs
+              inputs.forEach(inp => {
+                  const existing = allInputs.find(i => i.id === inp.id);
+                  if (!existing) {
+                      allInputs.push(inp);
+                  } else {
+                      // If type mismatch, we might have a problem. For now, first one wins.
+                  }
+              });
+          }
+          if (isOverloaded) isAnyOverloaded = true;
+      });
+
+      // The LAST pass defines the node's output signature
+      if (nextPasses.length > 0) {
+          const lastPass = nextPasses[nextPasses.length - 1];
+          const { outputs } = extractShaderIO(lastPass.glsl);
+          if (outputs.length > 0) allOutputs = outputs;
+      } else {
+          const { outputs } = extractShaderIO(code);
+          allOutputs = outputs;
+      }
+
+      if (!anyValid && nextPasses.length === 0) {
           // Fallback or Error state? For now, we just keep old inputs if parsing fails completely
           // But if it's valid but empty, that's allowed.
           // console.warn("Could not find valid 'void run(...)' signature.");
       } else {
           // Preserve existing display names (important for localization keys)
-          const mergedInputs = newInputs.map(inp => {
+          const mergedInputs = allInputs.map(inp => {
               const prev = data.inputs.find(p => p.id === inp.id);
               return { ...inp, name: prev?.name ?? inp.name ?? inp.id };
           });
 
-          const mergedOutputs = newOutputs.map(out => {
+          const mergedOutputs = allOutputs.map(out => {
               const prev = (data.outputs || []).find(p => p.id === out.id);
               return { ...out, name: prev?.name ?? out.name ?? out.id };
           });
+
+          const nextUniforms = { ...data.uniforms };
 
           // Initialize new uniforms if needed
           mergedInputs.forEach(inp => {
@@ -1291,11 +1363,12 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           });
 
           const updates: Partial<NodeData> = { 
-              glsl: code,
+              glsl: nextPasses.length > 0 ? nextPasses[nextPasses.length - 1].glsl : code,
+              passes: nextPasses.length > 0 ? nextPasses : undefined,
               inputs: mergedInputs,
               outputs: mergedOutputs,
               uniforms: nextUniforms,
-              autoType: isOverloaded 
+              autoType: isAnyOverloaded 
           };
           
           // Update outputType if we have outputs detected
@@ -1305,7 +1378,7 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
           
           updateNodeData(updates);
       }
-  }, [localCode, data.uniforms, updateNodeData, data.inputs, data.outputs]);
+  }, [localCode, data.uniforms, updateNodeData, data.inputs, data.outputs, data.passes, activePassId]);
 
   const borderClass = data.executionError 
     ? 'border-red-500 ring-1 ring-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]' 
@@ -1536,6 +1609,45 @@ const CustomNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
                             <button onClick={() => setIsFloatingCode(false)} className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded"><Minimize2 size={16} /></button>
                         </div>
                     </div>
+                    
+                    {/* Pass Tabs */}
+                    <div className="flex items-center gap-1 px-2 border-b border-zinc-800 bg-zinc-900 overflow-x-auto">
+                        {(data.passes || [{ id: 'main', name: 'Main', glsl: data.glsl }]).map((pass, idx) => (
+                            <div key={pass.id} className={`flex items-center gap-1 px-3 py-1.5 text-xs cursor-pointer border-b-2 transition-colors ${activePassId === pass.id ? 'border-blue-500 text-white bg-zinc-800' : 'border-transparent text-zinc-400 hover:text-zinc-200'}`}
+                                onClick={() => {
+                                    handleCodeCompile();
+                                    setActivePassId(pass.id);
+                                }}
+                            >
+                                <span>{pass.name || `Pass ${idx + 1}`}</span>
+                                {data.passes && data.passes.length > 1 && (
+                                    <button onClick={(e) => {
+                                        e.stopPropagation();
+                                        const nextPasses = data.passes!.filter(p => p.id !== pass.id);
+                                        updateNodeData({ passes: nextPasses });
+                                        if (activePassId === pass.id) setActivePassId(nextPasses[0].id);
+                                    }} className="hover:text-red-400"><X size={10}/></button>
+                                )}
+                            </div>
+                        ))}
+                        <button onClick={() => {
+                             handleCodeCompile();
+                             const newPassId = `pass_${Date.now()}`;
+                             const newPass: NodePass = {
+                                 id: newPassId,
+                                 name: `Pass ${(data.passes?.length || 0) + 1}`,
+                                 glsl: 'void run(vec2 uv, out vec4 color) {\n    color = vec4(0.0, 0.0, 0.0, 1.0);\n}',
+                                 target: 'self'
+                             };
+                             const nextPasses = data.passes ? [...data.passes, newPass] : [
+                                 { id: 'main', name: 'Main', glsl: data.glsl, target: 'output' },
+                                 newPass
+                             ];
+                             updateNodeData({ passes: nextPasses });
+                             setActivePassId(newPassId);
+                        }} className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded"><Plus size={14}/></button>
+                    </div>
+
                     <div className="flex-1 p-0 overflow-hidden relative nodrag"><CodeEditor value={localCode} onChange={(val) => setLocalCode(val || '')} onSave={handleCodeCompile} onBlur={() => {}} height="100%" lineNumbers="on" readOnly={data.isCompound}/></div>
                 </div>
             </div>,

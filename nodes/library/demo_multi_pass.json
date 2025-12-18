@@ -1,0 +1,54 @@
+{
+  "id": "DEMO_MULTI_PASS",
+  "label": "Demo: Multi-Pass Dependencies",
+  "category": "Custom",
+  "description": "演示Multi-Pass依赖系统：展示如何在不同pass之间传递和获取数据。包含3个pass：原始数据、模糊处理、锐化增强。",
+  "data": {
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "mixMode", "name": "Mix Mode", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "mixMode": {
+        "type": "float",
+        "value": 0.0,
+        "widget": "slider",
+        "widgetConfig": {
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01
+        }
+      }
+    },
+    "passes": [
+      {
+        "id": "passthrough",
+        "name": "Pass 1: Passthrough",
+        "target": "self",
+        "glsl": "// Pass 1: 直接传递输入图像\nvoid run(vec2 uv, sampler2D image, out vec4 color) {\n    color = texture(image, uv);\n    \n    // 添加一个标记：左上角绿点表示这是第一个pass\n    if (length(uv - vec2(0.05, 0.95)) < 0.02) {\n        color = vec4(0.0, 1.0, 0.0, 1.0);\n    }\n}"
+      },
+      {
+        "id": "blur",
+        "name": "Pass 2: Blur",
+        "target": "self",
+        "glsl": "// Pass 2: 使用u_prevPass获取前一个pass的结果并进行模糊\n// u_prevPass 是自动注入的uniform，不需要在参数中声明\nvoid run(vec2 uv, out vec4 color) {\n    vec2 texSize = vec2(textureSize(u_prevPass, 0));\n    vec2 pixelSize = 1.0 / texSize;\n    \n    // 简单的3x3模糊核\n    vec4 sum = vec4(0.0);\n    float kernel[9] = float[9](\n        1.0, 2.0, 1.0,\n        2.0, 4.0, 2.0,\n        1.0, 2.0, 1.0\n    );\n    \n    int idx = 0;\n    for (int y = -1; y <= 1; y++) {\n        for (int x = -1; x <= 1; x++) {\n            vec2 offset = vec2(float(x), float(y)) * pixelSize * 2.0;\n            sum += texture(u_prevPass, uv + offset) * kernel[idx++];\n        }\n    }\n    \n    color = sum / 16.0;\n    \n    // 添加标记：左上角蓝点表示这是模糊pass\n    if (length(uv - vec2(0.05, 0.95)) < 0.02) {\n        color = vec4(0.0, 0.0, 1.0, 1.0);\n    }\n}"
+      },
+      {
+        "id": "sharpen",
+        "name": "Pass 3: Sharpen",
+        "target": "self",
+        "glsl": "// Pass 3: 使用u_pass_passthrough和u_prevPass实现锐化\n// 锐化 = 原始 + (原始 - 模糊) * 强度\n// 注意：u_pass_xxx 和 u_prevPass 都是自动注入的uniform\nvoid run(vec2 uv, out vec4 color) {\n    vec4 original = texture(u_pass_passthrough, uv);\n    vec4 blurred = texture(u_prevPass, uv);\n    \n    // Unsharp Mask: 原始 + (原始 - 模糊) * 强度\n    float strength = 1.5;\n    vec4 detail = (original - blurred) * strength;\n    color = clamp(original + detail, 0.0, 1.0);\n    \n    // 添加标记：左上角红点表示这是锐化pass\n    if (length(uv - vec2(0.05, 0.95)) < 0.02) {\n        color = vec4(1.0, 0.0, 0.0, 1.0);\n    }\n}"
+      },
+      {
+        "id": "final",
+        "name": "Pass 4: Final Mix",
+        "target": "self",
+        "glsl": "// 最终Pass: 混合所有阶段\n// 注意：u_pass_xxx 是自动注入的uniform，不需要在run函数参数中声明\nvoid run(vec2 uv, float mixMode, out vec4 color) {\n    // 直接使用pass依赖uniform\n    vec4 original = texture(u_pass_passthrough, uv);\n    vec4 blurred = texture(u_pass_blur, uv);\n    vec4 sharpened = texture(u_pass_sharpen, uv);\n    \n    // 根据mixMode显示不同的混合结果\n    if (mixMode < 0.33) {\n        // 模式1: 左右对比原始vs模糊\n        color = (uv.x < 0.5) ? original : blurred;\n        if (abs(uv.x - 0.5) < 0.002) color = vec4(1.0, 0.0, 0.0, 1.0); // 红色分割线\n    } else if (mixMode < 0.66) {\n        // 模式2: 左右对比模糊vs锐化\n        color = (uv.x < 0.5) ? blurred : sharpened;\n        if (abs(uv.x - 0.5) < 0.002) color = vec4(0.0, 1.0, 0.0, 1.0); // 绿色分割线\n    } else {\n        // 模式3: 显示差异图（锐化 - 原始）\n        vec4 diff = abs(sharpened - original);\n        color = vec4(diff.rgb * 5.0, 1.0);\n    }\n}"
+      }
+    ]
+  }
+}

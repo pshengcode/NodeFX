@@ -44,6 +44,17 @@ class WebGLSystem {
     private fboCache: Map<string, { fbo: WebGLFramebuffer, tex: WebGLTexture, w: number, h: number, lastUsed: number }> = new Map();
     private textureCache: Map<string, WebGLTexture> = new Map();
     
+    // Ping-Pong Persistent Buffers
+    private persistentBuffers: Map<string, {
+        read: WebGLTexture;
+        write: WebGLTexture;
+        fboRead: WebGLFramebuffer;
+        fboWrite: WebGLFramebuffer;
+        width: number;
+        height: number;
+        initialized: boolean;
+    }> = new Map();
+    
     private displayProgram: WebGLProgram | null = null;
     private quadBuffer: WebGLBuffer | null = null;
 
@@ -185,6 +196,140 @@ class WebGLSystem {
                 // console.log(`[WebGL] Cleaned up FBO: ${key}`);
             }
         }
+    }
+
+    // --- PING-PONG BUFFER MANAGEMENT ---
+    private getPingPongBuffer(id: string, w: number, h: number) {
+        if (this.persistentBuffers.has(id)) {
+            const buf = this.persistentBuffers.get(id)!;
+            
+            // Check if size changed - recreate if needed
+            if (buf.width !== w || buf.height !== h) {
+                this.destroyPingPongBuffer(id);
+            } else {
+                return buf;
+            }
+        }
+
+        // Create new double buffer
+        const gl = this.gl;
+        
+        // Buffer 1
+        const tex1 = gl.createTexture()!;
+        gl.bindTexture(gl.TEXTURE_2D, tex1);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        const fbo1 = gl.createFramebuffer()!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo1);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex1, 0);
+
+        // Buffer 2
+        const tex2 = gl.createTexture()!;
+        gl.bindTexture(gl.TEXTURE_2D, tex2);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        const fbo2 = gl.createFramebuffer()!;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo2);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex2, 0);
+        
+        const buffer = {
+            read: tex1,
+            write: tex2,
+            fboRead: fbo1,
+            fboWrite: fbo2,
+            width: w,
+            height: h,
+            initialized: false
+        };
+        
+        this.persistentBuffers.set(id, buffer);
+        return buffer;
+    }
+
+    private swapPingPongBuffer(id: string) {
+        const buf = this.persistentBuffers.get(id);
+        if (!buf) return;
+        
+        // Swap textures
+        const tempTex = buf.read;
+        buf.read = buf.write;
+        buf.write = tempTex;
+        
+        // Swap FBOs
+        const tempFbo = buf.fboRead;
+        buf.fboRead = buf.fboWrite;
+        buf.fboWrite = tempFbo;
+    }
+
+    private initializePingPongBuffer(
+        buffer: { read: WebGLTexture; write: WebGLTexture; fboRead: WebGLFramebuffer; fboWrite: WebGLFramebuffer },
+        initValue: [number, number, number, number?] | string | undefined,
+        width: number,
+        height: number
+    ) {
+        const gl = this.gl;
+        
+        if (!initValue) {
+            // Default: clear to transparent black
+            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.fboRead);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            
+            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.fboWrite);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            return;
+        }
+
+        // If initValue is a color array
+        if (Array.isArray(initValue)) {
+            const [r, g, b, a = 1] = initValue;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.fboRead);
+            gl.clearColor(r, g, b, a);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            
+            gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.fboWrite);
+            gl.clearColor(r, g, b, a);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        // TODO: If initValue is a texture reference, implement texture copy logic
+    }
+
+    private destroyPingPongBuffer(id: string) {
+        const buf = this.persistentBuffers.get(id);
+        if (!buf) return;
+        
+        const gl = this.gl;
+        gl.deleteTexture(buf.read);
+        gl.deleteTexture(buf.write);
+        gl.deleteFramebuffer(buf.fboRead);
+        gl.deleteFramebuffer(buf.fboWrite);
+        
+        this.persistentBuffers.delete(id);
+    }
+
+    public clearPingPongBuffer(id: string) {
+        const buf = this.persistentBuffers.get(id);
+        if (!buf) return;
+        
+        const gl = this.gl;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, buf.fboRead);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        
+        gl.bindFramebuffer(gl.FRAMEBUFFER, buf.fboWrite);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        
+        buf.initialized = false;
     }
 
     private getFBO(id: string, w: number, h: number, useMipmap: boolean) {
@@ -443,12 +588,40 @@ class WebGLSystem {
             const { prog, uniforms } = programData;
             gl.useProgram(prog);
 
-            // Determine Target
+            // Determine Target - Check if Ping-Pong is enabled
             let fbo = null;
             let currentTex = null;
             let mipmap = false;
+            let sourceTex: WebGLTexture | null = null;
 
-            if (pass.outputTo === 'FBO') {
+            const ppConfig = pass.pingPong;
+            
+            if (ppConfig?.enabled) {
+                // Ping-Pong Mode
+                const bufferName = ppConfig.bufferName || `${pass.id}_pingpong`;
+                const buffer = this.getPingPongBuffer(bufferName, width, height);
+                
+                // Initialize buffer on first use
+                if (!buffer.initialized) {
+                    this.initializePingPongBuffer(buffer, ppConfig.initValue, width, height);
+                    buffer.initialized = true;
+                }
+
+                // Clear each frame if configured
+                if (ppConfig.clearEachFrame) {
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, buffer.fboWrite);
+                    gl.clearColor(0, 0, 0, 0);
+                    gl.clear(gl.COLOR_BUFFER_BIT);
+                }
+
+                // Read from previous frame
+                sourceTex = buffer.read;
+                
+                // Write to next frame
+                fbo = buffer.fboWrite;
+                currentTex = buffer.write;
+                
+            } else if (pass.outputTo === 'FBO') {
                 const obj = this.getFBO(pass.id, width, height, false);
                 fbo = obj.fbo;
                 currentTex = obj.tex;
@@ -558,6 +731,16 @@ class WebGLSystem {
                 }
             });
 
+            // Bind Ping-Pong source texture to u_previousFrame
+            if (sourceTex) {
+                const prevLoc = uniforms.get("u_previousFrame");
+                if (prevLoc) {
+                    gl.activeTexture(gl.TEXTURE0 + texUnit);
+                    gl.bindTexture(gl.TEXTURE_2D, sourceTex);
+                    gl.uniform1i(prevLoc, texUnit++);
+                }
+            }
+
             // Pass Inputs
             if (pass.inputTextureUniforms) {
                  const boundUniforms = new Set<string>();
@@ -580,17 +763,34 @@ class WebGLSystem {
                          };
                          const srcPass = data.passes.find(p => clean(p.id) === depId);
                          if (srcPass) {
-                             // Get the FBO used by that pass
-                             const obj = this.getFBO(srcPass.id, width, height, false);
+                                 // If the source pass is a Ping-Pong pass, bind its persistent buffer READ texture.
+                                 // After the Ping-Pong pass renders, we swap buffers, so `read` holds the latest output.
+                                 let sourceTexture: WebGLTexture | null = null;
 
-                             // FEEDBACK GUARD: Check collision
-                             if (obj.tex === currentTex) {
-                                 gl.uniform1i(loc, 0);
-                             } else {
-                                 gl.activeTexture(gl.TEXTURE0 + texUnit);
-                                 gl.bindTexture(gl.TEXTURE_2D, obj.tex);
-                                 gl.uniform1i(loc, texUnit++);
-                             }
+                                 if (srcPass.pingPong?.enabled) {
+                                     const bufferName = srcPass.pingPong.bufferName || `${srcPass.id}_pingpong`;
+                                     const buffer = this.getPingPongBuffer(bufferName, width, height);
+
+                                     // Ensure initialized so sampling before first render is defined
+                                     if (!buffer.initialized) {
+                                         this.initializePingPongBuffer(buffer, srcPass.pingPong.initValue, width, height);
+                                         buffer.initialized = true;
+                                     }
+
+                                     sourceTexture = buffer.read;
+                                 } else {
+                                     // Non ping-pong pass: sample its FBO texture
+                                     sourceTexture = this.getFBO(srcPass.id, width, height, false).tex;
+                                 }
+
+                                 // FEEDBACK GUARD: Check collision
+                                 if (!sourceTexture || sourceTexture === currentTex) {
+                                     gl.uniform1i(loc, 0);
+                                 } else {
+                                     gl.activeTexture(gl.TEXTURE0 + texUnit);
+                                     gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+                                     gl.uniform1i(loc, texUnit++);
+                                 }
                          } else {
                              gl.uniform1i(loc, 0);
                          }
@@ -601,6 +801,17 @@ class WebGLSystem {
             }
 
             gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            // Swap Ping-Pong buffers after rendering
+            if (ppConfig?.enabled) {
+                const bufferName = ppConfig.bufferName || `${pass.id}_pingpong`;
+                this.swapPingPongBuffer(bufferName);
+                // Update lastTex to point to the new read buffer (after swap)
+                const buffer = this.persistentBuffers.get(bufferName);
+                if (buffer) {
+                    lastTex = buffer.read;
+                }
+            }
 
             // Mipmaps disabled
         }
@@ -693,5 +904,6 @@ const getWebglSystem = () => {
 export const webglSystem = {
     render: (...args: Parameters<WebGLSystem['render']>) => getWebglSystem().render(...args),
     cleanup: (...args: Parameters<WebGLSystem['cleanup']>) => getWebglSystem().cleanup(...args),
-    getStats: () => getWebglSystem().getStats()
+    getStats: () => getWebglSystem().getStats(),
+    clearPingPongBuffer: (id: string) => getWebglSystem().clearPingPongBuffer(id)
 };

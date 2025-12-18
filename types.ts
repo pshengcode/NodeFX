@@ -138,6 +138,26 @@ export interface NodeData {
 
   // Custom Node Settings (Persistence)
   settings?: Record<string, any>;
+
+  // Multi-Pass Support
+  passes?: NodePass[];
+}
+
+export interface NodePass {
+  id: string;
+  name: string;
+  glsl: string;
+  target?: string; // 'self' | 'output' | 'buffer_name'
+  loop?: number;
+  
+  // Ping-Pong Configuration
+  pingPong?: {
+    enabled: boolean;           // Whether to enable ping-pong buffering
+    bufferName?: string;        // Persistent buffer name (defaults to target)
+    initValue?: [number, number, number, number?] | string; // Initial color RGBA or texture reference
+    persistent?: boolean;       // Whether to persist across frames (default: true)
+    clearEachFrame?: boolean;   // Whether to clear each frame (default: false)
+  };
 }
 
 export interface RenderPass {
@@ -146,7 +166,16 @@ export interface RenderPass {
   fragmentShader: string;
   uniforms: Record<string, { type: GLSLType; value: UniformValueType }>;
   outputTo: 'SCREEN' | 'FBO'; 
-  inputTextureUniforms: Record<string, string>; 
+  inputTextureUniforms: Record<string, string>;
+  
+  // Ping-Pong Configuration
+  pingPong?: {
+    enabled: boolean;
+    bufferName: string;
+    initValue?: [number, number, number, number?] | string;
+    persistent: boolean;
+    clearEachFrame: boolean;
+  };
 }
 
 export interface CompilationResult {
