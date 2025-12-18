@@ -1,3 +1,8 @@
+## [1.3.4] - 2025-12-18
+
+test: add loop iteration dependency test for shader compiler
+测试：为着色器编译器添加循环迭代依赖性测试
+
 ## [1.3.3] - 2025-12-18
 
 perf: reduce drag-time rerenders; harden WebGL uniforms

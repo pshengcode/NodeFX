@@ -267,4 +267,70 @@ describe('shaderCompiler', () => {
         expect(dispPass).toBeDefined();
         expect(dispPass!.fragmentShader).toContain('uniform sampler2D u_pass_bevel_normalOut_tex');
     });
+
+    it('wires #pragma loop iterations to previous iteration output', () => {
+        const sanitizeIdForGlsl = (id: string) => {
+            const collapsed = id
+                .replace(/[^a-zA-Z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+
+            const safe = collapsed.length > 0 ? collapsed : 'p';
+            return /^[0-9]/.test(safe) ? `p_${safe}` : safe;
+        };
+
+        const nodes: Node<NodeData>[] = [
+            {
+                id: 'mp',
+                type: 'customShader',
+                position: { x: 0, y: 0 },
+                data: {
+                    label: 'Loop MP',
+                    glsl: '',
+                    inputs: [],
+                    outputs: [{ id: 'result', name: 'Result', type: 'vec4' }],
+                    outputType: 'vec4',
+                    uniforms: {},
+                    passes: [
+                        {
+                            id: 'loopPass',
+                            name: 'LoopPass',
+                            glsl: `#pragma loop 3
+void run(vec2 uv, out vec4 result) {
+    // Touch u_prevPass so the compiler treats it as a pass dependency.
+    vec4 prev = texture(u_prevPass, uv);
+    result = prev;
+}`
+                        }
+                    ]
+                }
+            }
+        ];
+
+        const edges: Edge[] = [];
+        const result = compileGraph(nodes, edges, 'mp');
+        expect(result.error).toBeUndefined();
+
+        const basePassId = 'mp_pass_loopPass';
+        const loop1PassId = `${basePassId}_loop1`;
+        const loop2PassId = `${basePassId}_loop2`;
+
+        const p0 = result.passes.find(p => p.id === basePassId);
+        const p1 = result.passes.find(p => p.id === loop1PassId);
+        const p2 = result.passes.find(p => p.id === loop2PassId);
+
+        expect(p0).toBeDefined();
+        expect(p1).toBeDefined();
+        expect(p2).toBeDefined();
+
+        const p0Tex = `u_pass_${sanitizeIdForGlsl(basePassId)}_tex`;
+        const p1Tex = `u_pass_${sanitizeIdForGlsl(loop1PassId)}_tex`;
+
+        // Iteration 1 should read from iteration 0's output (basePassId)
+        expect(p1!.inputTextureUniforms['u_prevPass']).toBe(p0Tex);
+        expect(p1!.fragmentShader).toContain(`uniform sampler2D ${p0Tex};`);
+
+        // Iteration 2 should read from iteration 1's output
+        expect(p2!.inputTextureUniforms['u_prevPass']).toBe(p1Tex);
+        expect(p2!.fragmentShader).toContain(`uniform sampler2D ${p1Tex};`);
+    });
 });

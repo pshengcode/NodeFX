@@ -769,7 +769,10 @@ uniform samplerCube u_empty_cube;
                   
                   // For iterations after the first, u_prevPass should reference previous iteration
                   if (loopIdx > 0) {
-                      const prevIterationTex = `u_pass_${sanitizeIdForGlsl(`${passId}_loop${loopIdx - 1}`)}_tex`;
+                      // loopIdx=1 should reference the *first* iteration's output (which keeps the base passId)
+                      // not a non-existent `${passId}_loop0`.
+                      const prevIterationPassId = loopIdx === 1 ? passId : `${passId}_loop${loopIdx - 1}`;
+                      const prevIterationTex = `u_pass_${sanitizeIdForGlsl(prevIterationPassId)}_tex`;
                       loopInputTextureUniforms['u_prevPass'] = prevIterationTex;
                   }
                   // For first iteration, u_prevPass is already set from lastPassId (if exists)
@@ -778,32 +781,29 @@ uniform samplerCube u_empty_cube;
                   // Regenerate shader code with updated inputTextureUniforms for loop iterations
                   let loopCode = code;
                   if (loopIdx > 0) {
-                      // Need to regenerate the #define section with updated u_prevPass
-                      // Find the end of uniforms section (before user code)
-                      const uniformsEndMarker = '// Inject pass dependency uniform mappings';
-                      const markerPos = code.indexOf(uniformsEndMarker);
-                      if (markerPos !== -1) {
-                          // Keep everything up to the marker
-                          loopCode = code.substring(0, markerPos);
-                          
-                          // Add updated pass dependency mappings
-                          loopCode += '// Inject pass dependency uniform mappings\n';
-                          for (const dep of passDeps) {
-                              if (loopInputTextureUniforms[dep.uniformName]) {
-                                  loopCode += `#define ${dep.uniformName} ${loopInputTextureUniforms[dep.uniformName]}\n`;
+                      const prevTexName = loopInputTextureUniforms['u_prevPass'];
+                      if (prevTexName && prevTexName !== 'u_empty_tex') {
+                          const decl = `uniform sampler2D ${prevTexName};\n`;
+
+                          // Ensure the underlying sampler uniform exists in the shader.
+                          // The base code only declares uniforms from the first iteration's inputs.
+                          if (!loopCode.includes(decl)) {
+                              const anchorCube = 'uniform samplerCube u_empty_cube;\n';
+                              const anchor2D = 'uniform sampler2D u_empty_tex;\n';
+                              if (loopCode.includes(anchorCube)) {
+                                  loopCode = loopCode.replace(anchorCube, `${anchorCube}${decl}`);
+                              } else if (loopCode.includes(anchor2D)) {
+                                  loopCode = loopCode.replace(anchor2D, `${anchor2D}${decl}`);
+                              } else {
+                                  loopCode = `${decl}${loopCode}`;
                               }
                           }
-                          
-                          // Map u_prevPass if present
-                          if (loopInputTextureUniforms['u_prevPass']) {
-                              loopCode += `#define u_prevPass ${loopInputTextureUniforms['u_prevPass']}\n`;
-                          }
-                          
-                          // Add the rest of the code (after the original mappings)
-                          const restStart = code.indexOf('\n// Inject Node Uniforms', markerPos);
-                          if (restStart !== -1) {
-                              loopCode += code.substring(restStart);
-                          }
+
+                          // Rewrite ALL occurrences (the base code may define u_prevPass twice)
+                          loopCode = loopCode.replace(
+                              /^\s*#define\s+u_prevPass\s+[^\n]*$/gm,
+                              `#define u_prevPass ${prevTexName}`
+                          );
                       }
                   }
                   
