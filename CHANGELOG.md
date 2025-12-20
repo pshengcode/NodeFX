@@ -1,3 +1,8 @@
+## [1.3.5] - 2025-12-20
+
+feat: inject loop metadata for shader passes; support per-iteration parameters
+新增功能：为着色器通道注入循环元数据；支持每次迭代参数
+
 ## [1.3.4] - 2025-12-18
 
 test: add loop iteration dependency test for shader compiler

@@ -630,6 +630,12 @@ uniform samplerCube u_empty_cube;
 #define iTime u_time
 #define iResolution vec3(u_resolution, 1.0)
 `;
+
+              // Inject loop metadata for passes using #pragma loop / pass.loop.
+              // These uniforms are useful for algorithms that need per-iteration parameters.
+              if (passDef.loop && passDef.loop > 1) {
+                  code += `uniform int u_loopIndex;\nuniform int u_loopCount;\n`;
+              }
               
               // Inject u_previousFrame for Ping-Pong passes
               if (passDef.pingPong?.enabled) {
@@ -740,6 +746,13 @@ uniform samplerCube u_empty_cube;
                   args.push('fragColor');
                   code += `\nvoid main() { run(${args.join(', ')}); }\n`;
               }
+
+              const loopCount = passDef.loop && passDef.loop > 1 ? passDef.loop : 1;
+
+              if (loopCount > 1) {
+                  passUniforms['u_loopIndex'] = { type: 'int', value: 0 };
+                  passUniforms['u_loopCount'] = { type: 'int', value: loopCount };
+              }
               
               const renderPass: RenderPass = {
                   id: passId,
@@ -762,7 +775,6 @@ uniform samplerCube u_empty_cube;
               }
               
               // Handle loop: repeat the pass multiple times
-              const loopCount = passDef.loop && passDef.loop > 1 ? passDef.loop : 1;
               for (let loopIdx = 0; loopIdx < loopCount; loopIdx++) {
                   // For looped passes, create unique IDs for each iteration
                   let loopInputTextureUniforms = { ...inputTextureUniforms };
@@ -807,13 +819,23 @@ uniform samplerCube u_empty_cube;
                       }
                   }
                   
+                  const loopedUniforms = loopCount > 1
+                      ? {
+                          ...passUniforms,
+                          u_loopIndex: { type: 'int', value: loopIdx },
+                          u_loopCount: { type: 'int', value: loopCount }
+                      }
+                      : passUniforms;
+
                   const loopedPass = loopIdx === 0 ? {
                       ...renderPass,
+                      uniforms: loopedUniforms,
                       inputTextureUniforms: loopInputTextureUniforms
                   } : {
                       ...renderPass,
                       id: `${passId}_loop${loopIdx}`,
                       fragmentShader: loopCode,
+                      uniforms: loopedUniforms,
                       inputTextureUniforms: loopInputTextureUniforms
                   };
                   

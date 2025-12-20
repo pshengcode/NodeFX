@@ -26,7 +26,7 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `glsl` | `string \| string[]` | 是 | GLSL 源码；支持 overload（数组）与单段字符串；需包含 `void run(...)`。 |
+| `glsl` | `string \| string[]` | 是 | GLSL 源码。**编写节点时要求使用 `string[]`（按行写）**，系统会在加载时用 `\n` 连接成单一 GLSL 源码字符串，避免手动写 `\n` 转义与长行字符串难维护的问题。为兼容历史节点，仍接受 `string` 写法。需包含 `void run(...)`。 |
 | `inputs` | `NodeInput[]` | 否 | 节点输入端口定义（用于连线/类型推断/默认 UI）。 |
 | `outputs` | `NodeOutput[]` | 否 | 节点输出端口定义。 |
 | `uniforms` | `Record<string, UniformVal>` | 否 | 可选：为部分输入提供默认值/控件配置（用于节点面板）。 |
@@ -96,7 +96,8 @@ type NodeOutput = { id: string; name: string; type: GLSLType };
 
 ## 3. GLSL Overloads（多签名）
 
-当 `data.glsl` 为数组时，表示同一个节点拥有多个 `run(...)` 签名。
+节点的多签名（Overload）**写在 GLSL 源码内部**，通过 `//[Item("Name", order)]` 元数据声明多个 `run(...)`。
+`data.glsl` 本身即使是 `string[]`，也只是“按行书写的便利形式”（加载时会 join 成一个字符串），并不代表“一项一个 overload”。
 UI 会根据 `//[Item("Name", order)]` 元数据提供可选项，默认选择最小 order（相同 order 时按代码顺序）。
 
 ```glsl
@@ -122,7 +123,12 @@ void run(vec3 x, out vec3 outVal) { outVal = x; }
   "category": "Filter",
   "description": "Adds a dark border around the image",
   "data": {
-    "glsl": "void run(vec2 uv, sampler2D inputTex, float intensity, out vec4 result) { vec4 c = texture(inputTex, uv); result = vec4(c.rgb * intensity, c.a); }",
+    "glsl": [
+      "void run(vec2 uv, sampler2D inputTex, float intensity, out vec4 result) {",
+      "  vec4 c = texture(inputTex, uv);",
+      "  result = vec4(c.rgb * intensity, c.a);",
+      "}"
+    ],
     "inputs": [
       { "id": "inputTex", "name": "Input", "type": "sampler2D" },
       { "id": "intensity", "name": "Intensity", "type": "float" }
@@ -150,7 +156,7 @@ Multi-Pass节点允许执行多个渲染步骤。在 `data` 中添加 `passes` �
 interface NodePass {
   id: string;              // Pass标识符
   name: string;            // Pass显示名称
-  glsl: string;            // Pass的GLSL代码
+  glsl: string | string[]; // Pass的GLSL代码。编写时要求使用 string[]（按行写），加载时会 join 成单一字符串；为兼容历史仍接受 string。
   target?: string;         // 'self' | 'output' | 自定义buffer名
   loop?: number;           // 循环次数（配合 #pragma loop）
   
@@ -178,16 +184,29 @@ interface NodePass {
         "id": "horizontal",
         "name": "Horizontal Blur",
         "target": "self",
-        "glsl": "void run(vec2 uv, sampler2D input, out vec4 color) { /* 水平模糊 */ }"
+        "glsl": [
+          "void run(vec2 uv, sampler2D input, out vec4 color) {",
+          "  /* 水平模糊 */",
+          "}"
+        ]
       },
       {
         "id": "vertical",
         "name": "Vertical Blur",
         "target": "self",
-        "glsl": "void run(vec2 uv, sampler2D u_prevPass, out vec4 color) { /* 垂直模糊 */ }"
+        "glsl": [
+          "void run(vec2 uv, out vec4 color) {",
+          "  /* 垂直模糊：直接用 u_prevPass（无需在参数里声明） */",
+          "  color = texture(u_prevPass, uv);",
+          "}"
+        ]
       }
     ],
-    "glsl": "void run(vec2 uv, sampler2D u_prevPass, out vec4 color) { color = texture(u_prevPass, uv); }",
+    "glsl": [
+      "void run(vec2 uv, out vec4 color) {",
+      "  color = texture(u_prevPass, uv);",
+      "}"
+    ],
     "inputs": [
       { "id": "input", "name": "Input", "type": "sampler2D" }
     ],
@@ -348,6 +367,11 @@ void run(vec2 uv, sampler2D input, out vec4 color) {
 ### 7.1 使用 #pragma loop
 
 在pass中使用 `#pragma loop N` 执行N次迭代：
+
+**系统注入的迭代信息（可用于“每次迭代参数不同”的算法）**
+
+- `uniform int u_loopIndex;`：当前迭代索引（从 0 开始）
+- `uniform int u_loopCount;`：总迭代次数（等于 N）
 
 ```json
 {
@@ -558,7 +582,7 @@ void run(vec2 uv, sampler2D input, out vec4 color) {
 interface NodePass {
   id: string;
   name: string;
-  glsl: string;
+  glsl: string | string[];
   target?: string;
   loop?: number;
   pingPong?: {
