@@ -1,3 +1,8 @@
+## [1.3.6] - 2025-12-21
+
+feat: add Tile Sampler node with customizable parameters and angle widget support
+新增功能：添加带有可自定义参数和角度控件支持的 Tile Sampler 节点
+
 ## [1.3.5] - 2025-12-20
 
 feat: inject loop metadata for shader passes; support per-iteration parameters

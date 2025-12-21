@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory, NodePass } from '../types';
 import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronDown } from 'lucide-react';
-import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput } from './UniformWidgets';
+import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput, AngleWidget } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
 import { assetManager } from '../utils/assetManager';
@@ -659,6 +659,12 @@ const UniformControlWrapper = ({
                     </button>
                 );
             }
+            if (type === 'float' && mode === 'angle') {
+                const min = config.min !== undefined ? config.min : -180;
+                const max = config.max !== undefined ? config.max : 180;
+                const step = config.step !== undefined ? config.step : 1;
+                return <AngleWidget value={uniform.value} onChange={v => onUpdateValue(v)} min={min} max={max} step={step} />;
+            }
             if (mode === 'enum') {
                 const options = config.enumOptions || [];
                 return (
@@ -687,6 +693,14 @@ const UniformControlWrapper = ({
             return <SliderWidget value={uniform.value} onChange={v => {
                         if(type==='uint') v = Math.max(0, Math.round(v));
                         else if(type==='int') v = Math.round(v);
+
+                        // Auto-expand bounds when value exceeds them (useful for drag-to-adjust on number field).
+                        const nextMin = Math.min(min, v);
+                        const nextMax = Math.max(max, v);
+                        if (nextMin !== min || nextMax !== max) {
+                            onUpdateConfig(mode, { ...config, min: nextMin, max: nextMax });
+                        }
+
                         onUpdateValue(v);
             }} min={min} max={max} step={step} />;
         }

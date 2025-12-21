@@ -7,12 +7,17 @@ import { useTranslation } from 'react-i18next';
 
 // --- WIDGETS ---
 
-export const SmartNumberInput: React.FC<{ value: number, onChange: (v: number) => void, step?: number, className?: string }> = ({ value, onChange, step = 0.01, className }) => {
+export const SmartNumberInput: React.FC<{ value: number, onChange: (v: number) => void, step?: number, className?: string, dragSensitivity?: number }> = ({ value, onChange, step = 0.01, className, dragSensitivity = 0.1 }) => {
     // Guard against NaN
     const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
     
     const [isEditing, setIsEditing] = useState(false);
     const [tempValue, setTempValue] = useState("");
+
+    const inputRef = useRef<HTMLInputElement>(null);
+    const isDragging = useRef(false);
+    const startX = useRef(0);
+    const startValue = useRef(0);
 
     // Derived state for display
     const displayValue = isEditing ? tempValue : safeValue.toString();
@@ -38,9 +43,57 @@ export const SmartNumberInput: React.FC<{ value: number, onChange: (v: number) =
         }
     };
 
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (isEditing) return;
+        if (e.button !== 0) return;
+
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('button')) return;
+
+        e.stopPropagation();
+        e.preventDefault();
+
+        isDragging.current = false;
+        startX.current = e.clientX;
+        startValue.current = safeValue;
+
+        const precision = step < 1 ? step.toString().split('.')[1]?.length || 3 : 0;
+        const factor = Math.pow(10, precision);
+        const sens = Math.max(0.00001, dragSensitivity);
+
+        const onMove = (ev: MouseEvent) => {
+            const dx = ev.clientX - startX.current;
+            if (Math.abs(dx) > 3) {
+                isDragging.current = true;
+                document.body.style.cursor = 'ew-resize';
+            }
+            if (!isDragging.current) return;
+
+            const delta = dx * step * sens;
+            const next = Math.round((startValue.current + delta) * factor) / factor;
+            onChange(next);
+        };
+
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            document.body.style.cursor = '';
+
+            if (!isDragging.current) {
+                // Click without drag -> enter edit mode
+                inputRef.current?.focus();
+            }
+            isDragging.current = false;
+        };
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
     return (
-        <div className={`relative group flex items-center ${className} !pr-0 overflow-hidden`}>
+        <div className={`relative group flex items-center ${className} !pr-0 overflow-hidden`} onMouseDown={handleMouseDown}>
             <input 
+                ref={inputRef}
                 type="number" 
                 step={step}
                 className="w-full h-full bg-transparent border-none outline-none p-0 pl-1 pr-4 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none -moz-appearance-textfield text-inherit font-inherit"
@@ -275,6 +328,84 @@ export const SliderWidget = ({ value, onChange, min = 0, max = 1, step = 0.001 }
                 onChange={onChange}
                 step={step}
             />
+        </div>
+    );
+};
+
+export const AngleWidget = ({ value, onChange, min = -180, max = 180, step = 1 }: any) => {
+    const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const clamp = (v: number) => Math.max(min, Math.min(max, v));
+    const snap = (v: number) => {
+        if (step > 0) return Math.round(v / step) * step;
+        return v;
+    };
+
+    const setFromClient = (clientX: number, clientY: number, rect: DOMRect) => {
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        // atan2 returns radians, 0 at +X axis, CCW positive.
+        const rad = Math.atan2(dy, dx);
+        let deg = rad * (180 / Math.PI);
+        // Keep in [-180, 180]
+        if (deg > 180) deg -= 360;
+        if (deg < -180) deg += 360;
+
+        const next = clamp(snap(deg));
+        onChange(next);
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        setFromClient(e.clientX, e.clientY, rect);
+
+        const onMove = (ev: MouseEvent) => setFromClient(ev.clientX, ev.clientY, rect);
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    const v = clamp(safeValue);
+
+    return (
+        <div className="flex items-center gap-2 w-full">
+            <div
+                ref={containerRef}
+                className="nodrag w-10 h-10 bg-zinc-900 border border-zinc-700 rounded-full relative cursor-pointer select-none"
+                onMouseDown={handleMouseDown}
+                title="Drag to set angle"
+            >
+                <div className="absolute inset-1 rounded-full border border-zinc-800" />
+                {/* Center dot */}
+                <div className="absolute left-1/2 top-1/2 w-1.5 h-1.5 -ml-[3px] -mt-[3px] bg-zinc-200 rounded-full" />
+                {/* Needle */}
+                <div
+                    className="absolute left-1/2 top-1/2 origin-left h-px bg-blue-500"
+                    style={{ width: '45%', transform: `rotate(${v}deg)` }}
+                />
+                {/* Small handle dot at end */}
+                <div
+                    className="absolute left-1/2 top-1/2 w-2 h-2 -ml-1 -mt-1 rounded-full border border-zinc-900 bg-blue-500"
+                    style={{ transform: `rotate(${v}deg) translateX(16px)` }}
+                />
+            </div>
+            <div className="flex-1 min-w-0">
+                <SmartNumberInput
+                    className="nodrag w-full h-5 bg-zinc-800 text-[10px] px-2 rounded border border-zinc-700 text-right outline-none focus-within:border-blue-500 font-mono leading-normal"
+                    value={Math.round(v * 1000) / 1000}
+                    onChange={(nv) => onChange(clamp(snap(nv)))}
+                    step={step}
+                />
+            </div>
         </div>
     );
 };

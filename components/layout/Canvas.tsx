@@ -204,8 +204,10 @@ const PreviewPanel = memo(({
     onNodeError: (nodeId: string, error: string | null) => void;
     t: (key: string) => string;
 }) => {
+    const aspect = resolution?.w && resolution?.h ? resolution.w / resolution.h : 1;
+
     return (
-        <div className="absolute bottom-6 right-6 w-[400px] aspect-square bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl z-[200] flex flex-col pointer-events-auto">
+        <div className="absolute bottom-6 right-6 w-[400px] bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl z-[200] flex flex-col pointer-events-auto">
             <div className="h-8 bg-zinc-800 border-b border-zinc-700 flex items-center px-3 justify-between">
                 <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
                     <Eye size={12} className="text-green-500"/> {t("Live Preview")}
@@ -214,7 +216,7 @@ const PreviewPanel = memo(({
                     {previewNodeId ? `${resolution.w}x${resolution.h}` : t('No Selection')}
                 </span>
             </div>
-            <div className="flex-1 relative bg-black">
+            <div className="relative bg-black w-full" style={{ aspectRatio: `${aspect}` }}>
                 <ShaderPreview 
                     data={compiledData} 
                     width={resolution.w} 
