@@ -1,0 +1,91 @@
+{
+  "id": "TRANSFORM_2D",
+  "label": "Transform 2D",
+  "category": "Utility",
+  "description": "Scale/offset/rotate an image or UVs.",
+  "locales": {
+    "zh": {
+      "Transform 2D": "二维变换",
+      "Scale/offset/rotate an image or UVs.": "对图像或 UV 进行缩放/偏移/旋转。",
+
+      "tex": "输入",
+      "scale": "缩放",
+      "scale_xy": "缩放(宽/高)",
+      "rotation": "旋转",
+      "offset": "偏移",
+      "uv_in": "输入UV",
+      "uv_out": "输出UV",
+      "result": "结果"
+    }
+  },
+  "data": {
+    "glsl": [
+      "// 2D Transform (scale / offset / rotate).",
+      "//",
+      "// Note: This node is overloaded:",
+      "// - UV overload outputs vec2 UV.",
+      "//",
+      "// Transform is applied around center (0.5, 0.5).",
+      "",
+      "vec2 tx2d_apply(vec2 p, vec2 scaleV, float rotRad, vec2 offsetV) {",
+      "    vec2 c = vec2(0.5);",
+      "    vec2 q = p - c;",
+      "    q -= offsetV;",
+      "    float cs = cos(rotRad);",
+      "    float sn = sin(rotRad);",
+      "    q = mat2(cs, -sn, sn, cs) * q;",
+      "    vec2 s = max(abs(scaleV), vec2(1e-4));",
+      "    q /= s;",
+      "    return q + c;",
+      "}",
+      "",
+      "//[Item(Texture, 0)]",
+      "void run(",
+      "    vec2 uv,",
+      "    sampler2D tex,",
+      "    float scale,",
+      "    vec2 scale_xy,",
+      "    float rotation,",
+      "    vec2 offset,",
+      "    out vec4 result",
+      ") {",
+      "    vec2 scl = vec2(scale) * scale_xy;",
+      "    vec2 tuv = tx2d_apply(uv, scl, radians(rotation), offset);",
+      "    result = texture(tex, tuv);",
+      "}",
+      "",
+      "//[Item(UV, 1)]",
+      "void run(",
+      "    vec2 uv,",
+      "    vec2 uv_in,",
+      "    float scale,",
+      "    vec2 scale_xy,",
+      "    float rotation,",
+      "    vec2 offset,",
+      "    out vec2 uv_out",
+      ") {",
+      "    vec2 p = (uv_in == vec2(0.0)) ? uv : uv_in;",
+      "    vec2 scl = vec2(scale) * scale_xy;",
+      "    uv_out = tx2d_apply(p, scl, radians(rotation), offset);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "tex", "name": "tex", "type": "sampler2D" },
+      { "id": "scale", "name": "scale", "type": "float" },
+      { "id": "scale_xy", "name": "scale_xy", "type": "vec2" },
+      { "id": "rotation", "name": "rotation", "type": "float" },
+      { "id": "offset", "name": "offset", "type": "vec2" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "result", "type": "vec4" }
+    ],
+    "outputType": "vec4",
+    "uniforms": {
+      "tex": { "type": "sampler2D", "value": null, "widget": "image" },
+      "scale": { "type": "float", "value": 1.0, "widget": "slider", "widgetConfig": { "min": 0.01, "max": 10.0, "step": 0.01 } },
+      "scale_xy": { "type": "vec2", "value": [1.0, 1.0], "widget": "default" },
+      "rotation": { "type": "float", "value": 0.0, "widget": "angle", "widgetConfig": { "min": -180.0, "max": 180.0, "step": 1.0 } },
+      "offset": { "type": "vec2", "value": [0.0, 0.0], "widget": "pad", "widgetConfig": { "minX": -1.0, "maxX": 1.0, "minY": -1.0, "maxY": 1.0 } }
+    }
+  }
+}

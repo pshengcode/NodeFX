@@ -1,3 +1,8 @@
+## [1.3.7] - 2025-12-21
+
+Feature: Adds a shape generation node, supporting multiple shape types and custom parameters.
+feat: 添加形状生成节点，支持多种形状类型和自定义参数
+
 ## [1.3.6] - 2025-12-21
 
 feat: add Tile Sampler node with customizable parameters and angle widget support
