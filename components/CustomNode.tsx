@@ -511,7 +511,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
 
 // --- SUPPORTED WIDGETS MAP ---
 const SUPPORTED_WIDGETS: Partial<Record<GLSLType, WidgetMode[]>> = {
-    float: ['default', 'slider', 'number', 'toggle', 'enum', 'hidden'],
+    float: ['default', 'slider', 'number', 'angle', 'toggle', 'enum', 'hidden'],
     int: ['default', 'slider', 'number', 'toggle', 'enum', 'hidden'],
     uint: ['default', 'slider', 'number', 'hidden'],
     bool: ['default', 'toggle', 'hidden'],
@@ -908,7 +908,7 @@ const UniformControlWrapper = ({
                                             </div>
                                         )}
                                         {/* Remaining Settings (Sliders, Enums) logic is identical to previous version, condensed here */}
-                                        {((mode === 'slider' || mode === 'default') && (input.type === 'float' || input.type === 'int')) || (mode === 'range' && input.type === 'vec2') ? (
+                                        {((mode === 'slider' || mode === 'default' || mode === 'angle') && (input.type === 'float' || input.type === 'int')) || (mode === 'range' && input.type === 'vec2') ? (
                                             <div className="flex flex-col border-t border-zinc-800 pt-2 gap-1.5 px-1 pb-1">
                                                 <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Min")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.min ?? 0} onChange={(val) => updateConfig('min', val)} step={input.type === 'int' ? 1 : 0.1} /></div>
                                                 <div className="flex items-center justify-between gap-2"><label className="text-[9px] text-zinc-400">{t("Max")}</label><SmartNumberInput className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right" value={config.max ?? (mode === 'range' ? 100 : 1)} onChange={(val) => updateConfig('max', val)} step={input.type === 'int' ? 1 : 0.1} /></div>

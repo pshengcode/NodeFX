@@ -121,10 +121,12 @@
       },
       "angle": {
         "type": "float",
-        "value": 0,
+        "value": 0.0,
+        "widget": "angle",
         "widgetConfig": {
-          "min": 0,
-          "max": 360,
+          "min": -180.0,
+          "max": 180.0,
+          "step": 1.0,
           "visibleIf": {
             "uniform": "mode",
             "value": 1

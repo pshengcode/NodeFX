@@ -1,3 +1,8 @@
+## [1.3.8] - 2025-12-22
+
+feat: add angle widget support for float type and update angle range in advanced blur node
+新增功能：为浮点类型添加角度控件支持，并更新高级模糊节点中的角度范围
+
 ## [1.3.7] - 2025-12-21
 
 Feature: Adds a shape generation node, supporting multiple shape types and custom parameters.
