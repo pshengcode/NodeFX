@@ -206,8 +206,102 @@ const PreviewPanel = memo(({
 }) => {
     const aspect = resolution?.w && resolution?.h ? resolution.w / resolution.h : 1;
 
+    const STORAGE_KEY = 'glslapp.previewPanel.width.v1';
+    const DEFAULT_WIDTH = 400;
+    const MIN_WIDTH = 240;
+    const HEADER_HEIGHT = 32; // matches h-8
+    const VIEWPORT_MARGIN = 48; // matches bottom-6/right-6 (24px) + some breathing room
+
+    const clampWidth = (w: number) => {
+        if (typeof window === 'undefined') return Math.max(MIN_WIDTH, Math.round(w));
+        const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+
+        const maxWidthByViewport = Math.max(MIN_WIDTH, window.innerWidth - VIEWPORT_MARGIN);
+
+        // Total panel height = header + contentHeight; contentHeight = width / aspect.
+        const maxTotalHeight = Math.max(HEADER_HEIGHT + 1, window.innerHeight - VIEWPORT_MARGIN);
+        const maxContentHeight = Math.max(1, maxTotalHeight - HEADER_HEIGHT);
+        const maxWidthByHeight = Math.max(MIN_WIDTH, Math.floor(maxContentHeight * safeAspect));
+
+        const maxW = Math.max(MIN_WIDTH, Math.min(maxWidthByViewport, maxWidthByHeight));
+        return Math.max(MIN_WIDTH, Math.min(maxW, Math.round(w)));
+    };
+
+    const [panelWidth, setPanelWidth] = useState<number>(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            const parsed = raw ? Number(raw) : NaN;
+            return clampWidth(Number.isFinite(parsed) ? parsed : DEFAULT_WIDTH);
+        } catch {
+            return DEFAULT_WIDTH;
+        }
+    });
+
+    useEffect(() => {
+        // Ensure stored/default width doesn't exceed current viewport.
+        setPanelWidth((w) => clampWidth(w));
+        const onResize = () => setPanelWidth((w) => clampWidth(w));
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        // If canvas resolution changes, keep preview within viewport.
+        setPanelWidth((w) => clampWidth(w));
+    }, [aspect]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, String(panelWidth));
+        } catch {
+            // ignore
+        }
+    }, [panelWidth]);
+
+    const resizeSessionRef = React.useRef<{
+        startX: number;
+        startW: number;
+        active: boolean;
+    } | null>(null);
+
+    const handleResizeStart = useCallback((e: React.PointerEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resizeSessionRef.current = { startX: e.clientX, startW: panelWidth, active: true };
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+
+        const onMove = (ev: PointerEvent) => {
+            const s = resizeSessionRef.current;
+            if (!s?.active) return;
+            const dx = s.startX - ev.clientX; // pull left to grow (panel is right-anchored)
+            setPanelWidth(clampWidth(s.startW + dx));
+        };
+
+        const onUp = () => {
+            const s = resizeSessionRef.current;
+            if (s) s.active = false;
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onUp);
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+    }, [panelWidth, aspect]);
+
     return (
-        <div className="absolute bottom-6 right-6 w-[400px] bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl z-[200] flex flex-col pointer-events-auto">
+        <div
+            className="absolute bottom-6 right-6 bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl z-[200] flex flex-col pointer-events-auto select-none"
+            style={{ width: panelWidth }}
+        >
+            {/* Drag handle (left edge) for resizing width */}
+            <div
+                className="absolute left-0 top-0 h-full w-2 cursor-ew-resize z-[210]"
+                onPointerDown={handleResizeStart}
+                title={t('Drag to resize')}
+            />
             <div className="h-8 bg-zinc-800 border-b border-zinc-700 flex items-center px-3 justify-between">
                 <span className="text-xs font-medium text-zinc-400 flex items-center gap-2">
                     <Eye size={12} className="text-green-500"/> {t("Live Preview")}

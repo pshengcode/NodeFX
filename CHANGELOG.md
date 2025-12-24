@@ -1,3 +1,8 @@
+## [1.3.9] - 2025-12-24
+
+feat: implement dynamic resizing for preview panel and enhance sidebar information display
+功能：实现预览面板的动态调整大小，并增强侧边栏信息显示
+
 ## [1.3.8] - 2025-12-22
 
 feat: add angle widget support for float type and update angle range in advanced blur node

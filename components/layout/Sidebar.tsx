@@ -462,24 +462,43 @@ export const Sidebar: React.FC = () => {
                         
                         <div className="space-y-4 text-zinc-300 text-sm">
                             <div className="text-sm text-zinc-400 italic">
-                                {appConfig.description}
+                                {(() => {
+                                    const desc = t('About Description');
+                                    return desc === 'About Description' ? appConfig.description : desc;
+                                })()}
                             </div>
 
                             <div className="p-3 bg-zinc-800/50 rounded border border-zinc-800">
-                                <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">{t("Created by")}</div>
-                                <div className="font-medium text-white">{appConfig.author}</div>
-                            </div>
-                            
-                            <div className="p-3 bg-zinc-800/50 rounded border border-zinc-800">
-                                <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">{t("Contact")}</div>
-                                <a href={`mailto:${appConfig.email}`} className="text-blue-400 hover:text-blue-300 transition-colors block mb-1">
-                                    {appConfig.email}
-                                </a>
-                                <div className="flex gap-4 mt-2 pt-2 border-t border-zinc-700/50 items-center justify-between">
-                                    {appConfig.github && (
-                                        <a href={appConfig.github} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors text-xs flex items-center gap-1">
-                                            GitHub
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-xs text-zinc-500 uppercase tracking-wider">{t("Created by")}</span>
+                                        <span className="font-medium text-white truncate">{appConfig.author}</span>
+                                    </div>
+
+                                    <span className="text-zinc-700">•</span>
+
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-xs text-zinc-500 uppercase tracking-wider">{t("Contact")}</span>
+                                        <a
+                                            href={`mailto:${appConfig.email}`}
+                                            className="text-blue-400 hover:text-blue-300 transition-colors truncate"
+                                        >
+                                            {appConfig.email}
                                         </a>
+                                    </div>
+
+                                    {appConfig.github && (
+                                        <>
+                                            <span className="text-zinc-700">•</span>
+                                            <a
+                                                href={appConfig.github}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-zinc-400 hover:text-white transition-colors text-xs"
+                                            >
+                                                GitHub
+                                            </a>
+                                        </>
                                     )}
                                 </div>
                             </div>
