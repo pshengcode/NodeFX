@@ -1,3 +1,8 @@
+## [1.3.11] - 2026-01-04
+
+feat: enhance file drop handling to support multiple file types and improve node creation logic
+新增功能：增强文件拖放处理，支持多种文件类型，并改进节点创建逻辑
+
 ## [1.3.10] - 2026-01-04
 
 Refactor GLSL type handling and array support in shader compiler

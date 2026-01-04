@@ -535,47 +535,81 @@ export function useGraphActions(
 
             // 1. Handle File Drops (Image OR JSON)
             if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-                const file = event.dataTransfer.files[0];
-                
-                // Handle Images
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = async (e) => {
-                        const result = e.target?.result;
-                        const imageDef = getNodeDefinition('SAMP_TEXTURE');
-                        if (imageDef && result) {
-                            const dataUrl = result as string;
+                const files = Array.from(event.dataTransfer.files);
+
+                const readFileAsDataURL = (file: File) =>
+                    new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('Failed to read file as DataURL'));
+                        reader.onload = (e) => resolve(e.target?.result as string);
+                        reader.readAsDataURL(file);
+                    });
+
+                const readFileAsText = (file: File) =>
+                    new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('Failed to read file as text'));
+                        reader.onload = (e) => resolve(e.target?.result as string);
+                        reader.readAsText(file);
+                    });
+
+                void (async () => {
+                    const imageDef = getNodeDefinition('SAMP_TEXTURE');
+
+                    // Simple diagonal spacing so multiple dropped files create multiple nodes.
+                    const offsetStep = 40;
+                    let createdCount = 0;
+
+                    for (const file of files) {
+                        const filePosition = {
+                            x: position.x + createdCount * offsetStep,
+                            y: position.y + createdCount * offsetStep,
+                        };
+
+                        // Handle Images
+                        if (file.type.startsWith('image/')) {
+                            if (!imageDef) continue;
+
                             try {
-                                const id = assetManager.createId('drop');
-                                await assetManager.save(id, dataUrl);
-                                addNode(imageDef, position, { image: { type: 'sampler2D', value: id } });
-                            } catch {
-                                // Fallback to legacy DataURL behavior when IndexedDB isn't available.
-                                addNode(imageDef, position, { image: { type: 'sampler2D', value: dataUrl } });
+                                const dataUrl = await readFileAsDataURL(file);
+                                try {
+                                    const id = assetManager.createId('drop');
+                                    await assetManager.save(id, dataUrl);
+                                    addNode(imageDef, filePosition, { image: { type: 'sampler2D', value: id } });
+                                } catch {
+                                    // Fallback to legacy DataURL behavior when IndexedDB isn't available.
+                                    addNode(imageDef, filePosition, { image: { type: 'sampler2D', value: dataUrl } });
+                                }
+
+                                createdCount += 1;
+                            } catch (err) {
+                                console.error('Failed to import dropped image:', err);
                             }
                         }
-                    };
-                    reader.readAsDataURL(file);
-                }
-                // Handle JSON Node Definitions
-                else if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json') || file.name.toLowerCase().endsWith('.nodefx')) {
-                     const reader = new FileReader();
-                     reader.onload = (e) => {
-                         try {
-                             const json = JSON.parse(e.target?.result as string);
-                             const normalized = normalizeNodeDefinition(json);
-                             if (validateNodeDefinition(normalized)) {
-                                 addNode(normalized, position);
-                             } else {
-                                 alert(t("Invalid Node JSON structure."));
-                             }
-                         } catch (err) {
-                             console.error("JSON Parse Error:", err);
-                             alert(t("Failed to parse JSON file."));
-                         }
-                     };
-                     reader.readAsText(file);
-                }
+                        // Handle JSON Node Definitions
+                        else if (
+                            file.type === 'application/json' ||
+                            file.name.toLowerCase().endsWith('.json') ||
+                            file.name.toLowerCase().endsWith('.nodefx')
+                        ) {
+                            try {
+                                const text = await readFileAsText(file);
+                                const json = JSON.parse(text);
+                                const normalized = normalizeNodeDefinition(json);
+                                if (validateNodeDefinition(normalized)) {
+                                    addNode(normalized, filePosition);
+                                    createdCount += 1;
+                                } else {
+                                    alert(t('Invalid Node JSON structure.'));
+                                }
+                            } catch (err) {
+                                console.error('JSON Parse Error:', err);
+                                alert(t('Failed to parse JSON file.'));
+                            }
+                        }
+                    }
+                })();
+
                 return;
             }
 
