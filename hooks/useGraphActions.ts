@@ -14,6 +14,7 @@ import { NodeData, ShaderNodeDefinition, UniformVal, CompilationResult, Serializ
 import { getNodeDefinition, validateNodeDefinition, normalizeNodeDefinition } from '../nodes/registry';
 import { assetManager } from '../utils/assetManager';
 import { useTranslation } from 'react-i18next';
+import { getArrayElementTypeString, isArrayTypeString, parseArrayElementHandle } from '../utils/arrayHandles';
 
 export function useGraphActions(
     nodes: Node<NodeData>[],
@@ -200,8 +201,12 @@ export function useGraphActions(
                 if (sourceNode.id === `input-proxy-${currentScope}` && params.sourceHandle === '__create_input__') {
                     const parentNode = reactFlowInstance?.getNode(currentScope);
                     if (parentNode) {
-                        const targetInput = targetNode.data.inputs.find(i => i.id === params.targetHandle);
-                        const newType = targetInput ? targetInput.type : 'float';
+                        const elementHandle = parseArrayElementHandle(params.targetHandle);
+                        const targetInput = elementHandle
+                            ? targetNode.data.inputs.find(i => i.id === elementHandle.baseId)
+                            : targetNode.data.inputs.find(i => i.id === params.targetHandle);
+                        const baseType = targetInput ? targetInput.type : 'float';
+                        const newType = elementHandle ? (getArrayElementTypeString(baseType) || 'float') : baseType;
                         const newId = `input_${Date.now()}`;
                         
                         // Helper to get default value for type
@@ -258,7 +263,30 @@ export function useGraphActions(
             }
             
             setEdges((eds) => {
-                const filtered = eds.filter(e => !(e.target === params.target && e.targetHandle === params.targetHandle));
+                const elementHandle = parseArrayElementHandle(params.targetHandle);
+                const baseHandleId = elementHandle ? elementHandle.baseId : null;
+                const isTargetArrayInput = baseHandleId
+                    ? Boolean(targetNode.data.inputs.find(i => i.id === baseHandleId && isArrayTypeString(i.type)))
+                    : Boolean(targetNode.data.inputs.find(i => i.id === params.targetHandle && isArrayTypeString(i.type)));
+
+                // Enforce 1 connection per handle, plus prevent mixing base array handle with element handles.
+                const filtered = eds.filter(e => {
+                    if (e.target !== params.target) return true;
+
+                    // Always replace same exact target handle
+                    if (e.targetHandle === params.targetHandle) return false;
+
+                    if (!isTargetArrayInput) return true;
+
+                    // If connecting to an element handle, remove any existing base-handle edge.
+                    if (baseHandleId) {
+                        return e.targetHandle !== baseHandleId;
+                    }
+
+                    // If connecting to the base array handle, remove any existing element-handle edges.
+                    const base = params.targetHandle || '';
+                    return !(typeof e.targetHandle === 'string' && e.targetHandle.startsWith(`${base}__`));
+                });
                 // Use 'smart' edge type and NO animation
                 return addEdge({ ...params, type: 'smart', animated: false }, filtered);
             });
@@ -304,7 +332,13 @@ export function useGraphActions(
                 ];
                 case 'sampler2D': return null;
                 case 'samplerCube': return null;
+                case 'int[]': return Array.from({ length: 16 }, () => 0);
+                case 'uint[]': return Array.from({ length: 16 }, () => 0);
+                case 'bool[]': return Array.from({ length: 16 }, () => false);
+                case 'float[]': return Array.from({ length: 16 }, () => 0);
                 case 'vec2[]': return Array.from({ length: 16 }, () => [0, 0]);
+                case 'vec3[]': return Array.from({ length: 16 }, () => [0, 0, 0]);
+                case 'vec4[]': return Array.from({ length: 16 }, () => [0, 0, 0, 0]);
                 default: return 0;
             }
         };

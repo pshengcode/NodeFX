@@ -122,6 +122,109 @@ export const SmartNumberInput: React.FC<{ value: number, onChange: (v: number) =
     );
 };
 
+export const IntWidget: React.FC<{ value: number; onChange: (v: number) => void; min?: number; max?: number; className?: string }> = ({ value, onChange, min, max, className }) => {
+    const safeValue = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : 0;
+    const clamp = (n: number) => {
+        let v = Number.isFinite(n) ? Math.round(n) : 0;
+        if (typeof min === 'number' && Number.isFinite(min)) v = Math.max(v, Math.round(min));
+        if (typeof max === 'number' && Number.isFinite(max)) v = Math.min(v, Math.round(max));
+        return v;
+    };
+
+    return (
+        <SmartNumberInput
+            step={1}
+            className={className}
+            value={safeValue}
+            onChange={(v) => onChange(clamp(v))}
+        />
+    );
+};
+
+export const Vec2Widget: React.FC<{ value: number[]; onChange: (v: [number, number]) => void; step?: number; className?: string }> = ({ value, onChange, step = 0.1, className }) => {
+    const v = Array.isArray(value) && value.length >= 2 ? value : [0, 0];
+    const x = typeof v[0] === 'number' && Number.isFinite(v[0]) ? v[0] : 0;
+    const y = typeof v[1] === 'number' && Number.isFinite(v[1]) ? v[1] : 0;
+
+    return (
+        <div className={className || 'flex gap-1'}>
+            <div className="relative flex-1 min-w-0">
+                <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-zinc-500 font-bold uppercase">x</span>
+                <SmartNumberInput
+                    step={step}
+                    className="nodrag w-full h-5 bg-zinc-800 text-[9px] pl-3 pr-1 rounded border border-zinc-700"
+                    value={x}
+                    onChange={(nv) => onChange([nv, y])}
+                />
+            </div>
+            <div className="relative flex-1 min-w-0">
+                <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-zinc-500 font-bold uppercase">y</span>
+                <SmartNumberInput
+                    step={step}
+                    className="nodrag w-full h-5 bg-zinc-800 text-[9px] pl-3 pr-1 rounded border border-zinc-700"
+                    value={y}
+                    onChange={(nv) => onChange([x, nv])}
+                />
+            </div>
+        </div>
+    );
+};
+
+export const Vec3Widget: React.FC<{ value: number[]; onChange: (v: [number, number, number]) => void; step?: number; className?: string }> = ({ value, onChange, step = 0.1, className }) => {
+    const v = Array.isArray(value) && value.length >= 3 ? value : [0, 0, 0];
+    const x = typeof v[0] === 'number' && Number.isFinite(v[0]) ? v[0] : 0;
+    const y = typeof v[1] === 'number' && Number.isFinite(v[1]) ? v[1] : 0;
+    const z = typeof v[2] === 'number' && Number.isFinite(v[2]) ? v[2] : 0;
+
+    return (
+        <div className={className || 'flex gap-1'}>
+            {(['x', 'y', 'z'] as const).map((label, i) => (
+                <div key={label} className="relative flex-1 min-w-0">
+                    <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-zinc-500 font-bold uppercase">{label}</span>
+                    <SmartNumberInput
+                        step={step}
+                        className="nodrag w-full h-5 bg-zinc-800 text-[9px] pl-3 pr-1 rounded border border-zinc-700"
+                        value={[x, y, z][i]}
+                        onChange={(nv) => {
+                            const next: [number, number, number] = [x, y, z];
+                            next[i] = nv;
+                            onChange(next);
+                        }}
+                    />
+                </div>
+            ))}
+        </div>
+    );
+};
+
+export const Vec4Widget: React.FC<{ value: number[]; onChange: (v: [number, number, number, number]) => void; step?: number; className?: string }> = ({ value, onChange, step = 0.1, className }) => {
+    const v = Array.isArray(value) && value.length >= 4 ? value : [0, 0, 0, 0];
+    const x = typeof v[0] === 'number' && Number.isFinite(v[0]) ? v[0] : 0;
+    const y = typeof v[1] === 'number' && Number.isFinite(v[1]) ? v[1] : 0;
+    const z = typeof v[2] === 'number' && Number.isFinite(v[2]) ? v[2] : 0;
+    const w = typeof v[3] === 'number' && Number.isFinite(v[3]) ? v[3] : 0;
+
+    return (
+        <div className={className || 'grid grid-cols-2 gap-1'}>
+            {(['x', 'y', 'z', 'w'] as const).map((label, i) => (
+                <div key={label} className="relative">
+                    <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-zinc-500 font-bold uppercase">{label}</span>
+                    <SmartNumberInput
+                        step={step}
+                        className="nodrag w-full h-5 bg-zinc-800 text-[9px] pl-3 pr-1 rounded border border-zinc-700"
+                        value={[x, y, z, w][i]}
+                        onChange={(nv) => {
+                            const next: [number, number, number, number] = [x, y, z, w];
+                            next[i] = nv;
+                            onChange(next);
+                        }}
+                    />
+                </div>
+            ))}
+        </div>
+    );
+};
+
 export const DraggableNumberWidget = ({ value, onChange, min, max, step = 0.1, sensitivity = 0.5 }: any) => {
     const [isEditing, setIsEditing] = useState(false);
     const [tempValue, setTempValue] = useState("");

@@ -4,25 +4,24 @@ import { NodeData, CompilationResult, GLSLType, RenderPass, UniformVal, NodeOutp
 import { DEFAULT_VERTEX_SHADER, GLSL_BUILTINS } from '../constants';
 import { generateGradientTexture, generateCurveTexture } from './textureGen';
 import { stripComments, extractShaderIO } from './glslParser';
+import { parseArrayElementHandle } from './arrayHandles';
+import { getUniformValue, inferArrayLenFromValue, isArrayType, resolveArrayLen } from './arrayUniforms';
+import { sanitizeGLSLType } from './glslTypeUtils';
+
 
 // Helper to sanitize types
 const sanitizeType = (type: string): GLSLType => {
-  if (type === 'vec1') return 'float';
-  const validTypes = [
-      'float', 'int', 'bool', 'uint',
-      'vec2', 'vec3', 'vec4', 
-      'uvec2', 'uvec3', 'uvec4',
-      'mat2', 'mat3', 'mat4',
-      'sampler2D', 'samplerCube', 
-      'vec2[]'
-  ];
-  return validTypes.includes(type) ? (type as GLSLType) : 'float';
+    return sanitizeGLSLType(type);
 };
 
 // Default values
-const getDefaultGLSLValue = (type: GLSLType): string => {
-  const safeType = sanitizeType(type);
-  switch (safeType) {
+const getDefaultGLSLValue = (type: GLSLType, arrayLen?: number): string => {
+    const safeType = sanitizeType(type);
+    const len = (() => {
+        const n = typeof arrayLen === 'number' && Number.isFinite(arrayLen) ? Math.round(arrayLen) : 16;
+        return Math.max(1, n);
+    })();
+    switch (safeType) {
     case 'float': return '0.0';
     case 'int': return '0';
     case 'uint': return '0u';
@@ -38,29 +37,36 @@ const getDefaultGLSLValue = (type: GLSLType): string => {
     case 'mat4': return 'mat4(1.0)';
     case 'sampler2D': return 'u_empty_tex'; 
     case 'samplerCube': return 'u_empty_cube'; // We might need to define this uniform
+    case 'float[]': {
+                const zeros = Array(len).fill('0.0').join(', ');
+                return `float[${len}](${zeros})`;
+    }
+    case 'int[]': {
+                const zeros = Array(len).fill('0').join(', ');
+                return `int[${len}](${zeros})`;
+    }
+    case 'uint[]': {
+                const zeros = Array(len).fill('0u').join(', ');
+                return `uint[${len}](${zeros})`;
+    }
+    case 'bool[]': {
+                const zeros = Array(len).fill('false').join(', ');
+                return `bool[${len}](${zeros})`;
+    }
     case 'vec2[]': {
-        const zeros = Array(16).fill('vec2(0.0)').join(', ');
-        return `vec2[16](${zeros})`;
+                const zeros = Array(len).fill('vec2(0.0)').join(', ');
+                return `vec2[${len}](${zeros})`;
+    }
+    case 'vec3[]': {
+                const zeros = Array(len).fill('vec3(0.0)').join(', ');
+                return `vec3[${len}](${zeros})`;
+    }
+    case 'vec4[]': {
+                const zeros = Array(len).fill('vec4(0.0)').join(', ');
+                return `vec4[${len}](${zeros})`;
     }
     default: return '0.0';
   }
-};
-
-const getUniformValue = (type: GLSLType, val: UniformValueType) => {
-  if (type === 'vec3' && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'vec4' && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'vec2' && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'uvec3' && Array.isArray(val)) return new Uint32Array(val);
-  if (type === 'uvec4' && Array.isArray(val)) return new Uint32Array(val);
-  if (type === 'uvec2' && Array.isArray(val)) return new Uint32Array(val);
-  if ((type === 'mat2' || type === 'mat3' || type === 'mat4') && Array.isArray(val)) {
-      return new Float32Array(val);
-  }
-  if (type === 'vec2[]' && Array.isArray(val)) {
-      const flat = val.flat();
-      return new Float32Array(flat as number[]);
-  }
-  return val;
 };
 
 // Type Casting Logic
@@ -114,20 +120,72 @@ const castGLSLVariable = (varName: string, fromType: GLSLType, toType: GLSLType)
 const generateFunctionSignature = (
     funcName: string, 
     inputs: { type: string; id: string }[] = [], 
-    outputs: { type: string; id: string }[] = []
+    outputs: { type: string; id: string }[] = [],
+    uniformsById?: Record<string, UniformVal>
 ): string => {
     const args = ['vec2 uv'];
     
     inputs.forEach(i => {
-        if (i.type === 'vec2[]') {
-            args.push(`vec2 ${i.id}[16]`);
-        } else {
-            args.push(`${i.type} ${i.id}`);
+        if (i.type === 'float[]' || i.type === 'int[]' || i.type === 'uint[]' || i.type === 'bool[]' || i.type === 'vec2[]' || i.type === 'vec3[]' || i.type === 'vec4[]') {
+            const safeType = sanitizeType(i.type);
+            const base = safeType.replace('[]', '');
+            const len = resolveArrayLen(safeType, uniformsById?.[i.id] || null, 16);
+            args.push(`${base} ${i.id}[${len}]`);
+            return;
         }
+        args.push(`${i.type} ${i.id}`);
     });
     outputs.forEach(o => args.push(`out ${o.type} ${o.id}`));
     
     return `void ${funcName}(${args.join(', ')})`;
+};
+
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Ensures that any array inputs in `void run(...)` have a concrete size matching the configured length.
+ * This is required because GLSL array parameter sizes are part of the type.
+ */
+const rewriteRunArrayParamSizes = (
+    code: string,
+    inputs: { type: string; id: string }[] = [],
+    uniformsById?: Record<string, UniformVal>
+): string => {
+    const runMatch = /\bvoid\s+run\s*\(/.exec(code);
+    if (!runMatch) return code;
+
+    const start = runMatch.index;
+    const openParen = code.indexOf('(', start);
+    if (openParen < 0) return code;
+
+    // Find the matching close paren for the signature.
+    let depth = 1;
+    let i = openParen + 1;
+    while (i < code.length && depth > 0) {
+        const ch = code[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        i++;
+    }
+    if (depth !== 0) return code;
+
+    const closeParen = i - 1;
+    let sig = code.slice(start, closeParen + 1);
+
+    for (const inp of inputs) {
+        const safeType = sanitizeType(inp.type);
+        if (safeType !== 'float[]' && safeType !== 'int[]' && safeType !== 'uint[]' && safeType !== 'bool[]' && safeType !== 'vec2[]' && safeType !== 'vec3[]' && safeType !== 'vec4[]') continue;
+
+        const base = safeType.replace('[]', '');
+        const len = resolveArrayLen(safeType, uniformsById?.[inp.id] || null, 16);
+
+        const baseEsc = escapeRegex(base);
+        const idEsc = escapeRegex(inp.id);
+        const re = new RegExp(`(\\b${baseEsc}\\s+${idEsc}\\s*\\[)\\s*[^\\]]*\\s*(\\])`, 'g');
+        sig = sig.replace(re, `$1${len}$2`);
+    }
+
+    return code.slice(0, start) + sig + code.slice(closeParen + 1);
 };
 
 // --- COMPOUND NODE COMPILER ---
@@ -209,6 +267,9 @@ export const compileCompoundNode = (
         });
 
         // -----------------------------------------------------------------------------------------
+
+        // Ensure array parameter sizes in run(...) match configured lengths.
+        nodeGlsl = rewriteRunArrayParamSizes(nodeGlsl, node.data.inputs || [], node.data.uniforms);
 
         // Rename 'run' to unique name
         const runRegex = /\bvoid\s+run\s*\(/g;
@@ -370,7 +431,8 @@ export const compileCompoundNode = (
     const sig = generateFunctionSignature(
         'run', 
         compoundNode.data.inputs || [], 
-        compoundNode.data.outputs || []
+        compoundNode.data.outputs || [],
+        compoundNode.data.uniforms
     );
     
     code += `${sig} {\n${body}}\n`;
@@ -421,6 +483,26 @@ export const compileGraph = (
       const defaultOutId = getNodeOutputDef(node, null).id;
       const resolvedOutId = getNodeOutputDef(node, requestedOutputId).id;
       return resolvedOutId === defaultOutId ? node.id : `${node.id}::${resolvedOutId}`;
+  };
+
+  type ArrayIndexLocal = {
+      localName: string;
+      uniformName: string;
+      maxIndex: number;
+  };
+
+  const computeArrayLenForUniform = (safeType: GLSLType, uVal: UniformVal | null, fallback: number) => {
+      const inferred = uVal ? (inferArrayLenFromValue(safeType, uVal.value) || fallback) : fallback;
+      return resolveArrayLen(safeType, uVal, inferred);
+  };
+
+  const injectArrayIndexLocalsIntoRunBodies = (code: string, funcName: string, locals: ArrayIndexLocal[]) => {
+      if (locals.length === 0) return code;
+      const injection = locals
+          .map(l => `  int ${l.localName} = clamp(${l.uniformName}, 0, ${l.maxIndex});`)
+          .join('\n');
+      const regex = new RegExp(`\\bvoid\\s+${funcName}\\s*\\([^\\)]*\\)\\s*\\{`, 'g');
+      return code.replace(regex, (m) => `${m}\n${injection}\n`);
   };
 
   // Stack to detect Pass-Level Cycles (Texture Feedback)
@@ -679,11 +761,18 @@ uniform samplerCube u_empty_cube;
                   
                   // Use unique name to match buildUniformOverridesFromNodes logic
                   const uniqueKey = `u_${nodeIdClean}_${key}`;
-                  
-                  code += `uniform ${u.type} ${uniqueKey};\n`;
+
+                  const safeType = sanitizeType(u.type);
+                  if (safeType === 'float[]' || safeType === 'int[]' || safeType === 'uint[]' || safeType === 'bool[]' || safeType === 'vec2[]' || safeType === 'vec3[]' || safeType === 'vec4[]') {
+                      const base = safeType.replace('[]', '');
+                      const len = resolveArrayLen(safeType, u, inferArrayLenFromValue(safeType, u.value) || 16);
+                      code += `uniform ${base} ${uniqueKey}[${len}];\n`;
+                      passUniforms[uniqueKey] = { type: safeType, value: getUniformValue(safeType, u.value, len) };
+                  } else {
+                      code += `uniform ${safeType} ${uniqueKey};\n`;
+                      passUniforms[uniqueKey] = { type: safeType, value: u.value };
+                  }
                   code += `#define ${key} ${uniqueKey}\n`;
-                  
-                  passUniforms[uniqueKey] = u;
               });
               
               // Add pass dependency uniforms to passUniforms (for direct reference in GLSL)
@@ -955,10 +1044,17 @@ uniform samplerCube u_empty_cube;
 `;
 
       // Helper to get actual value for uniforms
-      const getDefaultUniformValue = (type: GLSLType) => {
+      const getDefaultUniformValue = (type: GLSLType, arrayLen?: number) => {
           if (type === 'vec2') return new Float32Array([0,0]);
           if (type === 'vec3') return new Float32Array([0,0,0]);
           if (type === 'vec4') return new Float32Array([0,0,0,1]);
+          if (type === 'int[]') return new Int32Array(Array(Math.max(1, Math.round(arrayLen ?? 16))).fill(0));
+          if (type === 'uint[]') return new Uint32Array(Array(Math.max(1, Math.round(arrayLen ?? 16))).fill(0));
+          if (type === 'bool[]') return new Int32Array(Array(Math.max(1, Math.round(arrayLen ?? 16))).fill(0));
+          if (type === 'float[]') return new Float32Array(Array(Math.max(1, Math.round(arrayLen ?? 16))).fill(0));
+          if (type === 'vec2[]') return new Float32Array(Array(Math.max(1, Math.round(arrayLen ?? 16)) * 2).fill(0));
+          if (type === 'vec3[]') return new Float32Array(Array(Math.max(1, Math.round(arrayLen ?? 16)) * 3).fill(0));
+          if (type === 'vec4[]') return new Float32Array(Array(Math.max(1, Math.round(arrayLen ?? 16)) * 4).fill(0));
           return 0;
       };
 
@@ -993,14 +1089,23 @@ uniform samplerCube u_empty_cube;
                 const type = sanitizeType(n.data.outputType || 'float');
                 
                 if (!globalUniforms[name]) {
-                    header += `uniform ${type} ${name};\n`;
+                    if (type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]' || type === 'vec2[]' || type === 'vec3[]' || type === 'vec4[]') {
+                        const base = type.replace('[]', '');
+                        const len = resolveArrayLen(type, n.data.uniforms?.value || null, inferArrayLenFromValue(type, n.data.value) || 16);
+                        header += `uniform ${base} ${name}[${len}];\n`;
+                    } else {
+                        header += `uniform ${type} ${name};\n`;
+                    }
                     
                     let val = n.data.value;
                     if (val === undefined && n.data.uniforms && n.data.uniforms['value']) {
                         val = n.data.uniforms['value'].value;
                     }
-                    if (val === undefined) val = getDefaultUniformValue(type);
-                    globalUniforms[name] = { type, value: getUniformValue(type, val) };
+                    const len = (type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]' || type === 'vec2[]' || type === 'vec3[]' || type === 'vec4[]')
+                        ? resolveArrayLen(type, n.data.uniforms?.value || null, inferArrayLenFromValue(type, val) || 16)
+                        : undefined;
+                    if (val === undefined) val = getDefaultUniformValue(type, len);
+                    globalUniforms[name] = { type, value: getUniformValue(type, val, len) };
                 }
                 return; 
           }
@@ -1014,13 +1119,18 @@ uniform samplerCube u_empty_cube;
                  
                  if (globalUniforms[uniformName]) return;
 
-                 if (safeType === 'vec2[]') {
-                     header += `uniform vec2 ${uniformName}[16];\n`;
+                 if (safeType === 'float[]' || safeType === 'int[]' || safeType === 'uint[]' || safeType === 'bool[]' || safeType === 'vec2[]' || safeType === 'vec3[]' || safeType === 'vec4[]') {
+                     const base = safeType.replace('[]', '');
+                     const len = resolveArrayLen(safeType, uVal, inferArrayLenFromValue(safeType, uVal.value) || 16);
+                     header += `uniform ${base} ${uniformName}[${len}];\n`;
                  } else {
                      header += `uniform ${safeType} ${uniformName};\n`;
                  }
                  
-                 let val = getUniformValue(safeType, uVal.value);
+                 const len = (safeType === 'float[]' || safeType === 'int[]' || safeType === 'uint[]' || safeType === 'bool[]' || safeType === 'vec2[]' || safeType === 'vec3[]' || safeType === 'vec4[]')
+                    ? resolveArrayLen(safeType, uVal, inferArrayLenFromValue(safeType, uVal.value) || 16)
+                    : undefined;
+                 let val = getUniformValue(safeType, uVal.value, len);
                  
                  if (safeType === 'sampler2D') {
                     if (uVal.widget === 'gradient' && uVal.widgetConfig?.gradientStops) {
@@ -1088,6 +1198,26 @@ uniform samplerCube u_empty_cube;
              }
           });
 
+          // Scheme B: for ALL array inputs, expose an implicit index uniform.
+          // The GLSL code will receive a local variable named <inputId>_index (injected per run body).
+          (n.data.inputs || []).forEach(input => {
+              const safeType = sanitizeType(input.type);
+              if (!isArrayType(safeType)) return;
+              const indexUniformName = `u_${nodeIdClean}_${input.id}_index`;
+              if (globalUniforms[indexUniformName]) return;
+
+              header += `uniform int ${indexUniformName};\n`;
+
+              const uVal = n.data.uniforms?.[input.id] ?? null;
+              const len = computeArrayLenForUniform(safeType, uVal, 16);
+              const rawIdx = uVal?.widgetConfig && typeof uVal.widgetConfig.arrayIndex === 'number' && Number.isFinite(uVal.widgetConfig.arrayIndex)
+                  ? Math.round(uVal.widgetConfig.arrayIndex)
+                  : 0;
+              const maxIndex = Math.max(0, len - 1);
+              const clamped = Math.max(0, Math.min(maxIndex, rawIdx));
+              globalUniforms[indexUniformName] = { type: 'int', value: clamped };
+          });
+
           if (n.data.isCompound) {
               const inner = nodes.filter(innerN => innerN.data.scopeId === n.id);
               inner.forEach(injectUniformsRecursive);
@@ -1137,7 +1267,7 @@ uniform samplerCube u_empty_cube;
             // If no outputs, body is empty
             if (outputs.length === 0) body = '// No outputs\n';
             
-            const sig = generateFunctionSignature(mainFuncName, [], outputs);
+            const sig = generateFunctionSignature(mainFuncName, [], outputs, node.data.uniforms);
             
             functionsCode += `${sig} {\n${body}}\n\n`;
 
@@ -1161,7 +1291,8 @@ uniform samplerCube u_empty_cube;
             const sig = generateFunctionSignature(
                 mainFuncName, 
                 inputs, 
-                [{ id: 'result', type: 'vec4' }]
+                [{ id: 'result', type: 'vec4' }],
+                node.data.uniforms
             );
             
             functionsCode += `${sig} {\n  ${body}\n}\n\n`;
@@ -1225,6 +1356,9 @@ uniform samplerCube u_empty_cube;
             userCode = userCode.replace(regex, `${newName}(`);
         });
 
+        // 3. Ensure array parameter sizes in run(...) match configured lengths, then rename.
+        userCode = rewriteRunArrayParamSizes(userCode, node.data.inputs || [], node.data.uniforms);
+
         // 3. Rename Main 'run' Function
         const runRegex = /\bvoid\s+run\s*\(/g;
         if (runRegex.test(userCode)) {
@@ -1233,11 +1367,98 @@ uniform samplerCube u_empty_cube;
              userCode = `void ${mainFuncName}(vec2 uv, out vec4 out_fallback) { out_fallback = vec4(0.0); }`;
         }
 
+        // Scheme B: inject <inputId>_index locals for ALL array inputs.
+        const arrayIndexLocals: ArrayIndexLocal[] = [];
+        for (const input of node.data.inputs || []) {
+            const safeType = sanitizeType(input.type);
+            if (!isArrayType(safeType)) continue;
+            const uVal = node.data.uniforms?.[input.id] ?? null;
+            const uniformName = `u_${nodeIdClean}_${input.id}_index`;
+            const len = computeArrayLenForUniform(safeType, uVal, 16);
+            arrayIndexLocals.push({
+                localName: `${input.id}_index`,
+                uniformName,
+                maxIndex: Math.max(0, len - 1),
+            });
+        }
+        if (arrayIndexLocals.length > 0) {
+            userCode = injectArrayIndexLocalsIntoRunBodies(userCode, mainFuncName, arrayIndexLocals);
+        }
+
         functionsCode += `// Node: ${node.data.label}\n${userCode}\n\n`;
       });
 
       // --- MAIN LOOP ---
       mainBodyCode += `void main() {\n  vec2 uv = vUv;\n`;
+
+      type ArrayElementEdge = { edge: Edge; index: number };
+
+      const collectArrayElementEdges = (targetNodeId: string, baseInputId: string): ArrayElementEdge[] => {
+          return edges
+              .filter(e => e.target === targetNodeId)
+              .map(e => ({ e, parsed: parseArrayElementHandle(e.targetHandle) }))
+              .filter(x => x.parsed && x.parsed.baseId === baseInputId)
+              .map(x => ({ edge: x.e, index: x.parsed!.index }));
+      };
+
+      const resolveConnectedExpr = (edgeToResolve: Edge, targetType: GLSLType): string => {
+          const sourceNode = getNodeById(edgeToResolve.source);
+          const isSourceAvailable = sourceNode && localNodes.some(n => n.id === sourceNode.id);
+          if (!isSourceAvailable || !sourceNode) return getDefaultGLSLValue(targetType);
+
+          const sourceIdClean = sourceNode.id.replace(/-/g, '_');
+          let sourceVarName: string | null = null;
+          let sourceType = sourceNode.data.outputType;
+
+          if (sourceNode.data.isGlobalVar) {
+              sourceVarName = sourceNode.data.globalName || `u_global_${sourceIdClean}`;
+              sourceType = sourceNode.data.outputType;
+          } else {
+              const targetOutputId = edgeToResolve.sourceHandle || 'out';
+              const sourceOutputs = sourceNode.data.outputs || [{ id: 'out', type: sourceNode.data.outputType }];
+              const outputDef = sourceOutputs.find(o => o.id === targetOutputId);
+              if (outputDef) {
+                  sourceVarName = `out_${sourceIdClean}_${outputDef.id}`;
+                  sourceType = outputDef.type;
+              }
+          }
+
+          if (!sourceVarName) return getDefaultGLSLValue(targetType);
+          return castGLSLVariable(sourceVarName, sanitizeType(sourceType), targetType);
+      };
+
+      const emitArrayVarFromElementEdges = (opts: {
+          nodeIdClean: string;
+          input: { id: string; type: string };
+          elementEdges: ArrayElementEdge[];
+          uniformName?: string | null;
+          uniformVal?: UniformVal | null;
+      }): { handled: boolean; code: string; arg?: string } => {
+          const safeInputType = sanitizeType(opts.input.type);
+          const isArrayInput = isArrayType(safeInputType);
+          if (!isArrayInput) return { handled: false, code: '' };
+          if (opts.elementEdges.length === 0) return { handled: false, code: '' };
+
+          const fallbackLen = opts.uniformVal ? (inferArrayLenFromValue(safeInputType, opts.uniformVal.value) || 16) : 16;
+          const len = resolveArrayLen(safeInputType, opts.uniformVal ?? null, fallbackLen);
+          const elementType = sanitizeType(String(opts.input.type).slice(0, -2));
+          const arrVar = `arr_${opts.nodeIdClean}_${sanitizeIdForGlsl(opts.input.id)}`;
+          const defaultInit = getDefaultGLSLValue(safeInputType, len);
+
+          let code = `  ${elementType} ${arrVar}[${len}] = ${defaultInit};\n`;
+          if (opts.uniformVal && opts.uniformName) {
+              code += `  for (int i = 0; i < ${len}; i++) { ${arrVar}[i] = ${opts.uniformName}[i]; }\n`;
+          }
+
+          const sorted = [...opts.elementEdges].sort((a, b) => a.index - b.index);
+          for (const item of sorted) {
+              const idx = Math.max(0, Math.min(len - 1, Math.round(item.index)));
+              const rhs = resolveConnectedExpr(item.edge, elementType);
+              code += `  ${arrVar}[${idx}] = ${rhs};\n`;
+          }
+
+          return { handled: true, code, arg: arrVar };
+      };
 
       localNodes.forEach(node => {
           const nodeIdClean = node.id.replace(/-/g, '_');
@@ -1278,6 +1499,20 @@ uniform samplerCube u_empty_cube;
                       }
                   } else {
                       const edge = edges.find(e => e.target === node.id && e.targetHandle === input.id);
+
+                      const elementEdges = !edge ? collectArrayElementEdges(node.id, input.id) : [];
+                      const arrayEmit = emitArrayVarFromElementEdges({
+                          nodeIdClean,
+                          input,
+                          elementEdges,
+                          uniformName: null,
+                          uniformVal: null,
+                      });
+                      if (!edge && arrayEmit.handled) {
+                          mainBodyCode += arrayEmit.code;
+                          if (arrayEmit.arg) callArgs.push(arrayEmit.arg);
+                          return;
+                      }
                       if (edge) {
                           const sourceNode = getNodeById(edge.source);
                           const isSourceAvailable = sourceNode && localNodes.some(n => n.id === sourceNode.id);
@@ -1338,6 +1573,22 @@ uniform samplerCube u_empty_cube;
                   }
               } else {
                   const edge = edges.find(e => e.target === node.id && e.targetHandle === input.id);
+
+                  // Array element override support: connect to `${input.id}__${index}`
+                  const safeInputType = sanitizeType(input.type);
+                  const isArrayInput = isArrayType(safeInputType);
+                  const elementEdges = (!edge && isArrayInput) ? collectArrayElementEdges(node.id, input.id) : [];
+                  const uVal = node.data.uniforms && node.data.uniforms[input.id] ? node.data.uniforms[input.id] : null;
+                  const uniformName = uVal ? `u_${nodeIdClean}_${input.id}` : null;
+                  const arrayEmit = (!edge && elementEdges.length > 0 && isArrayInput)
+                      ? emitArrayVarFromElementEdges({ nodeIdClean, input, elementEdges, uniformName, uniformVal: uVal })
+                      : { handled: false, code: '' as string, arg: undefined as string | undefined };
+                  if (!edge && arrayEmit.handled) {
+                      mainBodyCode += arrayEmit.code;
+                      if (arrayEmit.arg) callArgs.push(arrayEmit.arg);
+                      return;
+                  }
+
                   // Check if source node exists in Local Graph to prevent dead links from breaking compilation
                   // caused by Cycle Breaker above
                   if (edge) {

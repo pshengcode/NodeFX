@@ -112,6 +112,21 @@ void run(vec3 x, out vec3 outVal) { outVal = x; }
 
 - `void run(...)` 中必须包含至少一个 `out` 参数作为输出。
 - 输出参数名不强制，但建议使用：`result` / `outColor` / `outVal` / `out_image`。
+- **数组输入的 index 变量（方案 B，始终生成）**：
+  - 只要 `run(...)` 的某个输入参数是数组（如 `float[]/vec3[]/int[]/...`），编译器就会在该节点的 `run(...)` 函数体内自动注入一个局部变量：`<inputId>_index`。
+  - 这里的 `inputId` 指的是该输入的参数名（也应与 `data.inputs[].id` 对应）。例如参数 `float inArr[16]` 会生成 `int inArr_index = ...;`。
+  - `*_index` 的值来自一个隐式 uniform：`u_<nodeInstanceId>_<inputId>_index`（运行时会把节点实例 id 里的 `-` 替换为 `_`）。
+  - 为避免越界，编译期会自动 clamp：`<inputId>_index = clamp(u_..._index, 0, Len-1)`。
+  - 默认值为 0；如果节点的 `uniforms[inputId].widgetConfig.arrayIndex` 有值，则以该值作为初始 index（并 clamp）。
+
+示例：
+
+```glsl
+void run(vec2 uv, float inArr[16], out float outVal) {
+  // 系统注入：int inArr_index = clamp(u_xxx_inArr_index, 0, 15);
+  outVal = inArr[inArr_index];
+}
+```
 - 具体渲染/类型适配规则以运行时代码与 schema 为准。
 
 ## 4. 示例

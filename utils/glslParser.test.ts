@@ -77,6 +77,20 @@ describe('glslParser', () => {
             expect(io.inputs[0].type).toBe('float');
             expect(io.outputs[0].type).toBe('vec2');
         });
+
+        it('parses array inputs written as type[] name', () => {
+            const code = `void run(vec2 uv, vec2[] offsets, out vec4 color) { color = vec4(0.0); }`;
+            const io = extractShaderIO(code);
+            expect(io.inputs).toHaveLength(1);
+            expect(io.inputs[0]).toEqual({ id: 'offsets', name: 'offsets', type: 'vec2[]' });
+        });
+
+        it('parses array inputs written as type name[]', () => {
+            const code = `void run(vec2 uv, vec2 offsets[], out vec4 color) { color = vec4(0.0); }`;
+            const io = extractShaderIO(code);
+            expect(io.inputs).toHaveLength(1);
+            expect(io.inputs[0]).toEqual({ id: 'offsets', name: 'offsets', type: 'vec2[]' });
+        });
     });
 
     describe('extractAllSignatures', () => {

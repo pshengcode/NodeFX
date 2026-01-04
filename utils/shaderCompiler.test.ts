@@ -77,6 +77,93 @@ describe('shaderCompiler', () => {
         expect(result.passes[0].fragmentShader).toContain('node_source_run');
     });
 
+    it('supports connecting a scalar into a single array element (targetHandle suffix __idx)', () => {
+        const nodes: Node<NodeData>[] = [
+            {
+                id: 'source',
+                type: 'customShader',
+                position: { x: 0, y: 0 },
+                data: {
+                    label: 'Source',
+                    glsl: 'void run(vec2 uv, out float val) { val = 1.0; }',
+                    inputs: [],
+                    outputs: [{ id: 'val', name: 'Val', type: 'float' }],
+                    outputType: 'float',
+                    uniforms: {}
+                }
+            },
+            {
+                id: 'target',
+                type: 'customShader',
+                position: { x: 100, y: 0 },
+                data: {
+                    label: 'Target',
+                    glsl: 'void run(vec2 uv, float inArr[4], out vec4 res) { res = vec4(inArr[2]); }',
+                    inputs: [{ id: 'inArr', name: 'Arr', type: 'float[]' }],
+                    outputs: [{ id: 'res', name: 'Res', type: 'vec4' }],
+                    outputType: 'vec4',
+                    uniforms: {
+                        inArr: {
+                            type: 'float[]',
+                            value: [0, 0, 0, 0],
+                            widgetConfig: { arrayLength: 4 }
+                        }
+                    }
+                }
+            }
+        ];
+
+        const edges: Edge[] = [
+            { id: 'e1', source: 'source', sourceHandle: 'val', target: 'target', targetHandle: 'inArr__2' }
+        ];
+
+        const result = compileGraph(nodes, edges, 'target');
+        expect(result.error).toBeUndefined();
+        expect(result.passes).toHaveLength(1);
+        const fs = result.passes[0].fragmentShader;
+        expect(fs).toContain('arr_target_inArr');
+        expect(fs).toContain('arr_target_inArr[2]');
+        expect(fs).toContain('node_target_run');
+    });
+
+    it('exposes <inputId>_index in GLSL via an implicit int uniform (scheme B)', () => {
+        const nodes: Node<NodeData>[] = [
+            {
+                id: 'target',
+                type: 'customShader',
+                position: { x: 0, y: 0 },
+                data: {
+                    label: 'Target',
+                    glsl: 'void run(vec2 uv, float inArr[4], out float outVal) { outVal = inArr[inArr_index]; }',
+                    inputs: [{ id: 'inArr', name: 'Arr', type: 'float[]' }],
+                    outputs: [{ id: 'outVal', name: 'Out', type: 'float' }],
+                    outputType: 'float',
+                    uniforms: {
+                        inArr: {
+                            type: 'float[]',
+                            value: [0, 1, 2, 3],
+                            widget: 'expanded',
+                            widgetConfig: { arrayLength: 4, arrayIndex: 2 }
+                        }
+                    }
+                }
+            }
+        ];
+
+        const result = compileGraph(nodes, [], 'target');
+        expect(result.error).toBeUndefined();
+        expect(result.passes).toHaveLength(1);
+
+        const fs = result.passes[0].fragmentShader;
+        expect(fs).toContain('uniform int u_target_inArr_index;');
+        expect(fs).toContain('int inArr_index = clamp(u_target_inArr_index, 0, 3);');
+
+        const u = result.passes[0].uniforms['u_target_inArr_index'];
+        expect(u).toBeDefined();
+        expect(u.type).toBe('int');
+        expect(u.value).toBe(2);
+    });
+
     it('handles cycle detection gracefully', () => {
         // Create a simple cycle: A -> B -> A
         const nodes: Node<NodeData>[] = [

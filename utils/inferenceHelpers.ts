@@ -1,19 +1,11 @@
 import { Node, Edge } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, UniformValueType } from '../types';
+import { getArrayElementTypeString, parseArrayElementHandle } from './arrayHandles';
+import { sanitizeGLSLType } from './glslTypeUtils';
 
 // Helper to sanitize types
 export const sanitizeType = (type: string): GLSLType => {
-  if (!type) return 'float';
-  if (type === 'vec1') return 'float';
-  const validTypes = [
-      'float', 'int', 'bool', 'uint',
-      'vec2', 'vec3', 'vec4',
-      'uvec2', 'uvec3', 'uvec4',
-      'mat2', 'mat3', 'mat4',
-      'sampler2D', 'samplerCube',
-      'vec2[]'
-  ];
-  return validTypes.includes(type) ? (type as GLSLType) : 'float';
+    return sanitizeGLSLType(type);
 };
 
 // Helper to rank types for polymorphism
@@ -147,9 +139,10 @@ export const getConnectedTypeRank = (
                 
                 // Check target input type
                 if (edge.targetHandle && targetNode.data.inputs) {
-                    const inputDef = targetNode.data.inputs.find(i => i.id === edge.targetHandle);
+                    const element = parseArrayElementHandle(edge.targetHandle);
+                    const inputDef = targetNode.data.inputs.find(i => i.id === (element ? element.baseId : edge.targetHandle));
                     if (inputDef) {
-                        typeToCheck = inputDef.type;
+                        typeToCheck = element ? (getArrayElementTypeString(inputDef.type) || 'float') : inputDef.type;
                     }
                 }
                 // Special case for GraphOutput
@@ -197,10 +190,12 @@ export const inferGraphInputNodes = (
             connectedEdges.forEach(edge => {
                 const targetNode = nodeMap.get(edge.target);
                 if (!targetNode) return;
-                
-                const targetInput = targetNode.data.inputs.find(i => i.id === edge.targetHandle);
+
+                const element = parseArrayElementHandle(edge.targetHandle);
+                const targetInput = targetNode.data.inputs.find(i => i.id === (element ? element.baseId : edge.targetHandle));
                 if (targetInput) {
-                    const rank = getTypeRank(targetInput.type);
+                    const demandedType = element ? (getArrayElementTypeString(targetInput.type) || 'float') : targetInput.type;
+                    const rank = getTypeRank(sanitizeType(demandedType));
                     if (rank > maxRank) maxRank = rank;
                 }
             });

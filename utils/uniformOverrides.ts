@@ -1,40 +1,11 @@
 import { Node } from 'reactflow';
 import { GLSLType, NodeData, RawTextureData, UniformVal, UniformValueType } from '../types';
+import { getUniformValue, isArrayType, resolveArrayLen } from './arrayUniforms';
+import { sanitizeGLSLType } from './glslTypeUtils';
 import { generateCurveTexture, generateGradientTexture } from './textureGen';
 
 const sanitizeType = (type: string): GLSLType => {
-  if (type === 'vec1') return 'float';
-  const validTypes: GLSLType[] = [
-    'float',
-    'int',
-    'bool',
-    'uint',
-    'vec2',
-    'vec3',
-    'vec4',
-    'uvec2',
-    'uvec3',
-    'uvec4',
-    'mat2',
-    'mat3',
-    'mat4',
-    'sampler2D',
-    'samplerCube',
-    'vec2[]',
-  ];
-  return (validTypes as string[]).includes(type) ? (type as GLSLType) : 'float';
-};
-
-const getUniformValue = (type: GLSLType, val: UniformValueType) => {
-  if (type === 'vec3' && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'vec4' && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'vec2' && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'uvec3' && Array.isArray(val)) return new Uint32Array(val);
-  if (type === 'uvec4' && Array.isArray(val)) return new Uint32Array(val);
-  if (type === 'uvec2' && Array.isArray(val)) return new Uint32Array(val);
-  if ((type === 'mat2' || type === 'mat3' || type === 'mat4') && Array.isArray(val)) return new Float32Array(val);
-  if (type === 'vec2[]' && Array.isArray(val)) return new Float32Array(val.flat() as number[]);
-  return val;
+  return sanitizeGLSLType(type);
 };
 
 const sampleCenterRGBA = (textureData: RawTextureData) => {
@@ -58,6 +29,7 @@ const readAlphaFromUniformValue = (val: UniformValueType): number | null => {
 
 const buildOneUniformValue = (node: Node<NodeData>, uniform: UniformVal) => {
   const safeType = sanitizeType(uniform.type);
+  const arrayLen = isArrayType(safeType) ? resolveArrayLen(safeType, uniform, 16) : undefined;
 
   // Gradient/Curve widgets synthesize textures from widgetConfig.
   if (uniform.widget === 'gradient' || uniform.widget === 'curve') {
@@ -95,7 +67,7 @@ const buildOneUniformValue = (node: Node<NodeData>, uniform: UniformVal) => {
     }
   }
 
-  return getUniformValue(safeType, uniform.value);
+  return getUniformValue(safeType, uniform.value, arrayLen);
 };
 
 const isRawTextureData = (val: unknown): val is RawTextureData => {
@@ -108,6 +80,12 @@ const isRawTextureData = (val: unknown): val is RawTextureData => {
  */
 export function buildUniformOverridesFromNodes(nodes: Node<NodeData>[]): Record<string, UniformVal> {
   const overrides: Record<string, UniformVal> = {};
+
+  const clampInt = (v: number, min: number, max: number) => {
+    const vv = Math.round(v);
+    if (!Number.isFinite(vv)) return min;
+    return Math.max(min, Math.min(max, vv));
+  };
 
   for (const node of nodes) {
     const nodeIdClean = node.id.replace(/-/g, '_');
@@ -122,9 +100,14 @@ export function buildUniformOverridesFromNodes(nodes: Node<NodeData>[]): Record<
         value = node.data.uniforms.value.value;
       }
 
+      const uniformForLen: UniformVal = node.data.uniforms?.value
+        ? { ...node.data.uniforms.value, type, value: value ?? null }
+        : { type, value: value ?? null };
+      const arrayLen = isArrayType(type) ? resolveArrayLen(type, uniformForLen, 16) : undefined;
+
       overrides[name] = {
         type,
-        value: getUniformValue(type, value ?? 0),
+        value: getUniformValue(type, value ?? 0, arrayLen),
       };
       continue;
     }
@@ -155,6 +138,20 @@ export function buildUniformOverridesFromNodes(nodes: Node<NodeData>[]): Record<
         type: safeType,
         value,
       };
+
+      // Scheme B: ALL array inputs expose an implicit int uniform: u_<nodeId>_<inputId>_index
+      // This allows using <inputId>_index in GLSL, and updating index without recompiling the shader
+      // when a UI/editor provides a way to change widgetConfig.arrayIndex.
+      if (isArrayType(safeType)) {
+        const len = resolveArrayLen(safeType, uVal, 16);
+        const maxIndex = Math.max(0, len - 1);
+        const rawIdx = uVal.widgetConfig?.arrayIndex;
+        const idx = typeof rawIdx === 'number' && Number.isFinite(rawIdx) ? rawIdx : 0;
+        overrides[`${uniformName}_index`] = {
+          type: 'int',
+          value: clampInt(idx, 0, maxIndex),
+        };
+      }
     }
   }
 

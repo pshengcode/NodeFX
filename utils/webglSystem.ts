@@ -616,6 +616,49 @@ class WebGLSystem {
             return new Uint32Array(length);
         };
 
+        const coerceIntArray = (value: any, length: number): Int32Array => {
+            if (value instanceof Int32Array) {
+                if (value.length === length) return value;
+                const out = new Int32Array(length);
+                out.set(value.subarray(0, Math.min(length, value.length)));
+                return out;
+            }
+            if (Array.isArray(value)) {
+                const out = new Int32Array(length);
+                for (let i = 0; i < length; i++) {
+                    const v = value[i];
+                    if (typeof v === 'boolean') out[i] = v ? 1 : 0;
+                    else {
+                        const n = Number(v);
+                        out[i] = Number.isFinite(n) ? (n | 0) : 0;
+                    }
+                }
+                return out;
+            }
+            if (typeof value === 'number') {
+                const n = Number.isFinite(value) ? (value | 0) : 0;
+                return new Int32Array(Array.from({ length }, () => n));
+            }
+            if (typeof value === 'boolean') {
+                const n = value ? 1 : 0;
+                return new Int32Array(Array.from({ length }, () => n));
+            }
+            if (value && typeof value === 'object' && typeof (value as any).length === 'number') {
+                const out = new Int32Array(length);
+                const src = value as ArrayLike<any>;
+                for (let i = 0; i < length; i++) {
+                    const v = (src as any)[i];
+                    if (typeof v === 'boolean') out[i] = v ? 1 : 0;
+                    else {
+                        const n = Number(v);
+                        out[i] = Number.isFinite(n) ? (n | 0) : 0;
+                    }
+                }
+                return out;
+            }
+            return new Int32Array(length);
+        };
+
         // Normalize to integer pixel sizes to avoid per-frame canvas resize thrash.
         // If `width/height` are fractional (common with DPR math), `canvas.width` is int and will never equal.
         const w = Math.max(1, Math.floor(width));
@@ -823,6 +866,31 @@ class WebGLSystem {
                 else if (u.type === 'mat2') gl.uniformMatrix2fv(loc, false, coerceFloatArray(u.value, 4));
                 else if (u.type === 'mat3') gl.uniformMatrix3fv(loc, false, coerceFloatArray(u.value, 9));
                 else if (u.type === 'mat4') gl.uniformMatrix4fv(loc, false, coerceFloatArray(u.value, 16));
+                else if (u.type === 'float[]') {
+                    let data = u.value;
+                    if (Array.isArray(data)) {
+                        data = new Float32Array(data as number[]);
+                    }
+                    gl.uniform1fv(loc, data);
+                }
+                else if (u.type === 'int[]') {
+                    const len = (u.value && typeof u.value === 'object' && typeof (u.value as any).length === 'number')
+                        ? (u.value as any).length
+                        : (Array.isArray(u.value) ? u.value.length : 1);
+                    gl.uniform1iv(loc, coerceIntArray(u.value, len));
+                }
+                else if (u.type === 'bool[]') {
+                    const len = (u.value && typeof u.value === 'object' && typeof (u.value as any).length === 'number')
+                        ? (u.value as any).length
+                        : (Array.isArray(u.value) ? u.value.length : 1);
+                    gl.uniform1iv(loc, coerceIntArray(u.value, len));
+                }
+                else if (u.type === 'uint[]') {
+                    const len = (u.value && typeof u.value === 'object' && typeof (u.value as any).length === 'number')
+                        ? (u.value as any).length
+                        : (Array.isArray(u.value) ? u.value.length : 1);
+                    gl.uniform1uiv(loc, coerceUintArray(u.value, len));
+                }
                 else if (u.type === 'vec2[]') {
                     // Flatten array of arrays or use Float32Array directly
                     let data = u.value;
@@ -830,6 +898,18 @@ class WebGLSystem {
                         data = new Float32Array(data.flat());
                     }
                     gl.uniform2fv(loc, data);
+                } else if (u.type === 'vec3[]') {
+                    let data = u.value;
+                    if (Array.isArray(data) && Array.isArray(data[0])) {
+                        data = new Float32Array(data.flat());
+                    }
+                    gl.uniform3fv(loc, data);
+                } else if (u.type === 'vec4[]') {
+                    let data = u.value;
+                    if (Array.isArray(data) && Array.isArray(data[0])) {
+                        data = new Float32Array(data.flat());
+                    }
+                    gl.uniform4fv(loc, data);
                 }
             }
 

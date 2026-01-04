@@ -1,15 +1,10 @@
 
 import { GLSLType, NodeInput, NodeOutput } from '../types';
 
+import { GLSL_TYPE_STRINGS } from './glslTypeUtils';
+
 // GLSL Types we care about for ports
-const VALID_TYPES = new Set([
-    'float', 'int', 'bool', 'uint',
-    'vec2', 'vec3', 'vec4',
-    'uvec2', 'uvec3', 'uvec4',
-    'mat2', 'mat3', 'mat4',
-    'sampler2D', 'samplerCube',
-    'vec2[]'
-]);
+const VALID_TYPES = new Set<string>(GLSL_TYPE_STRINGS as readonly string[]);
 
 interface Token {
     type: 'keyword' | 'identifier' | 'symbol' | 'number' | 'preprocessor';
@@ -340,6 +335,22 @@ const parseArgument = (parts: string[], inputs: NodeInput[], outputs: NodeOutput
 
     let name = parts[parts.length - 1];
     let isArray = false;
+
+    // Handle Array Syntax: type[] name  -> parts like: [type, [, ], name]
+    // Tokenizer splits '[' and ']' into separate tokens, so we detect brackets before the identifier.
+    // Example: `vec2[] offsets` => ['vec2', '[', ']', 'offsets']
+    const openBracketIdx = parts.indexOf('[');
+    const closeBracketIdx = parts.indexOf(']');
+    if (
+        openBracketIdx >= 0 &&
+        closeBracketIdx > openBracketIdx &&
+        openBracketIdx < parts.length - 1 &&
+        closeBracketIdx < parts.length - 1
+    ) {
+        // If brackets appear before the final identifier, treat as array.
+        // (Other array forms like `type name[16]` are handled below.)
+        isArray = true;
+    }
 
     // Handle Array Syntax: type name[size] -> parts: [type, name, [, size, ]]
     // Or if numbers skipped: [type, name, [, ]]

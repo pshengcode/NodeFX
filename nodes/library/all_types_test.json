@@ -20,7 +20,13 @@
       { "id": "m4", "name": "Mat4", "type": "mat4" },
       { "id": "s2d", "name": "Sampler2D", "type": "sampler2D" },
       { "id": "sc", "name": "SamplerCube", "type": "samplerCube" },
-      { "id": "arr", "name": "Vec2 Array", "type": "vec2[]" }
+      { "id": "iarr", "name": "Int Array", "type": "int[]" },
+      { "id": "uarr", "name": "UInt Array", "type": "uint[]" },
+      { "id": "barr", "name": "Bool Array", "type": "bool[]" },
+      { "id": "farr", "name": "Float Array", "type": "float[]" },
+      { "id": "arr", "name": "Vec2 Array", "type": "vec2[]" },
+      { "id": "arr3", "name": "Vec3 Array", "type": "vec3[]" },
+      { "id": "arr4", "name": "Vec4 Array", "type": "vec4[]" }
     ],
     "outputs": [
       { "id": "result", "name": "Result", "type": "vec4" }
@@ -42,8 +48,14 @@
       "m4": { "type": "mat4", "value": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] },
       "s2d": { "type": "sampler2D", "value": null },
       "sc": { "type": "samplerCube", "value": null },
-      "arr": { "type": "vec2[]", "value": [[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]] }
+      "iarr": { "type": "int[]", "value": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+      "uarr": { "type": "uint[]", "value": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+      "barr": { "type": "bool[]", "value": [true,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false] },
+      "farr": { "type": "float[]", "value": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+      "arr": { "type": "vec2[]", "value": [[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]] },
+      "arr3": { "type": "vec3[]", "value": [[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]] },
+      "arr4": { "type": "vec4[]", "value": [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]] }
     },
-    "glsl": "void run(vec2 uv, float f, int i, bool b, uint u, vec2 v2, vec3 v3, vec4 v4, uvec2 uv2, uvec3 uv3, uvec4 uv4, mat2 m2, mat3 m3, mat4 m4, sampler2D s2d, samplerCube sc, vec2 arr[16], out vec4 result) {\n    // Combine inputs to verify they are bound correctly\n    float val = f + float(i) + float(u);\n    val += v2.x + v3.x + v4.x;\n    val += float(uv2.x) + float(uv3.x) + float(uv4.x);\n    val += m2[0][0] + m3[0][0] + m4[0][0];\n    val += arr[0].x;\n    \n    vec4 tex = texture(s2d, uv);\n    // vec4 cube = texture(sc, vec3(uv, 0.0)); // Skip cube sampling to avoid crash if not bound\n    \n    result = vec4(val * 0.01, tex.r, b ? 1.0 : 0.0, 1.0);\n}"
+    "glsl": "void run(vec2 uv, float f, int i, bool b, uint u, vec2 v2, vec3 v3, vec4 v4, uvec2 uv2, uvec3 uv3, uvec4 uv4, mat2 m2, mat3 m3, mat4 m4, sampler2D s2d, samplerCube sc, int iarr[16], uint uarr[16], bool barr[16], float farr[16], vec2 arr[16], vec3 arr3[16], vec4 arr4[16], out vec4 result) {\n    // Combine inputs to verify they are bound correctly\n    float val = f + float(i) + float(u);\n    val += v2.x + v3.x + v4.x;\n    val += float(uv2.x) + float(uv3.x) + float(uv4.x);\n    val += m2[0][0] + m3[0][0] + m4[0][0];\n    val += float(iarr[0]) + float(uarr[0]);\n    val += farr[0];\n    val += arr[0].x;\n    val += arr3[0].x;\n    val += arr4[0].x;\n    \n    vec4 tex = texture(s2d, uv);\n    // vec4 cube = texture(sc, vec3(uv, 0.0)); // Skip cube sampling to avoid crash if not bound\n    \n    float barrVal = barr[0] ? 1.0 : 0.0;\n    result = vec4(val * 0.01, tex.r, (b ? 1.0 : 0.0) * 0.5 + barrVal * 0.5, 1.0);\n}"
   }
 }

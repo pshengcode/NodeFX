@@ -25,6 +25,37 @@ describe('Zod Schemas', () => {
             expect(result.success).toBe(true);
         });
 
+        it('validates a vec3[] uniform with array-of-arrays value', () => {
+            const data = {
+                type: 'vec3[]',
+                value: Array.from({ length: 16 }, () => [0.0, 0.0, 0.0]),
+                widget: 'index',
+                widgetConfig: {
+                    arrayIndex: 0,
+                    arrayIndexWidget: 'number',
+                    arrayElementWidget: 'default',
+                    arrayElementStep: 0.1
+                }
+            };
+            const result = UniformValSchema.safeParse(data);
+            expect(result.success).toBe(true);
+        });
+
+        it('validates a float[] uniform with array value', () => {
+            const data = {
+                type: 'float[]',
+                value: Array.from({ length: 16 }, () => 0.0),
+                widget: 'index',
+                widgetConfig: {
+                    arrayIndex: 0,
+                    arrayIndexWidget: 'slider',
+                    arrayElementStep: 0.1
+                }
+            };
+            const result = UniformValSchema.safeParse(data);
+            expect(result.success).toBe(true);
+        });
+
         it('fails on invalid type', () => {
             const data = {
                 type: 'invalid_type',

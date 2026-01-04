@@ -1,23 +1,17 @@
 import { z } from 'zod';
+import { GLSL_TYPE_STRINGS, NODE_CATEGORY_STRINGS, WIDGET_MODE_STRINGS } from '../enums';
 
 // Basic Types
-export const GLSLTypeSchema = z.enum([
-    'float', 'int', 'bool', 'uint',
-    'vec2', 'vec3', 'vec4',
-    'uvec2', 'uvec3', 'uvec4',
-    'mat2', 'mat3', 'mat4',
-    'sampler2D', 'samplerCube',
-    'vec2[]'
-]);
+export const GLSLTypeSchema = z.enum(
+    GLSL_TYPE_STRINGS as unknown as [string, ...string[]]
+);
 
 export const WidgetModeSchema = z.enum([
-    'default', 'slider', 'number', 'angle', 'pad', 'color', 
-    'curve', 'gradient', 'image', 'toggle', 'enum', 'range', 'bezier_grid', 'hidden'
+    ...(WIDGET_MODE_STRINGS as unknown as [string, ...string[]])
 ]);
 
 export const NodeCategorySchema = z.enum([
-    'Input', 'Generator', 'Math', 'Vector', 'Color', 'Filter', 'Effect', 'Utility', 
-    'Output', 'Network', 'Custom', 'User'
+    ...(NODE_CATEGORY_STRINGS as unknown as [string, ...string[]])
 ]);
 
 // Widget Config
@@ -66,7 +60,21 @@ export const WidgetConfigSchema = z.object({
         uniform: z.string(),
         value: z.any().optional(),
         notValue: z.any().optional()
-    }).optional()
+    }).optional(),
+
+    arrayIndex: z.number().int().nonnegative().optional(),
+    arrayLength: z.number().int().nonnegative().optional(),
+    arrayIndexWidget: z.enum(['number', 'slider']).optional(),
+    arrayElementWidget: z.enum(['default', 'slider', 'number', 'angle', 'toggle', 'enum', 'pad', 'range', 'color']).optional(),
+
+    arrayElementStep: z.number().optional(),
+    arrayElementMin: z.number().optional(),
+    arrayElementMax: z.number().optional(),
+    arrayElementRangeStep: z.number().optional(),
+    arrayElementMinX: z.number().optional(),
+    arrayElementMaxX: z.number().optional(),
+    arrayElementMinY: z.number().optional(),
+    arrayElementMaxY: z.number().optional()
 });
 
 // Uniform Value (JSON compatible)
@@ -76,6 +84,7 @@ export const UniformValueSchema = z.union([
     z.number(),
     z.boolean(),
     z.array(z.number()),
+    z.array(z.boolean()),
     z.array(z.array(z.number())), // Support for vec2[] (array of arrays)
     z.string(),
     z.null()

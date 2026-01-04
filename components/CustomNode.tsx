@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { NodeData, GLSLType, UniformVal, NodeOutput, NodeInput, WidgetMode, WidgetConfig, NodeCategory, NodePass } from '../types';
 import { Code, X, Settings2, Eye, AlertTriangle, Settings, Download, Edit2, Plus, Trash2, CheckSquare, Square, EyeOff, Maximize2, Minimize2, Save, LogIn, MoreVertical, Layers, ChevronDown } from 'lucide-react';
-import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput, AngleWidget } from './UniformWidgets';
+import { SliderWidget, ColorWidget, GradientWidget, CurveEditor, PadWidget, RangeWidget, SmartNumberInput, AngleWidget, IntWidget, Vec2Widget, Vec3Widget, Vec4Widget } from './UniformWidgets';
 import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
 import { assetManager } from '../utils/assetManager';
@@ -526,7 +526,13 @@ const SUPPORTED_WIDGETS: Partial<Record<GLSLType, WidgetMode[]>> = {
     mat4: ['default', 'hidden'],
     sampler2D: ['default', 'image', 'gradient', 'curve', 'hidden'],
     samplerCube: ['default', 'image', 'hidden'],
-    'vec2[]': ['bezier_grid', 'hidden']
+    'int[]': ['expanded', 'index', 'hidden'],
+    'uint[]': ['expanded', 'index', 'hidden'],
+    'bool[]': ['expanded', 'index', 'hidden'],
+    'float[]': ['expanded', 'index', 'hidden'],
+    'vec2[]': ['expanded', 'index', 'bezier_grid', 'hidden'],
+    'vec3[]': ['expanded', 'index', 'hidden'],
+    'vec4[]': ['expanded', 'index', 'hidden']
 };
 
 // --- UNIFORM CONTROL WRAPPER ---
@@ -537,6 +543,7 @@ const UniformControlWrapper = ({
     onUpdateValue, 
     onUpdateConfig,
     isConnected,
+    connectedTargetHandles,
     typeColor,
     t,
     compiledData,
@@ -548,36 +555,46 @@ const UniformControlWrapper = ({
     onUpdateValue: (val: any) => void;
     onUpdateConfig: (widget: WidgetMode, config?: WidgetConfig) => void;
     isConnected: boolean;
+    connectedTargetHandles?: Set<string>;
     typeColor: string;
     t: (s: string) => string;
     compiledData?: any;
     definitionId?: string;
 }) => {
-    const [showMenu, setShowMenu] = useState(false);
-    const mode = uniform.widget || 'default';
+    const [activeMenu, setActiveMenu] = useState<null | 'main' | 'index' | 'element'>(null);
+    const mode = uniform.widget || ((input.type === 'float[]' || input.type === 'int[]' || input.type === 'uint[]' || input.type === 'bool[]' || input.type === 'vec2[]' || input.type === 'vec3[]' || input.type === 'vec4[]') ? 'expanded' : 'default');
     const config = uniform.widgetConfig || {};
     const menuRef = useRef<HTMLDivElement>(null);
-    const buttonRef = useRef<HTMLButtonElement>(null);
+    const mainButtonRef = useRef<HTMLButtonElement>(null);
+    const indexButtonRef = useRef<HTMLButtonElement>(null);
+    const elementButtonRef = useRef<HTMLButtonElement>(null);
+
+    const showMenu = activeMenu === 'main';
+    const showIndexEditorMenu = activeMenu === 'index';
+    const showElementEditorMenu = activeMenu === 'element';
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (
                 menuRef.current && 
                 !menuRef.current.contains(event.target as Node) &&
-                buttonRef.current &&
-                !buttonRef.current.contains(event.target as Node)
+                !(
+                    mainButtonRef.current?.contains(event.target as Node) ||
+                    indexButtonRef.current?.contains(event.target as Node) ||
+                    elementButtonRef.current?.contains(event.target as Node)
+                )
             ) {
-                setShowMenu(false);
+                setActiveMenu(null);
             }
         };
 
-        if (showMenu) {
+        if (activeMenu) {
             document.addEventListener('mousedown', handleClickOutside, true);
         }
         return () => {
             document.removeEventListener('mousedown', handleClickOutside, true);
         };
-    }, [showMenu]);
+    }, [activeMenu]);
     
     // Check visibility condition - Logic handled by parent component (isInputVisible)
 
@@ -849,8 +866,1084 @@ const UniformControlWrapper = ({
              return <ImageUploadWidget value={uniform.value} onChange={onUpdateValue} />;
         }
 
-        if (type === 'vec2[]') {
-            if (mode === 'bezier_grid') {
+        if (type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]' || type === 'vec2[]' || type === 'vec3[]' || type === 'vec4[]') {
+            if (mode === 'index') {
+                const raw = Array.isArray(uniform.value) ? (uniform.value as unknown[]) : [];
+                const isScalarArray = type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]';
+                const isFloatArray = type === 'float[]';
+                const isIntArray = type === 'int[]';
+                const isUintArray = type === 'uint[]';
+                const isBoolArray = type === 'bool[]';
+
+                const valuesScalar = isScalarArray
+                    ? (raw.map(v => {
+                        const n = Number(v);
+                        return Number.isFinite(n) ? n : 0;
+                    }) as number[])
+                    : [];
+                const valuesVec = !isScalarArray
+                    ? (raw.filter(v => Array.isArray(v)) as number[][])
+                    : [];
+                const length = isScalarArray ? valuesScalar.length : valuesVec.length;
+
+                // UI-configurable length
+                const clampLen = (n: number) => {
+                    if (!Number.isFinite(n)) return 1;
+                    const rounded = Math.round(n);
+                    return Math.max(1, rounded);
+                };
+                const desiredLengthRaw = typeof config.arrayLength === 'number' && Number.isFinite(config.arrayLength)
+                    ? config.arrayLength
+                    : length;
+                const desiredLength = clampLen(desiredLengthRaw);
+
+                const vecSize = isScalarArray ? 1 : type === 'vec2[]' ? 2 : type === 'vec3[]' ? 3 : 4;
+
+                const indexWidget = config.arrayIndexWidget || 'number';
+                const elementStep = typeof config.arrayElementStep === 'number' && Number.isFinite(config.arrayElementStep)
+                    ? config.arrayElementStep
+                    : (isScalarArray ? (isFloatArray ? 0.01 : 1) : 0.1);
+
+                const rangeMin = typeof config.arrayElementMin === 'number' && Number.isFinite(config.arrayElementMin)
+                    ? config.arrayElementMin
+                    : 0;
+                const rangeMax = typeof config.arrayElementMax === 'number' && Number.isFinite(config.arrayElementMax)
+                    ? config.arrayElementMax
+                    : 100;
+                const rangeStep = typeof config.arrayElementRangeStep === 'number' && Number.isFinite(config.arrayElementRangeStep)
+                    ? config.arrayElementRangeStep
+                    : 0.1;
+
+                const scalarMin = typeof config.arrayElementMin === 'number' && Number.isFinite(config.arrayElementMin)
+                    ? config.arrayElementMin
+                    : 0;
+                const scalarMax = typeof config.arrayElementMax === 'number' && Number.isFinite(config.arrayElementMax)
+                    ? config.arrayElementMax
+                    : (isFloatArray ? 1 : 10);
+                const scalarStep = typeof config.arrayElementRangeStep === 'number' && Number.isFinite(config.arrayElementRangeStep)
+                    ? config.arrayElementRangeStep
+                    : (isFloatArray ? 0.01 : 1);
+
+                const padMinX = typeof config.arrayElementMinX === 'number' && Number.isFinite(config.arrayElementMinX)
+                    ? config.arrayElementMinX
+                    : 0;
+                const padMaxX = typeof config.arrayElementMaxX === 'number' && Number.isFinite(config.arrayElementMaxX)
+                    ? config.arrayElementMaxX
+                    : 1;
+                const padMinY = typeof config.arrayElementMinY === 'number' && Number.isFinite(config.arrayElementMinY)
+                    ? config.arrayElementMinY
+                    : 0;
+                const padMaxY = typeof config.arrayElementMaxY === 'number' && Number.isFinite(config.arrayElementMaxY)
+                    ? config.arrayElementMaxY
+                    : 1;
+
+                const currentIndexRaw = typeof config.arrayIndex === 'number' && Number.isFinite(config.arrayIndex)
+                    ? Math.round(config.arrayIndex)
+                    : 0;
+
+                const clampIndex = (n: number) => {
+                    if (!Number.isFinite(n)) return 0;
+                    const rounded = Math.round(n);
+                    if (desiredLength <= 0) return 0;
+                    return Math.max(0, Math.min(desiredLength - 1, rounded));
+                };
+
+                const currentIndex = clampIndex(currentIndexRaw);
+
+                const resizeArrayTo = (nextLen: number) => {
+                    const targetLen = clampLen(nextLen);
+                    if (targetLen === length) {
+                        updateConfig('arrayLength', targetLen);
+                        // Ensure index stays in range if config was stale
+                        updateConfig('arrayIndex', clampIndex(currentIndexRaw));
+                        return;
+                    }
+
+                    if (isScalarArray) {
+                        const next = Array.from({ length: targetLen }, (_, i) => {
+                            const n = Number(valuesScalar[i]);
+                            return Number.isFinite(n) ? n : 0;
+                        });
+                        onUpdateValue(next);
+                    } else {
+                        const next = Array.from({ length: targetLen }, (_, i) => {
+                            const src = Array.isArray(valuesVec[i]) ? valuesVec[i] : [];
+                            return Array.from({ length: vecSize }, (_, j) => {
+                                const n = Number((src as any)[j]);
+                                return Number.isFinite(n) ? n : 0;
+                            });
+                        });
+                        onUpdateValue(next);
+                    }
+
+                    const nextIndex = targetLen <= 0 ? 0 : Math.min(targetLen - 1, clampIndex(currentIndexRaw));
+                    onUpdateConfig(mode, { ...config, arrayLength: targetLen, arrayIndex: nextIndex });
+                };
+
+                const currentVec = (() => {
+                    if (length <= 0) return Array.from({ length: vecSize }, () => 0);
+                    if (isScalarArray) {
+                        const n = Number(valuesScalar[currentIndex]);
+                        return [Number.isFinite(n) ? n : 0];
+                    }
+                    const current = Array.isArray(valuesVec[currentIndex]) ? valuesVec[currentIndex] : [];
+                    return Array.from({ length: vecSize }, (_, i) => {
+                        const n = Number((current as any)[i]);
+                        return Number.isFinite(n) ? n : 0;
+                    });
+                })();
+
+                const updateAtIndex = (nextVec: number[]) => {
+                    if (length <= 0) return;
+                    if (isScalarArray) {
+                        const next = [...valuesScalar];
+                        const n = Number(nextVec[0]);
+                        const clean = Number.isFinite(n) ? n : 0;
+                        if (isBoolArray) next[currentIndex] = Math.abs(clean) >= 0.5 ? 1 : 0;
+                        else if (isUintArray) next[currentIndex] = Math.max(0, Math.round(clean));
+                        else if (isIntArray) next[currentIndex] = Math.round(clean);
+                        else next[currentIndex] = clean;
+                        onUpdateValue(next);
+                        return;
+                    }
+                    const next = [...valuesVec];
+                    next[currentIndex] = Array.from({ length: vecSize }, (_, i) => {
+                        const n = Number(nextVec[i]);
+                        return Number.isFinite(n) ? n : 0;
+                    });
+                    onUpdateValue(next);
+                };
+
+                const elementWidgetRaw = config.arrayElementWidget || 'default';
+                const elementWidget = (() => {
+                    if (type === 'float[]') {
+                        return (elementWidgetRaw === 'default' || elementWidgetRaw === 'slider' || elementWidgetRaw === 'number' || elementWidgetRaw === 'angle' || elementWidgetRaw === 'toggle' || elementWidgetRaw === 'enum')
+                            ? elementWidgetRaw
+                            : 'default';
+                    }
+                    if (type === 'int[]') {
+                        return (elementWidgetRaw === 'default' || elementWidgetRaw === 'slider' || elementWidgetRaw === 'number' || elementWidgetRaw === 'toggle' || elementWidgetRaw === 'enum')
+                            ? elementWidgetRaw
+                            : 'default';
+                    }
+                    if (type === 'uint[]') {
+                        return (elementWidgetRaw === 'default' || elementWidgetRaw === 'slider' || elementWidgetRaw === 'number')
+                            ? elementWidgetRaw
+                            : 'default';
+                    }
+                    if (type === 'bool[]') {
+                        return 'toggle';
+                    }
+                    if (type === 'vec2[]') {
+                        return (elementWidgetRaw === 'pad' || elementWidgetRaw === 'range' || elementWidgetRaw === 'default') ? elementWidgetRaw : 'default';
+                    }
+                    // vec3[] / vec4[]: support default/color
+                    return (elementWidgetRaw === 'color' || elementWidgetRaw === 'default') ? elementWidgetRaw : 'default';
+                })();
+
+                const setArrayElementWidget = (m: WidgetConfig['arrayElementWidget']) => {
+                    const nextConfig: WidgetConfig = { ...config, arrayElementWidget: m };
+                    if (m === 'enum' && (!config.enumOptions || config.enumOptions.length === 0)) {
+                        nextConfig.enumOptions = [
+                            { label: 'Option A', value: 0 },
+                            { label: 'Option B', value: 1 }
+                        ];
+                    }
+                    onUpdateConfig(mode, nextConfig);
+                };
+
+                return (
+                    <div className="flex gap-1 items-center w-full">
+                        {!isConnected && (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                <span className="text-[8px] text-zinc-500 font-bold uppercase">{t('Len')}</span>
+                                <IntWidget
+                                    className="nodrag w-12 h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700 text-center"
+                                    value={desiredLength}
+                                    min={1}
+                                    onChange={(val) => resizeArrayTo(val)}
+                                />
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                            <span className="text-[8px] text-zinc-500 font-bold uppercase">{t('Index')}</span>
+                            {!isConnected && (
+                                <div className="relative">
+                                    <button
+                                        ref={indexButtonRef}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenu(prev => (prev === 'index' ? null : 'index'));
+                                        }}
+                                        className="p-0.5 text-zinc-600 hover:text-zinc-200 transition-all"
+                                        title={t('Index Editor')}
+                                    >
+                                        <Settings size={10} />
+                                    </button>
+                                    {showIndexEditorMenu && (
+                                        <div ref={menuRef} className="nodrag absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl z-50 flex flex-col p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100 max-h-[300px] overflow-y-auto custom-scrollbar" onMouseDown={e => e.stopPropagation()}>
+                                            <span className="text-[8px] font-bold text-zinc-500 uppercase px-2 py-1">{t('Index Editor')}</span>
+                                            {(['number', 'slider'] as const).map(m => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => {
+                                                        updateConfig('arrayIndexWidget', m);
+                                                        setActiveMenu(null);
+                                                    }}
+                                                    className={`text-[10px] px-2 py-1 text-left rounded hover:bg-zinc-800 flex items-center justify-between ${(config.arrayIndexWidget || 'number') === m ? 'text-blue-400 font-bold bg-zinc-800' : 'text-zinc-300'}`}
+                                                >
+                                                    <span>{t(m.charAt(0).toUpperCase() + m.slice(1))}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {indexWidget === 'slider' ? (
+                                <div className="w-36">
+                                    <SliderWidget
+                                        value={desiredLength > 0 ? currentIndex : 0}
+                                        onChange={(val: number) => updateConfig('arrayIndex', clampIndex(val))}
+                                        min={0}
+                                        max={Math.max(0, desiredLength - 1)}
+                                        step={1}
+                                    />
+                                </div>
+                            ) : (
+                                <IntWidget
+                                    className="nodrag w-12 h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700 text-center"
+                                    value={desiredLength > 0 ? currentIndex : 0}
+                                    min={0}
+                                    max={desiredLength > 0 ? desiredLength - 1 : 0}
+                                    onChange={(val) => updateConfig('arrayIndex', clampIndex(val))}
+                                />
+                            )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 flex items-center gap-1">
+                            {!isConnected && (
+                                <div className="relative flex-shrink-0">
+                                    <button
+                                        ref={elementButtonRef}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenu(prev => (prev === 'element' ? null : 'element'));
+                                        }}
+                                        className="p-0.5 text-zinc-600 hover:text-zinc-200 transition-all"
+                                        title={t('Element Editor')}
+                                    >
+                                        <Settings size={10} />
+                                    </button>
+                                    {showElementEditorMenu && (
+                                        <div ref={menuRef} className="nodrag absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl z-50 flex flex-col p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100 max-h-[300px] overflow-y-auto custom-scrollbar" onMouseDown={e => e.stopPropagation()}>
+                                            <span className="text-[8px] font-bold text-zinc-500 uppercase px-2 py-1">{t('Element Editor')}</span>
+                                            {(type === 'float[]'
+                                                ? (['default', 'slider', 'number', 'angle', 'toggle', 'enum'] as const)
+                                                : type === 'int[]'
+                                                    ? (['default', 'slider', 'number', 'toggle', 'enum'] as const)
+                                                    : type === 'uint[]'
+                                                        ? (['default', 'slider', 'number'] as const)
+                                                        : type === 'bool[]'
+                                                            ? (['default', 'toggle'] as const)
+                                                            : type === 'vec2[]'
+                                                                ? (['default', 'pad', 'range'] as const)
+                                                                : (['default', 'color'] as const)
+                                            ).map(m => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => {
+                                                        setArrayElementWidget(m);
+                                                    }}
+                                                    className={`text-[10px] px-2 py-1 text-left rounded hover:bg-zinc-800 flex items-center justify-between ${(config.arrayElementWidget || 'default') === m ? 'text-blue-400 font-bold bg-zinc-800' : 'text-zinc-300'}`}
+                                                >
+                                                    <span>{t(m.charAt(0).toUpperCase() + m.slice(1))}</span>
+                                                </button>
+                                            ))}
+
+                                            {(((type === 'float[]' || type === 'int[]' || type === 'uint[]') && (config.arrayElementWidget || 'default') === 'number') || ((config.arrayElementWidget || 'default') === 'default' && !(type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]'))) ? (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Step')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementStep ?? ((type === 'float[]') ? 0.01 : (type === 'int[]' || type === 'uint[]') ? 1 : 0.1)}
+                                                            onChange={(val) => updateConfig('arrayElementStep', val)}
+                                                            step={0.001}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : null}
+
+                                            {(type === 'float[]' || type === 'int[]' || type === 'uint[]') && ((config.arrayElementWidget || 'default') === 'default' || (config.arrayElementWidget || 'default') === 'slider' || (config.arrayElementWidget || 'default') === 'angle') && (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMin ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMin', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMax ?? (type === 'float[]' ? 1 : 10)}
+                                                            onChange={(val) => updateConfig('arrayElementMax', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Step')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementRangeStep ?? (type === 'float[]' ? 0.01 : 1)}
+                                                            onChange={(val) => updateConfig('arrayElementRangeStep', val)}
+                                                            step={0.001}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {(type === 'float[]' || type === 'int[]') && (config.arrayElementWidget || 'default') === 'enum' && (
+                                                <div className="flex flex-col pt-1 px-2 pb-1 gap-1.5">
+                                                    <span className="text-[8px] font-bold text-zinc-500 uppercase">{t('Options')}</span>
+                                                    {(config.enumOptions || []).map((opt, i) => (
+                                                        <div key={i} className="flex items-center gap-1">
+                                                            <input
+                                                                className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-1 py-0.5 text-[9px] text-zinc-300 outline-none focus:border-blue-500"
+                                                                value={opt.label}
+                                                                onChange={(e) => {
+                                                                    const newOpts = [...(config.enumOptions || [])];
+                                                                    newOpts[i] = { ...newOpts[i], label: e.target.value };
+                                                                    updateConfig('enumOptions', newOpts);
+                                                                }}
+                                                                placeholder="Label"
+                                                            />
+                                                            <SmartNumberInput
+                                                                className="w-10 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                                value={opt.value}
+                                                                onChange={(val) => {
+                                                                    const newOpts = [...(config.enumOptions || [])];
+                                                                    newOpts[i] = { ...newOpts[i], value: val };
+                                                                    updateConfig('enumOptions', newOpts);
+                                                                }}
+                                                                step={type === 'int[]' ? 1 : 0.01}
+                                                            />
+                                                            <button
+                                                                className="px-1 h-5 text-zinc-500 hover:text-zinc-200"
+                                                                onClick={() => {
+                                                                    const newOpts = [...(config.enumOptions || [])];
+                                                                    newOpts.splice(i, 1);
+                                                                    updateConfig('enumOptions', newOpts);
+                                                                }}
+                                                                title={t('Remove')}
+                                                            >
+                                                                <Trash2 size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <button
+                                                        className="text-[9px] px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-left"
+                                                        onClick={() => {
+                                                            const next = [...(config.enumOptions || [])];
+                                                            next.push({ label: `Option ${String.fromCharCode(65 + next.length)}`, value: next.length });
+                                                            updateConfig('enumOptions', next);
+                                                        }}
+                                                    >
+                                                        {t('Add Option')}
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {type === 'vec2[]' && (config.arrayElementWidget || 'default') === 'range' && (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMin ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMin', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMax ?? 100}
+                                                            onChange={(val) => updateConfig('arrayElementMax', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Step')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementRangeStep ?? 0.1}
+                                                            onChange={(val) => updateConfig('arrayElementRangeStep', val)}
+                                                            step={0.001}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {type === 'vec2[]' && (config.arrayElementWidget || 'default') === 'pad' && (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min X')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMinX ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMinX', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max X')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMaxX ?? 1}
+                                                            onChange={(val) => updateConfig('arrayElementMaxX', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min Y')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMinY ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMinY', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max Y')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMaxY ?? 1}
+                                                            onChange={(val) => updateConfig('arrayElementMaxY', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                                {desiredLength <= 0 ? (
+                                    <div className="text-[9px] text-zinc-500 italic">{t('Empty array')}</div>
+                                ) : isScalarArray ? (
+                                    elementWidget === 'toggle' ? (
+                                        (() => {
+                                            const isChecked = Math.abs(Number(currentVec[0] ?? 0)) >= 0.5;
+                                            return (
+                                                <button 
+                                                    className={`nodrag flex items-center gap-2 w-full px-2 py-1 rounded border transition-colors ${isChecked ? 'bg-blue-900/30 border-blue-500/50' : 'bg-zinc-900 border-zinc-700'}`}
+                                                    onClick={() => updateAtIndex([isChecked ? 0 : 1])}
+                                                >
+                                                    {isChecked ? <CheckSquare size={12} className="text-blue-400"/> : <Square size={12} className="text-zinc-600"/>}
+                                                    <span className={`text-[10px] ${isChecked ? 'text-blue-200' : 'text-zinc-500'}`}>{isChecked ? 'On (1)' : 'Off (0)'}</span>
+                                                </button>
+                                            );
+                                        })()
+                                    ) : elementWidget === 'enum' ? (
+                                        <select
+                                            className="nodrag w-full bg-zinc-800 text-[10px] px-1 py-1 rounded border border-zinc-700 outline-none focus:border-blue-500"
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(e) => updateAtIndex([parseFloat(e.target.value)])}
+                                        >
+                                            {(config.enumOptions || []).map((opt, i) => (
+                                                <option key={i} value={opt.value}>{t(opt.label)}</option>
+                                            ))}
+                                        </select>
+                                    ) : elementWidget === 'number' ? (
+                                        <SmartNumberInput
+                                            className="nodrag w-full h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700"
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(val) => updateAtIndex([val])}
+                                            step={elementStep}
+                                        />
+                                    ) : elementWidget === 'angle' ? (
+                                        <AngleWidget
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(v) => updateAtIndex([Number(v)])}
+                                            min={scalarMin}
+                                            max={scalarMax}
+                                            step={scalarStep}
+                                        />
+                                    ) : (
+                                        <SliderWidget
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(v) => {
+                                                const nextMinRaw = Math.min(scalarMin, v);
+                                                const nextMin = isUintArray ? Math.max(0, nextMinRaw) : nextMinRaw;
+                                                const nextMax = Math.max(scalarMax, v);
+                                                if (nextMin !== scalarMin || nextMax !== scalarMax) {
+                                                    onUpdateConfig(mode, { ...config, arrayElementMin: nextMin, arrayElementMax: nextMax });
+                                                }
+                                                updateAtIndex([v]);
+                                            }}
+                                            min={scalarMin}
+                                            max={scalarMax}
+                                            step={scalarStep}
+                                        />
+                                    )
+                                ) : type === 'vec2[]' && elementWidget === 'pad' ? (
+                                    <PadWidget
+                                        value={currentVec}
+                                        onChange={(v) => updateAtIndex([v[0] ?? 0, v[1] ?? 0])}
+                                        minX={padMinX}
+                                        maxX={padMaxX}
+                                        minY={padMinY}
+                                        maxY={padMaxY}
+                                    />
+                                ) : type === 'vec2[]' && elementWidget === 'range' ? (
+                                    <RangeWidget
+                                        value={currentVec}
+                                        onChange={(v) => updateAtIndex([v[0] ?? 0, v[1] ?? 0])}
+                                        min={rangeMin}
+                                        max={rangeMax}
+                                        step={rangeStep}
+                                    />
+                                ) : (type === 'vec3[]' || type === 'vec4[]') && elementWidget === 'color' ? (
+                                    <ColorWidget
+                                        value={currentVec}
+                                        onChange={(v) => updateAtIndex(v)}
+                                        alpha={type === 'vec4[]'}
+                                    />
+                                ) : type === 'vec3[]' ? (
+                                    <Vec3Widget value={currentVec} step={elementStep} className="flex gap-1" onChange={(v) => updateAtIndex(v)} />
+                                ) : type === 'vec4[]' ? (
+                                    <Vec4Widget value={currentVec} step={elementStep} className="w-full" onChange={(v) => updateAtIndex(v)} />
+                                ) : (
+                                    <Vec2Widget value={currentVec} step={elementStep} className="flex gap-1" onChange={(v) => updateAtIndex(v)} />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (mode === 'expanded' || mode === 'default') {
+                const raw = Array.isArray(uniform.value) ? (uniform.value as unknown[]) : [];
+                const isScalarArray = type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]';
+                const isFloatArray = type === 'float[]';
+                const isIntArray = type === 'int[]';
+                const isUintArray = type === 'uint[]';
+                const isBoolArray = type === 'bool[]';
+
+                const valuesScalar = isScalarArray
+                    ? (raw.map(v => {
+                        const n = Number(v);
+                        return Number.isFinite(n) ? n : 0;
+                    }) as number[])
+                    : [];
+                const valuesVec = !isScalarArray
+                    ? (raw.filter(v => Array.isArray(v)) as number[][])
+                    : [];
+                const length = isScalarArray ? valuesScalar.length : valuesVec.length;
+
+                const clampLen = (n: number) => {
+                    if (!Number.isFinite(n)) return 1;
+                    const rounded = Math.round(n);
+                    return Math.max(1, rounded);
+                };
+
+                const desiredLengthRaw = typeof config.arrayLength === 'number' && Number.isFinite(config.arrayLength)
+                    ? config.arrayLength
+                    : length;
+                const desiredLength = clampLen(desiredLengthRaw);
+
+                const vecSize = isScalarArray ? 1 : type === 'vec2[]' ? 2 : type === 'vec3[]' ? 3 : 4;
+
+                const elementStep = typeof config.arrayElementStep === 'number' && Number.isFinite(config.arrayElementStep)
+                    ? config.arrayElementStep
+                    : (isScalarArray ? (isFloatArray ? 0.01 : 1) : 0.1);
+
+                const rangeMin = typeof config.arrayElementMin === 'number' && Number.isFinite(config.arrayElementMin)
+                    ? config.arrayElementMin
+                    : 0;
+                const rangeMax = typeof config.arrayElementMax === 'number' && Number.isFinite(config.arrayElementMax)
+                    ? config.arrayElementMax
+                    : 100;
+                const rangeStep = typeof config.arrayElementRangeStep === 'number' && Number.isFinite(config.arrayElementRangeStep)
+                    ? config.arrayElementRangeStep
+                    : 0.1;
+
+                const scalarMin = typeof config.arrayElementMin === 'number' && Number.isFinite(config.arrayElementMin)
+                    ? config.arrayElementMin
+                    : 0;
+                const scalarMax = typeof config.arrayElementMax === 'number' && Number.isFinite(config.arrayElementMax)
+                    ? config.arrayElementMax
+                    : (isFloatArray ? 1 : 10);
+                const scalarStep = typeof config.arrayElementRangeStep === 'number' && Number.isFinite(config.arrayElementRangeStep)
+                    ? config.arrayElementRangeStep
+                    : (isFloatArray ? 0.01 : 1);
+
+                const padMinX = typeof config.arrayElementMinX === 'number' && Number.isFinite(config.arrayElementMinX)
+                    ? config.arrayElementMinX
+                    : 0;
+                const padMaxX = typeof config.arrayElementMaxX === 'number' && Number.isFinite(config.arrayElementMaxX)
+                    ? config.arrayElementMaxX
+                    : 1;
+                const padMinY = typeof config.arrayElementMinY === 'number' && Number.isFinite(config.arrayElementMinY)
+                    ? config.arrayElementMinY
+                    : 0;
+                const padMaxY = typeof config.arrayElementMaxY === 'number' && Number.isFinite(config.arrayElementMaxY)
+                    ? config.arrayElementMaxY
+                    : 1;
+
+                const resizeArrayTo = (nextLen: number) => {
+                    const targetLen = clampLen(nextLen);
+                    if (targetLen === length) {
+                        onUpdateConfig(mode, { ...config, arrayLength: targetLen });
+                        return;
+                    }
+                    if (isScalarArray) {
+                        const next = Array.from({ length: targetLen }, (_, i) => {
+                            const n = Number(valuesScalar[i]);
+                            return Number.isFinite(n) ? n : 0;
+                        });
+                        onUpdateValue(next);
+                    } else {
+                        const next = Array.from({ length: targetLen }, (_, i) => {
+                            const src = Array.isArray(valuesVec[i]) ? valuesVec[i] : [];
+                            return Array.from({ length: vecSize }, (_, j) => {
+                                const n = Number((src as any)[j]);
+                                return Number.isFinite(n) ? n : 0;
+                            });
+                        });
+                        onUpdateValue(next);
+                    }
+                    onUpdateConfig(mode, { ...config, arrayLength: targetLen });
+                };
+
+                const elementWidgetRaw = config.arrayElementWidget || 'default';
+                const elementWidget = (() => {
+                    if (type === 'float[]') {
+                        return (elementWidgetRaw === 'default' || elementWidgetRaw === 'slider' || elementWidgetRaw === 'number' || elementWidgetRaw === 'angle' || elementWidgetRaw === 'toggle' || elementWidgetRaw === 'enum')
+                            ? elementWidgetRaw
+                            : 'default';
+                    }
+                    if (type === 'int[]') {
+                        return (elementWidgetRaw === 'default' || elementWidgetRaw === 'slider' || elementWidgetRaw === 'number' || elementWidgetRaw === 'toggle' || elementWidgetRaw === 'enum')
+                            ? elementWidgetRaw
+                            : 'default';
+                    }
+                    if (type === 'uint[]') {
+                        return (elementWidgetRaw === 'default' || elementWidgetRaw === 'slider' || elementWidgetRaw === 'number')
+                            ? elementWidgetRaw
+                            : 'default';
+                    }
+                    if (type === 'bool[]') {
+                        return 'toggle';
+                    }
+                    if (type === 'vec2[]') {
+                        return (elementWidgetRaw === 'pad' || elementWidgetRaw === 'range' || elementWidgetRaw === 'default') ? elementWidgetRaw : 'default';
+                    }
+                    return (elementWidgetRaw === 'color' || elementWidgetRaw === 'default') ? elementWidgetRaw : 'default';
+                })();
+
+                const setArrayElementWidget = (m: WidgetConfig['arrayElementWidget']) => {
+                    const nextConfig: WidgetConfig = { ...config, arrayElementWidget: m };
+                    if (m === 'enum' && (!config.enumOptions || config.enumOptions.length === 0)) {
+                        nextConfig.enumOptions = [
+                            { label: 'Option A', value: 0 },
+                            { label: 'Option B', value: 1 }
+                        ];
+                    }
+                    onUpdateConfig(mode, nextConfig);
+                };
+
+                const getVecAt = (idx: number) => {
+                    if (desiredLength <= 0) return Array.from({ length: vecSize }, () => 0);
+                    const i = Math.max(0, Math.min(desiredLength - 1, Math.round(idx)));
+                    if (isScalarArray) {
+                        const n = Number(valuesScalar[i]);
+                        return [Number.isFinite(n) ? n : 0];
+                    }
+                    const current = Array.isArray(valuesVec[i]) ? valuesVec[i] : [];
+                    return Array.from({ length: vecSize }, (_, j) => {
+                        const n = Number((current as any)[j]);
+                        return Number.isFinite(n) ? n : 0;
+                    });
+                };
+
+                const updateAt = (idx: number, nextVec: number[]) => {
+                    if (desiredLength <= 0) return;
+                    const i = Math.max(0, Math.min(desiredLength - 1, Math.round(idx)));
+                    if (isScalarArray) {
+                        const next = [...valuesScalar];
+                        const n = Number(nextVec[0]);
+                        const clean = Number.isFinite(n) ? n : 0;
+                        if (isBoolArray) next[i] = Math.abs(clean) >= 0.5 ? 1 : 0;
+                        else if (isUintArray) next[i] = Math.max(0, Math.round(clean));
+                        else if (isIntArray) next[i] = Math.round(clean);
+                        else next[i] = clean;
+                        onUpdateValue(next);
+                        return;
+                    }
+                    const next = [...valuesVec];
+                    next[i] = Array.from({ length: vecSize }, (_, j) => {
+                        const n = Number(nextVec[j]);
+                        return Number.isFinite(n) ? n : 0;
+                    });
+                    onUpdateValue(next);
+                };
+
+                const renderElementEditor = (idx: number) => {
+                    const currentVec = getVecAt(idx);
+                    const elementHandleId = `${input.id}__${idx}`;
+                    const elementConnected = Boolean(connectedTargetHandles?.has(elementHandleId));
+
+                    return (
+                        <div key={elementHandleId} className="relative flex items-center gap-2 pl-5">
+                            <Handle
+                                type="target"
+                                position={Position.Left}
+                                id={elementHandleId}
+                                className="!w-5 !h-5 !-left-0.5 !top-1/2 !-mt-2 !transform-none !bg-transparent !border-0 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:w-2.5 after:h-2.5 after:rounded-full after:border-2 after:transition-transform hover:after:scale-125 after:bg-[var(--handle-bg)] after:border-[var(--handle-color)]"
+                                style={{ '--handle-bg': elementConnected ? typeColor : '#18181b', '--handle-color': typeColor } as React.CSSProperties}
+                            />
+                            <div className="w-7 text-[9px] text-zinc-500 font-mono flex-shrink-0">[{idx}]</div>
+                            <div className={`flex-1 min-w-0 ${elementConnected ? 'opacity-30 pointer-events-none grayscale' : ''}`}
+                            >
+                                {desiredLength <= 0 ? (
+                                    <div className="text-[9px] text-zinc-500 italic">{t('Empty array')}</div>
+                                ) : isScalarArray ? (
+                                    elementWidget === 'toggle' ? (
+                                        (() => {
+                                            const isChecked = Math.abs(Number(currentVec[0] ?? 0)) >= 0.5;
+                                            return (
+                                                <button
+                                                    className={`nodrag flex items-center gap-2 w-full px-2 py-1 rounded border transition-colors ${isChecked ? 'bg-blue-900/30 border-blue-500/50' : 'bg-zinc-900 border-zinc-700'}`}
+                                                    onClick={() => updateAt(idx, [isChecked ? 0 : 1])}
+                                                >
+                                                    {isChecked ? <CheckSquare size={12} className="text-blue-400"/> : <Square size={12} className="text-zinc-600"/>}
+                                                    <span className={`text-[10px] ${isChecked ? 'text-blue-200' : 'text-zinc-500'}`}>{isChecked ? 'On (1)' : 'Off (0)'}</span>
+                                                </button>
+                                            );
+                                        })()
+                                    ) : elementWidget === 'enum' ? (
+                                        <select
+                                            className="nodrag w-full bg-zinc-800 text-[10px] px-1 py-1 rounded border border-zinc-700 outline-none focus:border-blue-500"
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(e) => updateAt(idx, [parseFloat(e.target.value)])}
+                                        >
+                                            {(config.enumOptions || []).map((opt, i) => (
+                                                <option key={i} value={opt.value}>{t(opt.label)}</option>
+                                            ))}
+                                        </select>
+                                    ) : elementWidget === 'number' ? (
+                                        <SmartNumberInput
+                                            className="nodrag w-full h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700"
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(val) => updateAt(idx, [val])}
+                                            step={elementStep}
+                                        />
+                                    ) : elementWidget === 'angle' ? (
+                                        <AngleWidget
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(v) => updateAt(idx, [Number(v)])}
+                                            min={scalarMin}
+                                            max={scalarMax}
+                                            step={scalarStep}
+                                        />
+                                    ) : (
+                                        <SliderWidget
+                                            value={currentVec[0] ?? 0}
+                                            onChange={(v) => {
+                                                const nextMinRaw = Math.min(scalarMin, v);
+                                                const nextMin = isUintArray ? Math.max(0, nextMinRaw) : nextMinRaw;
+                                                const nextMax = Math.max(scalarMax, v);
+                                                if (nextMin !== scalarMin || nextMax !== scalarMax) {
+                                                    onUpdateConfig(mode, { ...config, arrayElementMin: nextMin, arrayElementMax: nextMax });
+                                                }
+                                                updateAt(idx, [v]);
+                                            }}
+                                            min={scalarMin}
+                                            max={scalarMax}
+                                            step={scalarStep}
+                                        />
+                                    )
+                                ) : type === 'vec2[]' && elementWidget === 'pad' ? (
+                                    <PadWidget
+                                        value={currentVec}
+                                        onChange={(v) => updateAt(idx, [v[0] ?? 0, v[1] ?? 0])}
+                                        minX={padMinX}
+                                        maxX={padMaxX}
+                                        minY={padMinY}
+                                        maxY={padMaxY}
+                                    />
+                                ) : type === 'vec2[]' && elementWidget === 'range' ? (
+                                    <RangeWidget
+                                        value={currentVec}
+                                        onChange={(v) => updateAt(idx, [v[0] ?? 0, v[1] ?? 0])}
+                                        min={rangeMin}
+                                        max={rangeMax}
+                                        step={rangeStep}
+                                    />
+                                ) : (type === 'vec3[]' || type === 'vec4[]') && elementWidget === 'color' ? (
+                                    <ColorWidget
+                                        value={currentVec}
+                                        onChange={(v) => updateAt(idx, v)}
+                                        alpha={type === 'vec4[]'}
+                                    />
+                                ) : type === 'vec3[]' ? (
+                                    <Vec3Widget value={currentVec} step={elementStep} className="flex gap-1" onChange={(v) => updateAt(idx, v)} />
+                                ) : type === 'vec4[]' ? (
+                                    <Vec4Widget value={currentVec} step={elementStep} className="w-full" onChange={(v) => updateAt(idx, v)} />
+                                ) : (
+                                    <Vec2Widget value={currentVec} step={elementStep} className="flex gap-1" onChange={(v) => updateAt(idx, v)} />
+                                )}
+                            </div>
+                            {elementConnected && (
+                                <span className="ml-1 text-[9px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1 rounded flex-shrink-0">{t('LINKED')}</span>
+                            )}
+                        </div>
+                    );
+                };
+
+                return (
+                    <div className="flex flex-col gap-1 w-full">
+                        {!isConnected && (
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    <span className="text-[8px] text-zinc-500 font-bold uppercase">{t('Len')}</span>
+                                    <IntWidget
+                                        className="nodrag w-12 h-5 bg-zinc-800 text-[9px] px-1 rounded border border-zinc-700 text-center"
+                                        value={desiredLength}
+                                        min={1}
+                                        onChange={(val) => resizeArrayTo(val)}
+                                    />
+                                </div>
+                                <div className="relative flex-shrink-0">
+                                    <button
+                                        ref={elementButtonRef}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenu(prev => (prev === 'element' ? null : 'element'));
+                                        }}
+                                        className="p-0.5 text-zinc-600 hover:text-zinc-200 transition-all"
+                                        title={t('Element Editor')}
+                                    >
+                                        <Settings size={10} />
+                                    </button>
+                                    {showElementEditorMenu && (
+                                        <div ref={menuRef} className="nodrag absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-xl z-50 flex flex-col p-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100 max-h-[300px] overflow-y-auto custom-scrollbar" onMouseDown={e => e.stopPropagation()}>
+                                            <span className="text-[8px] font-bold text-zinc-500 uppercase px-2 py-1">{t('Element Editor')}</span>
+                                            {(type === 'float[]'
+                                                ? (['default', 'slider', 'number', 'angle', 'toggle', 'enum'] as const)
+                                                : type === 'int[]'
+                                                    ? (['default', 'slider', 'number', 'toggle', 'enum'] as const)
+                                                    : type === 'uint[]'
+                                                        ? (['default', 'slider', 'number'] as const)
+                                                        : type === 'bool[]'
+                                                            ? (['default', 'toggle'] as const)
+                                                            : type === 'vec2[]'
+                                                                ? (['default', 'pad', 'range'] as const)
+                                                                : (['default', 'color'] as const)
+                                            ).map(m => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => {
+                                                        setArrayElementWidget(m);
+                                                    }}
+                                                    className={`text-[10px] px-2 py-1 text-left rounded hover:bg-zinc-800 flex items-center justify-between ${(config.arrayElementWidget || 'default') === m ? 'text-blue-400 font-bold bg-zinc-800' : 'text-zinc-300'}`}
+                                                >
+                                                    <span>{t(m.charAt(0).toUpperCase() + m.slice(1))}</span>
+                                                </button>
+                                            ))}
+
+                                            {(((type === 'float[]' || type === 'int[]' || type === 'uint[]') && (config.arrayElementWidget || 'default') === 'number') || ((config.arrayElementWidget || 'default') === 'default' && !(type === 'float[]' || type === 'int[]' || type === 'uint[]' || type === 'bool[]'))) ? (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Step')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementStep ?? ((type === 'float[]') ? 0.01 : (type === 'int[]' || type === 'uint[]') ? 1 : 0.1)}
+                                                            onChange={(val) => updateConfig('arrayElementStep', val)}
+                                                            step={0.001}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : null}
+
+                                            {(type === 'float[]' || type === 'int[]' || type === 'uint[]') && ((config.arrayElementWidget || 'default') === 'default' || (config.arrayElementWidget || 'default') === 'slider' || (config.arrayElementWidget || 'default') === 'angle') && (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMin ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMin', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMax ?? (type === 'float[]' ? 1 : 10)}
+                                                            onChange={(val) => updateConfig('arrayElementMax', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Step')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementRangeStep ?? (type === 'float[]' ? 0.01 : 1)}
+                                                            onChange={(val) => updateConfig('arrayElementRangeStep', val)}
+                                                            step={0.001}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {(type === 'float[]' || type === 'int[]') && (config.arrayElementWidget || 'default') === 'enum' && (
+                                                <div className="flex flex-col pt-1 px-2 pb-1 gap-1.5">
+                                                    <span className="text-[8px] font-bold text-zinc-500 uppercase">{t('Options')}</span>
+                                                    {(config.enumOptions || []).map((opt, i) => (
+                                                        <div key={i} className="flex items-center gap-1">
+                                                            <input
+                                                                className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-1 py-0.5 text-[9px] text-zinc-300 outline-none focus:border-blue-500"
+                                                                value={opt.label}
+                                                                onChange={(e) => {
+                                                                    const newOpts = [...(config.enumOptions || [])];
+                                                                    newOpts[i] = { ...newOpts[i], label: e.target.value };
+                                                                    updateConfig('enumOptions', newOpts);
+                                                                }}
+                                                                placeholder="Label"
+                                                            />
+                                                            <SmartNumberInput
+                                                                className="w-10 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                                value={opt.value}
+                                                                onChange={(val) => {
+                                                                    const newOpts = [...(config.enumOptions || [])];
+                                                                    newOpts[i] = { ...newOpts[i], value: val };
+                                                                    updateConfig('enumOptions', newOpts);
+                                                                }}
+                                                                step={type === 'int[]' ? 1 : 0.01}
+                                                            />
+                                                            <button
+                                                                className="px-1 h-5 text-zinc-500 hover:text-zinc-200"
+                                                                onClick={() => {
+                                                                    const newOpts = [...(config.enumOptions || [])];
+                                                                    newOpts.splice(i, 1);
+                                                                    updateConfig('enumOptions', newOpts);
+                                                                }}
+                                                                title={t('Remove')}
+                                                            >
+                                                                <Trash2 size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <button
+                                                        className="text-[9px] px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-left"
+                                                        onClick={() => {
+                                                            const next = [...(config.enumOptions || [])];
+                                                            next.push({ label: `Option ${String.fromCharCode(65 + next.length)}`, value: next.length });
+                                                            updateConfig('enumOptions', next);
+                                                        }}
+                                                    >
+                                                        {t('Add Option')}
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {type === 'vec2[]' && (config.arrayElementWidget || 'default') === 'range' && (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMin ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMin', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMax ?? 100}
+                                                            onChange={(val) => updateConfig('arrayElementMax', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Step')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementRangeStep ?? 0.1}
+                                                            onChange={(val) => updateConfig('arrayElementRangeStep', val)}
+                                                            step={0.001}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {type === 'vec2[]' && (config.arrayElementWidget || 'default') === 'pad' && (
+                                                <div className="flex flex-col gap-1.5 pt-1 px-2 pb-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min X')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMinX ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMinX', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max X')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMaxX ?? 1}
+                                                            onChange={(val) => updateConfig('arrayElementMaxX', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Min Y')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMinY ?? 0}
+                                                            onChange={(val) => updateConfig('arrayElementMinY', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-[9px] text-zinc-400">{t('Max Y')}</label>
+                                                        <SmartNumberInput
+                                                            className="w-14 h-5 bg-zinc-950 border border-zinc-700 rounded px-1 text-[9px] text-right"
+                                                            value={config.arrayElementMaxY ?? 1}
+                                                            onChange={(val) => updateConfig('arrayElementMaxY', val)}
+                                                            step={0.1}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-1">
+                            {Array.from({ length: desiredLength }, (_, i) => renderElementEditor(i))}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (type === 'vec2[]' && mode === 'bezier_grid') {
                 return (
                     <div className="w-full aspect-square relative border border-zinc-800 rounded overflow-hidden bg-black">
                          <ShaderPreview 
@@ -884,8 +1977,8 @@ const UniformControlWrapper = ({
                     {hasSettings && !isConnected && (
                         <div className="relative">
                              <button 
-                                ref={buttonRef}
-                                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+                                          ref={mainButtonRef}
+                                          onClick={(e) => { e.stopPropagation(); setActiveMenu(prev => (prev === 'main' ? null : 'main')); }}
                                 className={`p-0.5 hover:text-zinc-200 transition-all ${showMenu ? 'text-blue-400 opacity-100' : `opacity-0 group-hover/param:opacity-100 ${mode === 'hidden' ? 'text-blue-400' : 'text-zinc-600'}`}`}
                              >
                                  <Settings size={10} />
@@ -907,6 +2000,8 @@ const UniformControlWrapper = ({
                                                 ))}
                                             </div>
                                         )}
+
+                                        {/* Array index-mode sub-editor settings are now inline next to the editors. */}
                                         {/* Remaining Settings (Sliders, Enums) logic is identical to previous version, condensed here */}
                                         {((mode === 'slider' || mode === 'default' || mode === 'angle') && (input.type === 'float' || input.type === 'int')) || (mode === 'range' && input.type === 'vec2') ? (
                                             <div className="flex flex-col border-t border-zinc-800 pt-2 gap-1.5 px-1 pb-1">
@@ -1567,6 +2662,7 @@ const CustomNodeComponent = ({ id, data, selected }: NodeProps<NodeData>) => {
                                 uniform={data.uniforms['value']} 
                                 allUniforms={data.uniforms} 
                                 isConnected={false} 
+                                connectedTargetHandles={connectedHandles.targetHandles}
                                 typeColor={TYPE_COLORS[data.outputType] || '#a1a1aa'} 
                                 t={t}
                                 onUpdateValue={(val) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next['value'] = { ...next['value'], value: val }; return { uniforms: next }; })}
@@ -1595,6 +2691,7 @@ const CustomNodeComponent = ({ id, data, selected }: NodeProps<NodeData>) => {
                             <div className="flex flex-col gap-1">
                                 {data.uniforms[input.id] ? (
                                     <UniformControlWrapper input={input} uniform={data.uniforms[input.id]} allUniforms={data.uniforms} isConnected={isConnected} typeColor={typeColor} t={t}
+                                        connectedTargetHandles={connectedHandles.targetHandles}
                                         onUpdateValue={(val) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next[input.id] = { ...next[input.id], value: val }; return { uniforms: next }; })}
                                         onUpdateConfig={(widget, config) => updateNodeData((curr) => { const next = { ...curr.uniforms }; next[input.id] = { ...next[input.id], widget, widgetConfig: config || next[input.id].widgetConfig }; return { uniforms: next }; })}
                                         compiledData={compiledData}

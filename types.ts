@@ -1,26 +1,8 @@
-export type GLSLType = 
-  | 'float' | 'int' | 'bool' | 'uint'
-  | 'vec2' | 'vec3' | 'vec4' 
-  | 'uvec2' | 'uvec3' | 'uvec4'
-  | 'mat2' | 'mat3' | 'mat4'
-  | 'sampler2D' | 'samplerCube'
-  | 'vec2[]';
+import type { GLSL_TYPE_STRINGS, NODE_CATEGORY_STRINGS, WIDGET_MODE_STRINGS } from './enums';
 
-export type WidgetMode = 
-  | 'default' 
-  | 'slider' 
-  | 'number' 
-  | 'angle' 
-  | 'pad'
-  | 'color' 
-  | 'curve' 
-  | 'gradient' 
-  | 'image'
-  | 'toggle' // Checkbox 0/1
-  | 'enum'   // Dropdown Select
-  | 'range'  // Vec2 Min/Max Slider
-  | 'bezier_grid' // 4x4 Bezier Grid Editor
-  | 'hidden'; // Hides the UI widget
+export type GLSLType = typeof GLSL_TYPE_STRINGS[number];
+
+export type WidgetMode = typeof WIDGET_MODE_STRINGS[number];
 
 export interface WidgetConfig {
   min?: number;
@@ -47,6 +29,24 @@ export interface WidgetConfig {
     value?: any;
     notValue?: any;
   };
+
+  // Array editing
+  arrayIndex?: number;
+  arrayLength?: number;
+
+  // Array index-mode sub editors (for vec2[] etc.)
+  arrayIndexWidget?: 'number' | 'slider';
+  arrayElementWidget?: 'default' | 'slider' | 'number' | 'angle' | 'toggle' | 'enum' | 'pad' | 'range' | 'color';
+
+  // Array index-mode element editor params
+  arrayElementStep?: number;
+  arrayElementMin?: number;
+  arrayElementMax?: number;
+  arrayElementRangeStep?: number;
+  arrayElementMinX?: number;
+  arrayElementMaxX?: number;
+  arrayElementMinY?: number;
+  arrayElementMaxY?: number;
 }
 
 export interface RawTextureData {
@@ -58,7 +58,17 @@ export interface RawTextureData {
   wrapClamp?: boolean; // If true, use CLAMP_TO_EDGE
 }
 
-export type UniformValueType = number | number[] | Float32Array | Uint32Array | string | RawTextureData | null;
+export type UniformValueType =
+  | number
+  | boolean
+  | number[]
+  | boolean[]
+  | Float32Array
+  | Uint32Array
+  | Int32Array
+  | string
+  | RawTextureData
+  | null;
 
 export interface UniformVal {
   type: GLSLType;
@@ -183,19 +193,7 @@ export interface CompilationResult {
   error?: string;
 }
 
-export type NodeCategory = 
-  | 'Input' 
-  | 'Generator' 
-  | 'Math' 
-  | 'Vector' 
-  | 'Color' 
-  | 'Filter' 
-  | 'Effect' 
-  | 'Utility' 
-  | 'Output' 
-  | 'Network' 
-  | 'Custom' 
-  | 'User';
+export type NodeCategory = typeof NODE_CATEGORY_STRINGS[number];
 
 export interface ShaderNodeDefinition {
   id: string;         

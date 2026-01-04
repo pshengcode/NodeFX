@@ -1,3 +1,19 @@
+## [1.3.10] - 2026-01-04
+
+Refactor GLSL type handling and array support in shader compiler
+- Updated type sanitization logic to use a centralized utility function for GLSL types.
+- Enhanced array handling in shader compilation, allowing for dynamic array sizes and implicit index uniforms for array inputs.
+- Improved uniform value handling for arrays, including support for various types (float, int, bool, vec2, vec3, vec4).
+- Added tests for validating array uniforms and their configurations.
+- Refactored uniform overrides to accommodate new array index logic and ensure proper value coercion.
+- Updated WebGL system to handle array uniforms correctly during rendering.
+重构着色器编译器中的 GLSL 类型处理和数组支持
+- 更新了类型清理逻辑，使用集中式实用函数处理 GLSL 类型。
+- 增强了着色器编译中的数组处理，允许动态数组大小和数组输入的隐式索引 uniform 变量。
+- 改进了数组的 uniform 值处理，包括对各种类型（float、int、bool、vec2、vec3、vec4）的支持。
+- 添加了用于验证数组 uniform 变量及其配置的测试。
+- 重构了 uniform 变量重写，以适应新的数组索引逻辑。
+
 ## [1.3.9] - 2025-12-24
 
 feat: implement dynamic resizing for preview panel and enhance sidebar information display

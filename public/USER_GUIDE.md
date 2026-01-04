@@ -100,6 +100,24 @@
 - 节点入口函数为：`void run(...)`。
 - **第一个参数必须是 `vec2 uv`**（通常表示 0~1 的纹理坐标）。
 - 输出参数使用 `out` 关键字声明（节点输出端口来自这些 `out` 参数）。
+- **数组：自动暴露 `<inputId>_index`（方案 B）**：
+    - 只要某个输入是数组类型（如 `float[]/vec3[]/int[]/...`），系统就会自动生成一个**隐式的 index uniform**，并在该节点的 `run(...)` 函数体内注入一个同名的局部变量：
+      - GLSL 内可直接使用：`<inputId>_index`
+      - 这里的 `inputId` 就是你在 `run(...)` 函数签名里写的参数名（例如 `float inArr[16]` 的 `inArr`）
+      - 它来自一个隐式 uniform：`u_<nodeId>_<inputId>_index`（`nodeId` 内部会把 `-` 替换为 `_`）
+      - 编译时会自动做 clamp：`<inputId>_index = clamp(u_..._index, 0, Len-1)`，因此不会越界
+    - 当你把该数组输入的控件模式切到 `index` 时，UI 会提供 index 的编辑入口；不在 `index` 模式时，仍然会生成变量，但 UI 不提供编辑。
+    - 这意味着：你在 UI 里调整 index 时，**无需重新编译 Shader**，GLSL 里即可实时拿到新的 index 值。
+
+示例：
+
+```glsl
+// 假设输入参数名叫 inArr，类型为 float[]，并且 UI 选择 index 模式
+void run(vec2 uv, float inArr[16], out float outVal) {
+    // 系统注入：int inArr_index = clamp(u_xxx_inArr_index, 0, 15);
+    outVal = inArr[inArr_index];
+}
+```
 - 示例（只写函数签名，不写函数体）：
 
 ```glsl

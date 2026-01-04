@@ -27,7 +27,13 @@ export const TYPE_COLORS: Record<GLSLType, string> = {
   mat4: '#a16207',     // yellow-700
   sampler2D: '#f97316', // orange-500
   samplerCube: '#c2410c', // orange-700
-  'vec2[]': '#15803d'   // green-700
+  'int[]': '#1d4ed8',   // blue-700 (reuse)
+  'uint[]': '#0e7490',  // cyan-700 (reuse)
+  'bool[]': '#14b8a6',  // teal-500 (reuse)
+  'float[]': '#3b82f6',  // blue-500 (reuse)
+  'vec2[]': '#22c55e',   // green-500 (reuse vec2)
+  'vec3[]': '#a855f7',   // purple-500 (reuse vec3)
+  'vec4[]': '#ec4899',   // pink-500 (reuse vec4)
 };
 
 export const GLSL_BUILTINS = new Set([
