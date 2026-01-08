@@ -1,3 +1,8 @@
+## [1.3.14] - 2026-01-08
+
+feat: Add the `clamp_uv` parameter to the `Transform 2D` node to support UV limiting functionality.
+feat: Transform 2D 节点添加 clamp_uv 参数以支持 UV 限制功能
+
 ## [1.3.13] - 2026-01-08
 
 feat: update README and README.zh-CN for improved documentation and add commands section

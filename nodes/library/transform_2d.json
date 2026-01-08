@@ -13,6 +13,7 @@
       "scale_xy": "缩放(宽/高)",
       "rotation": "旋转",
       "offset": "偏移",
+      "clamp_uv": "限制 UV",
       "uv_in": "输入UV",
       "uv_out": "输出UV",
       "result": "结果"
@@ -47,10 +48,12 @@
       "    vec2 scale_xy,",
       "    float rotation,",
       "    vec2 offset,",
+      "    bool clamp_uv,",
       "    out vec4 result",
       ") {",
       "    vec2 scl = vec2(scale) * scale_xy;",
       "    vec2 tuv = tx2d_apply(uv, scl, radians(rotation), offset);",
+      "    if (clamp_uv) tuv = clamp(tuv, vec2(0.0), vec2(1.0));",
       "    result = texture(tex, tuv);",
       "}",
       "",
@@ -62,11 +65,13 @@
       "    vec2 scale_xy,",
       "    float rotation,",
       "    vec2 offset,",
+      "    bool clamp_uv,",
       "    out vec2 uv_out",
       ") {",
       "    vec2 p = (uv_in == vec2(0.0)) ? uv : uv_in;",
       "    vec2 scl = vec2(scale) * scale_xy;",
       "    uv_out = tx2d_apply(p, scl, radians(rotation), offset);",
+      "    if (clamp_uv) uv_out = clamp(uv_out, vec2(0.0), vec2(1.0));",
       "}"
     ],
     "inputs": [
@@ -74,7 +79,8 @@
       { "id": "scale", "name": "scale", "type": "float" },
       { "id": "scale_xy", "name": "scale_xy", "type": "vec2" },
       { "id": "rotation", "name": "rotation", "type": "float" },
-      { "id": "offset", "name": "offset", "type": "vec2" }
+      { "id": "offset", "name": "offset", "type": "vec2" },
+      { "id": "clamp_uv", "name": "clamp_uv", "type": "bool" }
     ],
     "outputs": [
       { "id": "result", "name": "result", "type": "vec4" }
@@ -85,7 +91,8 @@
       "scale": { "type": "float", "value": 1.0, "widget": "slider", "widgetConfig": { "min": 0.01, "max": 10.0, "step": 0.01 } },
       "scale_xy": { "type": "vec2", "value": [1.0, 1.0], "widget": "default" },
       "rotation": { "type": "float", "value": 0.0, "widget": "angle", "widgetConfig": { "min": -180.0, "max": 180.0, "step": 1.0 } },
-      "offset": { "type": "vec2", "value": [0.0, 0.0], "widget": "pad", "widgetConfig": { "minX": -1.0, "maxX": 1.0, "minY": -1.0, "maxY": 1.0 } }
+      "offset": { "type": "vec2", "value": [0.0, 0.0], "widget": "pad", "widgetConfig": { "minX": -1.0, "maxX": 1.0, "minY": -1.0, "maxY": 1.0 } },
+      "clamp_uv": { "type": "bool", "value": false, "widget": "toggle" }
     }
   }
 }
