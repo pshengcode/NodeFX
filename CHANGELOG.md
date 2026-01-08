@@ -1,3 +1,7 @@
+## [1.3.13] - 2026-01-08
+
+feat: update README and README.zh-CN for improved documentation and add commands section
+
 ## [1.3.12] - 2026-01-08
 
 feat: add Chinese documentation, enhance metadata, and improve sidebar GitHub link

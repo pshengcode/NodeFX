@@ -2,9 +2,15 @@
 
 > Use it online (no install): https://node-fx.com/
 >
+> GitHub: https://github.com/pshengcode/NodeFX
+>
 > Looking for Chinese docs? See: [README.zh-CN.md](README.zh-CN.md)
 
 NodeFX is a powerful, node-based visual editor for creating GLSL shaders directly in your browser. It allows developers and artists to construct complex shaders by connecting modular nodes, offering real-time preview and code generation.
+
+## 📖 User Guide
+
+- User guide (Chinese): [USER_GUIDE.md](USER_GUIDE.md)
 
 
 ## ✨ Features
@@ -39,8 +45,8 @@ NodeFX is a powerful, node-based visual editor for creating GLSL shaders directl
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd GLSL-APP
+   git clone https://github.com/pshengcode/NodeFX.git
+   cd NodeFX
    ```
 
 2. Install dependencies:
@@ -54,6 +60,12 @@ NodeFX is a powerful, node-based visual editor for creating GLSL shaders directl
    ```
 
 4. Open your browser at `http://localhost:3000` (or the port shown in your terminal).
+
+### Other Scripts
+
+- Build for production: `npm run build`
+- Preview production build: `npm run preview`
+- Run unit tests: `npm test`
 
 ## 📖 Usage Guide
 
@@ -92,3 +104,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📄 License
 
 See [LICENSE](LICENSE).
+
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).

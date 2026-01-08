@@ -2,9 +2,15 @@
 
 > 在线直接使用（无需安装）：https://node-fx.com/
 >
+> GitHub：https://github.com/pshengcode/NodeFX
+>
 > English README: [README.md](README.md)
 
 NodeFX 是一个运行在浏览器中的、基于节点的可视化 GLSL Shader 编辑器。你可以通过连接模块化节点来构建复杂着色器，并获得实时预览与代码生成。
+
+## 📖 使用指南
+
+- 使用说明（中文）：[USER_GUIDE.md](USER_GUIDE.md)
 
 ## ✨ 功能特性
 
@@ -38,8 +44,8 @@ NodeFX 是一个运行在浏览器中的、基于节点的可视化 GLSL Shader 
 
 1. 克隆仓库：
    ```bash
-   git clone <repository-url>
-   cd GLSL-APP
+  git clone https://github.com/pshengcode/NodeFX.git
+  cd NodeFX
    ```
 
 2. 安装依赖：
@@ -54,6 +60,12 @@ NodeFX 是一个运行在浏览器中的、基于节点的可视化 GLSL Shader 
 
 4. 在浏览器打开 `http://localhost:3000`（或终端提示的端口）。
 
+### 其他常用命令
+
+- 生产构建：`npm run build`
+- 预览生产构建：`npm run preview`
+- 运行单元测试：`npm test`
+
 ## 📖 使用指南
 
 - 面向使用者的中文指南请见：
@@ -67,3 +79,15 @@ NodeFX 是一个运行在浏览器中的、基于节点的可视化 GLSL Shader 
 - **图编辑**：React Flow
 - **语言**：TypeScript
 - **样式**：Tailwind CSS
+
+## 🤝 贡献
+
+欢迎提交 PR / Issue。
+
+## 📄 许可证
+
+详见 [LICENSE](LICENSE)。
+
+## 📝 更新日志
+
+详见 [CHANGELOG.md](CHANGELOG.md)。
