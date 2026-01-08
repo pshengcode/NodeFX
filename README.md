@@ -8,6 +8,8 @@
 
 NodeFX is a powerful, node-based visual editor for creating GLSL shaders directly in your browser. It allows developers and artists to construct complex shaders by connecting modular nodes, offering real-time preview and code generation.
 
+**Note:** This project was built entirely using AI.
+
 ## 📖 User Guide
 
 - User guide (Chinese): [USER_GUIDE.md](USER_GUIDE.md)

@@ -4,6 +4,6 @@
   "author": "pshengcode",
   "email": "ersanhd98@gmail.com",
   "github": "https://github.com/pshengcode/NodeFX",
-  "license": "Proprietary",
+  "license": "MIT",
   "description": "A professional, node-based image processing tool where every node is a customizable GLSL shader."
 }
