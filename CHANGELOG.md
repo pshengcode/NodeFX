@@ -1,3 +1,8 @@
+## [1.3.12] - 2026-01-08
+
+feat: add Chinese documentation, enhance metadata, and improve sidebar GitHub link
+新增功能：添加中文文档、增强元数据并改进侧边栏 GitHub 链接
+
 ## [1.3.11] - 2026-01-04
 
 feat: enhance file drop handling to support multiple file types and improve node creation logic

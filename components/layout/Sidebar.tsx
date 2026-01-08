@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen, BookText, Layers, BookmarkPlus } from 'lucide-react';
+import { FileJson, ChevronDown, ChevronRight, Trash2, Download, Upload, Info, X, BookOpen, BookText, Layers, BookmarkPlus, Github } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { ShaderNodeDefinition, NodeCategory, LibraryItem, CanvasTemplate } from '../../types';
 import { useNodeTranslation } from '../../hooks/useNodeTranslation';
@@ -469,38 +469,20 @@ export const Sidebar: React.FC = () => {
                             </div>
 
                             <div className="p-3 bg-zinc-800/50 rounded border border-zinc-800">
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                                {appConfig.github && (
                                     <div className="flex items-center gap-2 min-w-0">
-                                        <span className="text-xs text-zinc-500 uppercase tracking-wider">{t("Created by")}</span>
-                                        <span className="font-medium text-white truncate">{appConfig.author}</span>
-                                    </div>
-
-                                    <span className="text-zinc-700">•</span>
-
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span className="text-xs text-zinc-500 uppercase tracking-wider">{t("Contact")}</span>
+                                        <Github size={14} className="text-zinc-400 shrink-0" />
                                         <a
-                                            href={`mailto:${appConfig.email}`}
-                                            className="text-blue-400 hover:text-blue-300 transition-colors truncate"
+                                            href={appConfig.github}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-zinc-400 hover:text-white transition-colors text-xs truncate"
+                                            title={t('GitHub')}
                                         >
-                                            {appConfig.email}
+                                            {appConfig.github}
                                         </a>
                                     </div>
-
-                                    {appConfig.github && (
-                                        <>
-                                            <span className="text-zinc-700">•</span>
-                                            <a
-                                                href={appConfig.github}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-zinc-400 hover:text-white transition-colors text-xs"
-                                            >
-                                                GitHub
-                                            </a>
-                                        </>
-                                    )}
-                                </div>
+                                )}
                             </div>
 
                             <div className="text-xs text-zinc-500 pt-2 border-t border-zinc-800 flex justify-between items-center">
