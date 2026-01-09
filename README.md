@@ -10,7 +10,7 @@ NodeFX is a powerful, node-based visual editor for creating GLSL shaders directl
 
 ## 📖 User Guide
 
-- User guide (Chinese): [USER_GUIDE.md](USER_GUIDE.md)
+- [User guide](https://doc.node-fx.com/)
 
 
 ## ✨ Features

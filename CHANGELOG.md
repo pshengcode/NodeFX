@@ -1,3 +1,8 @@
+## [1.3.16] - 2026-01-09
+
+feat: Updated the English and Chinese README, corrected the user guide link to an online document.
+feat: 更新中英文 README，修正用户指南链接为在线文档
+
 ## [1.3.15] - 2026-01-09
 
 feat: Updated README and README.zh-CN, simplified GitHub link and language switching instructions, and added a reverse polar coordinate node.
