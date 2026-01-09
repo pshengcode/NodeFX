@@ -2,9 +2,7 @@
 
 > Use it online (no install): https://node-fx.com/
 >
-> GitHub: https://github.com/pshengcode/NodeFX
->
-> Looking for Chinese docs? See: [README.zh-CN.md](README.zh-CN.md)
+>  [中文](README.zh-CN.md)
 
 NodeFX is a powerful, node-based visual editor for creating GLSL shaders directly in your browser. It allows developers and artists to construct complex shaders by connecting modular nodes, offering real-time preview and code generation.
 

@@ -1,3 +1,8 @@
+## [1.3.15] - 2026-01-09
+
+feat: Updated README and README.zh-CN, simplified GitHub link and language switching instructions, and added a reverse polar coordinate node.
+feat: 更新 README 和 README.zh-CN，简化 GitHub 链接和语言切换说明， 新增反向极坐标节点
+
 ## [1.3.14] - 2026-01-08
 
 feat: Add the `clamp_uv` parameter to the `Transform 2D` node to support UV limiting functionality.

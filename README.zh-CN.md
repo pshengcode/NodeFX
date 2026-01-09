@@ -1,10 +1,7 @@
 # NodeFX - 可视化 GLSL Shader 节点编辑器
 
 > 在线直接使用（无需安装）：https://node-fx.com/
->
-> GitHub：https://github.com/pshengcode/NodeFX
->
-> English README: [README.md](README.md)
+> [English](README.md)
 
 NodeFX 是一个运行在浏览器中的、基于节点的可视化 GLSL Shader 编辑器。你可以通过连接模块化节点来构建复杂着色器，并获得实时预览与代码生成。
 

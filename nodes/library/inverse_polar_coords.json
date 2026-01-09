@@ -1,0 +1,65 @@
+{
+  "id": "inverse_polar_coords",
+  "label": "Inverse Polar Coordinates",
+  "category": "Vector",
+  "description": "Converts Polar coordinates (Radius, Angle 0-1) to Cartesian coordinates, with adjustable amount.",
+  "locales": {
+    "zh": {
+      "Inverse Polar Coordinates": "反向极坐标",
+      "Converts Polar coordinates (Radius, Angle 0-1) to Cartesian coordinates, with adjustable amount.": "将极坐标 (半径, 角度 0-1) 转换为直角坐标，并可调节转换程度。",
+      "Polar": "极坐标",
+      "Center": "中心",
+      "Amount": "程度",
+      "Cartesian": "直角坐标",
+      "X": "X",
+      "Y": "Y"
+    }
+  },
+  "data": {
+    "glsl": [
+      "vec2 invpolar_to_cart(vec2 polar, vec2 center) {",
+      "    float radius = polar.x;",
+      "    float angle01 = polar.y;",
+      "    float a = (angle01 - 0.5) * 6.2831853;",
+      "    return center + vec2(cos(a), sin(a)) * radius;",
+      "}",
+      "",
+      "//[Item(UV, 0)]",
+      "void run(vec2 uv, vec2 polar, vec2 center, float amount, out vec2 cartesian, out float x, out float y) {",
+      "    vec2 fromPolar = invpolar_to_cart(polar, center);",
+      "    vec2 outCoord = mix(polar, fromPolar, clamp(amount, 0.0, 1.0));",
+      "    cartesian = outCoord;",
+      "    x = outCoord.x;",
+      "    y = outCoord.y;",
+      "}",
+      "",
+      "//[Item(Texture, 1)]",
+      "void run(vec2 uv, sampler2D image, vec2 polar, vec2 center, float amount, out vec4 outColor) {",
+      "    vec2 fromPolar = invpolar_to_cart(polar, center);",
+      "    vec2 outCoord = mix(polar, fromPolar, clamp(amount, 0.0, 1.0));",
+      "    outColor = texture(image, outCoord);",
+      "}"
+    ],
+    "inputs": [
+      { "id": "polar", "name": "Polar", "type": "vec2" },
+      { "id": "center", "name": "Center", "type": "vec2" },
+      { "id": "amount", "name": "Amount", "type": "float" }
+    ],
+    "outputs": [
+      { "id": "cartesian", "name": "Cartesian", "type": "vec2" },
+      { "id": "x", "name": "X", "type": "float" },
+      { "id": "y", "name": "Y", "type": "float" }
+    ],
+    "uniforms": {
+      "polar": { "type": "vec2", "value": [0.5, 0.5] },
+      "center": { "type": "vec2", "value": [0.5, 0.5] },
+      "amount": {
+        "type": "float",
+        "value": 1.0,
+        "widget": "slider",
+        "widgetConfig": { "min": 0.0, "max": 1.0, "step": 0.01 }
+      }
+    },
+    "outputType": "vec2"
+  }
+}
