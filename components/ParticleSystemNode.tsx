@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Handle, NodeProps, Position } from 'reactflow';
+import { NodeProps, Position } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { useTranslation } from 'react-i18next';
 import { Settings2, Play, Pause, RotateCcw, ChevronDown, ChevronRight, Trash2, Layers, Box, Wind, Activity, Palette, Move, Zap, Camera, ScanEye, Eye, Plus, X, Home } from 'lucide-react';
@@ -14,6 +14,7 @@ import { buildUniformOverridesFromNodes } from '../utils/uniformOverrides';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
+import AltDisconnectHandle from './AltDisconnectHandle';
 
 // --- TYPES ---
 
@@ -2128,17 +2129,6 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
         return false;
     }, [data.preview]);
 
-    const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
-        if (e.altKey) {
-            e.stopPropagation();
-            e.preventDefault();
-            setEdges((edges) => edges.filter((edge) => {
-                if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
-                else return !(edge.source === id && edge.sourceHandle === handleId);
-            }));
-        }
-    }, [id, setEdges]);
-    
     // Initialize module data from node data or defaults
     const [settings, updateSettings] = useNodeSettings(id, data, { 
         modules: DEFAULT_MODULE_DATA 
@@ -3567,27 +3557,36 @@ const ParticleSystemNode = memo((props: NodeProps<NodeData>) => {
             {/* <div className="absolute inset-y-0 left-0 w-0"> ... </div> */}
             
             {/* Image Input Handle - Floating on left side */}
-            <Handle 
-                type="target" 
-                position={Position.Left} 
-                id="image" 
-                className="!bg-blue-500 !border-zinc-900 !w-3 !h-3 !-ml-1.5 z-50" 
-                style={{ top: '30%' }} 
+            <AltDisconnectHandle
+                nodeId={id}
+                handleId="image"
+                handleType="target"
+                position={Position.Left}
+                className="!bg-blue-500 !border-zinc-900 !w-3 !h-3 !-ml-1.5 z-50"
+                style={{ top: '30%' }}
                 title={t("Image Input (Overrides Shape Image)")}
             />
 
             {/* Particle Texture Input Handle */}
-            <Handle 
-                type="target" 
-                position={Position.Left} 
-                id="particleTexture" 
-                className="!bg-purple-500 !border-zinc-900 !w-3 !h-3 !-ml-1.5 z-50" 
-                style={{ top: '45%' }} 
+            <AltDisconnectHandle
+                nodeId={id}
+                handleId="particleTexture"
+                handleType="target"
+                position={Position.Left}
+                className="!bg-purple-500 !border-zinc-900 !w-3 !h-3 !-ml-1.5 z-50"
+                style={{ top: '45%' }}
                 title={t("Particle Texture Input (Overrides Material)")}
             />
 
             <div className="absolute inset-y-0 right-0 w-0">
-                <Handle type="source" position={Position.Right} id="output" className="!bg-orange-500 !border-zinc-900" style={{ top: '50%' }} />
+                <AltDisconnectHandle
+                    nodeId={id}
+                    handleId="output"
+                    handleType="source"
+                    position={Position.Right}
+                    className="!bg-orange-500 !border-zinc-900"
+                    style={{ top: '50%' }}
+                />
             </div>
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
+import { Position, NodeProps } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { Wifi, X, AlertCircle, CheckCircle, RefreshCw, Settings2, UploadCloud, Send, ShieldAlert, Download, Hash } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
+import AltDisconnectHandle from './AltDisconnectHandle';
 
 const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
@@ -18,16 +19,7 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const nodes = useOptimizedNodes();
     const edges = useProjectEdges();
 
-  const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
-      if (e.altKey) {
-          e.stopPropagation();
-          e.preventDefault();
-          setEdges((edges) => edges.filter((edge) => {
-              if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
-              else return !(edge.source === id && edge.sourceHandle === handleId);
-          }));
-      }
-  }, [id, setEdges]);
+  
 
     const handleDeleteNode = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -259,13 +251,13 @@ const NetworkNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         
         {/* Input Handle */}
         <div className="absolute top-14 left-0">
-             <Handle
-                type="target"
-                position={Position.Left}
-                id="in_1"
-                className={`!w-3 !h-3 !left-1 !top-1/2 !-mt-1.5 !transform-none hover:scale-125 transition-all !opacity-100 ${colorStyle}`}
-                onClick={(e) => handleDisconnect(e, 'in_1', 'target')}
-            />
+                    <AltDisconnectHandle
+                        nodeId={id}
+                        handleId="in_1"
+                        handleType="target"
+                        position={Position.Left}
+                        className={`!w-3 !h-3 !left-1 !top-1/2 !-mt-1.5 !transform-none hover:scale-125 transition-all !opacity-100 ${colorStyle}`}
+                    />
         </div>
 
         {/* Custom ID Input */}

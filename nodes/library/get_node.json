@@ -1,0 +1,28 @@
+{
+  "id": "GET_NODE",
+  "label": "Get",
+  "type": "getNode",
+  "category": "Utility",
+  "description": "Fetches a registered texture by variable name.",
+  "locales": {
+    "zh": {
+      "Get": "获取",
+      "Fetches a registered texture by variable name.": "通过变量名获取已注册的纹理。",
+      "Texture": "纹理",
+      "Output": "输出"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D tex, out vec4 result) { result = texture(tex, uv); }",
+    "inputs": [
+      { "id": "tex", "name": "Texture", "type": "sampler2D" }
+    ],
+    "outputs": [
+      { "id": "result", "name": "Output", "type": "vec4" }
+    ],
+    "uniforms": {
+      "tex": { "type": "sampler2D", "value": null, "widget": "image" }
+    },
+    "outputType": "vec4"
+  }
+}

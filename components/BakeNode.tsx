@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
+import { Position, NodeProps } from 'reactflow';
 import { webglSystem } from '../utils/webglSystem';
 import { CompilationResult } from '../types';
 import GIF from 'gif.js';
@@ -7,7 +7,10 @@ import { useTranslation } from 'react-i18next';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { computeGifTimingPlan, GifTimingPlan, quantizeGifDelayMs } from '../utils/gifTiming';
-import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
+import { useProjectEdges } from '../context/ProjectContext';
+import { TYPE_COLORS } from '../constants';
+import { compileGraph } from '../utils/shaderCompiler';
+import AltDisconnectHandle from './AltDisconnectHandle';
 
 const PASS_THROUGH_VERT = `#version 300 es
 in vec2 position;
@@ -17,28 +20,29 @@ void main() {
     gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
+const isZero = (v: number, epsilon = 0.02) => Math.abs(v) <= epsilon;
+const isNear = (v: number, target: number, epsilon = 0.02) => Math.abs(v - target) <= epsilon;
+
+const readNumericValue = (val: unknown): number | null => {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (val instanceof Float32Array && val.length > 0) return Number(val[0]);
+    if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'number') return Number(val[0]);
+    return null;
+};
+
 const BakeNode = memo(({ data, id }: NodeProps) => {
     const { t } = useTranslation();
-    const { setNodes, setEdges } = useProjectDispatch();
     
     // Use custom selectors instead of useNodes/useEdges to avoid re-renders on drag
     const nodes = useOptimizedNodes();
     const edges = useProjectEdges();
 
-    const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
-        if (e.altKey) {
-            e.stopPropagation();
-            e.preventDefault();
-            setEdges((edges) => edges.filter((edge) => {
-                if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
-                else return !(edge.source === id && edge.sourceHandle === handleId);
-            }));
-        }
-    }, [id, setEdges]);
-
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [recording, setRecording] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [armed, setArmed] = useState(false);
+    const [displayTriggerValue, setDisplayTriggerValue] = useState<number | null>(null);
+    const [displayTriggerMode, setDisplayTriggerMode] = useState<'local' | 'constant' | 'sampled' | null>(null);
     
     // Settings with Persistence
     const [settings, updateSettings] = useNodeSettings(id, data, {
@@ -48,10 +52,11 @@ const BakeNode = memo(({ data, id }: NodeProps) => {
         duration: 2,
         columns: 3,
         rows: 3,
-        mode: 'video'
+        mode: 'video',
+        triggerValue: 1
     });
 
-    const { width, height, fps, duration, columns, rows, mode } = settings;
+    const { width, height, fps, duration, columns, rows, mode, triggerValue } = settings;
 
     const setWidth = (v: any) => updateSettings({ width: v });
     const setHeight = (v: any) => updateSettings({ height: v });
@@ -60,6 +65,7 @@ const BakeNode = memo(({ data, id }: NodeProps) => {
     const setColumns = (v: any) => updateSettings({ columns: v });
     const setRows = (v: any) => updateSettings({ rows: v });
     const setMode = (v: any) => updateSettings({ mode: v });
+    const setTriggerValue = (v: any) => updateSettings({ triggerValue: v });
 
 
     // Internal State
@@ -76,10 +82,34 @@ const BakeNode = memo(({ data, id }: NodeProps) => {
     const lastGifCaptureAtRef = useRef<number>(0);
     const gifStopAtRef = useRef<number>(0);
     const nextSpriteFrameAtRef = useRef<number>(0);
+    const lastTriggerValueRef = useRef<number | null>(null);
+    const triggerSawNonZeroRef = useRef<boolean>(false);
+    const triggerSampleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const triggerCompilationRef = useRef<CompilationResult | null>(null);
+    const triggerCompilationNodeIdRef = useRef<string | null>(null);
 
     // Input Texture ID
     const inputEdge = edges.find(e => e.target === id && e.targetHandle === 'image');
     const inputTexture = inputEdge ? inputEdge.source : null;
+
+    // Trigger Input
+    const triggerEdge = edges.find(e => e.target === id && e.targetHandle === 'trigger');
+    const triggerConnected = Boolean(triggerEdge);
+    const triggerSource = triggerEdge ? nodes.find(n => n.id === triggerEdge.source) : null;
+    const localTriggerValue = Number(triggerValue);
+    const resolvedTriggerValue = !triggerConnected && Number.isFinite(localTriggerValue)
+        ? localTriggerValue
+        : null;
+    const triggerTargetValue = Number.isFinite(localTriggerValue) ? localTriggerValue : 0;
+
+    useEffect(() => {
+        if (!triggerConnected) {
+            setArmed(false);
+            setDisplayTriggerValue(null);
+            lastTriggerValueRef.current = null;
+            triggerSawNonZeroRef.current = false;
+        }
+    }, [triggerConnected]);
 
     // Render Loop
     const renderFrame = useCallback(() => {
@@ -127,6 +157,136 @@ void main() {
             undefined, 
             true // preventCleanup
         );
+
+        let liveTriggerValue = resolvedTriggerValue;
+        let constantTriggerValue: number | null = null;
+        let nextDisplayMode: 'local' | 'constant' | 'sampled' | null = resolvedTriggerValue !== null ? 'local' : null;
+        if (triggerConnected && armed && !recording && triggerEdge) {
+            if (triggerSource?.data?.isGlobalVar) {
+                const uniformVal = triggerSource.data.uniforms?.value?.value;
+                const numericVal = readNumericValue(uniformVal);
+                liveTriggerValue = numericVal;
+                constantTriggerValue = numericVal;
+                nextDisplayMode = 'constant';
+            } else if (triggerSource) {
+                const hasInputEdges = edges.some(e => e.target === triggerSource.id);
+                const isConstantFloatInput = !hasInputEdges
+                    && triggerSource.data.outputType === 'float'
+                    && triggerSource.data.inputs?.length === 1
+                    && triggerSource.data.inputs[0].id === 'value'
+                    && readNumericValue(triggerSource.data.uniforms?.value?.value) !== null;
+
+                if (isConstantFloatInput) {
+                    const numericVal = readNumericValue(triggerSource.data.uniforms?.value?.value);
+                    liveTriggerValue = numericVal;
+                    constantTriggerValue = numericVal;
+                    nextDisplayMode = 'constant';
+                }
+            }
+
+            if (liveTriggerValue === null || liveTriggerValue === undefined) {
+            if (!triggerCompilationRef.current || triggerCompilationNodeIdRef.current !== triggerEdge.source) {
+                triggerCompilationRef.current = compileGraph(nodes, edges, triggerEdge.source);
+                triggerCompilationNodeIdRef.current = triggerEdge.source;
+            }
+            const triggerCompilation = triggerCompilationRef.current;
+            if (triggerCompilation?.error) {
+                liveTriggerValue = null;
+            }
+
+            const triggerFboUrl = `fbo://${triggerEdge.source}`;
+            if (!triggerSampleCanvasRef.current) {
+                const c = document.createElement('canvas');
+                c.width = 1;
+                c.height = 1;
+                triggerSampleCanvasRef.current = c;
+            }
+
+            const frag = `#version 300 es
+precision mediump float;
+uniform sampler2D u_tex;
+in vec2 vUv;
+out vec4 fragColor;
+void main() {
+    fragColor = texture(u_tex, vUv);
+}`;
+
+            const compResult: CompilationResult = {
+                passes: [{
+                    id: `bake_trigger_${id}`,
+                    vertexShader: PASS_THROUGH_VERT,
+                    fragmentShader: frag,
+                    uniforms: {
+                        u_tex: { type: 'sampler2D', value: triggerFboUrl }
+                    },
+                    inputTextureUniforms: {},
+                    outputTo: null
+                }],
+                error: null
+            };
+
+            if (triggerCompilation && !triggerCompilation.error) {
+                webglSystem.render(
+                    triggerCompilation,
+                    triggerSampleCanvasRef.current,
+                    1,
+                    1,
+                    0,
+                    undefined,
+                    false,
+                    1.0,
+                    { x: 0, y: 0 },
+                    undefined,
+                    true
+                );
+
+                webglSystem.render(
+                    compResult,
+                    triggerSampleCanvasRef.current,
+                    1,
+                    1,
+                    0,
+                    undefined,
+                    false,
+                    1.0,
+                    { x: 0, y: 0 },
+                    undefined,
+                    true
+                );
+            }
+
+            const ctx = triggerSampleCanvasRef.current.getContext('2d');
+            if (ctx) {
+                const pixel = ctx.getImageData(0, 0, 1, 1).data;
+                liveTriggerValue = pixel[0] / 255;
+                nextDisplayMode = 'sampled';
+            }
+            }
+        }
+
+        if (!recording && armed && liveTriggerValue !== null) {
+            setDisplayTriggerValue(liveTriggerValue);
+            setDisplayTriggerMode(nextDisplayMode);
+            const nearTarget = isNear(liveTriggerValue, triggerTargetValue);
+            if (!nearTarget) {
+                triggerSawNonZeroRef.current = true;
+            }
+            const shouldStart = constantTriggerValue !== null
+                ? nearTarget
+                : (!!triggerSawNonZeroRef.current && nearTarget);
+            if (shouldStart) {
+                startRecording();
+            }
+            lastTriggerValueRef.current = liveTriggerValue;
+        } else if (liveTriggerValue === null) {
+            setDisplayTriggerValue(null);
+            setDisplayTriggerMode(null);
+            lastTriggerValueRef.current = null;
+        } else {
+            setDisplayTriggerValue(liveTriggerValue);
+            setDisplayTriggerMode(nextDisplayMode);
+            lastTriggerValueRef.current = liveTriggerValue;
+        }
 
         if (recording) {
             // Video duration should be based on real elapsed time.
@@ -207,7 +367,7 @@ void main() {
         }
 
         rafRef.current = requestAnimationFrame(renderFrame);
-    }, [inputTexture, width, height, recording, mode, duration, fps, columns, rows, id]);
+    }, [inputTexture, nodes, edges, width, height, recording, armed, mode, duration, fps, columns, rows, id, resolvedTriggerValue, triggerSource]);
 
     useEffect(() => {
         rafRef.current = requestAnimationFrame(renderFrame);
@@ -218,6 +378,8 @@ void main() {
 
     const startRecording = () => {
         if (!canvasRef.current) return;
+        setArmed(false);
+        triggerSawNonZeroRef.current = false;
         
         setRecording(true);
         setProgress(0);
@@ -310,6 +472,8 @@ void main() {
                 a.download = `bake_${Date.now()}.gif`;
                 a.click();
                 setRecording(false); // Ensure UI updates
+                setArmed(false);
+                triggerSawNonZeroRef.current = false;
                 setProgress(0);
                 gifTimingRef.current = null;
             });
@@ -326,6 +490,8 @@ void main() {
         // Don't setRecording(false) immediately for GIF, wait for render
         if (mode !== 'gif') {
             setRecording(false);
+            setArmed(false);
+            triggerSawNonZeroRef.current = false;
         }
 
         if (mode === 'video' && mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -418,6 +584,15 @@ void main() {
                             />
                         </div>
                     )}
+                    <div>
+                        <label className="block text-zinc-400 mb-1">{t("Trigger (0 = Start)")}</label>
+                        <input 
+                            type="number" 
+                            value={triggerValue} 
+                            onChange={e => setTriggerValue(Number(e.target.value))}
+                            className="nodrag w-full bg-zinc-800 text-white px-2 py-1 rounded border border-zinc-600"
+                        />
+                    </div>
                 </div>
 
                 {/* Mode Selection */}
@@ -459,7 +634,29 @@ void main() {
 
                 {/* Action Button */}
                 <button
-                    onClick={recording ? stopRecording : startRecording}
+                    onClick={() => {
+                        if (recording) {
+                            stopRecording();
+                            return;
+                        }
+                        if (triggerConnected && triggerEdge) {
+                            setArmed(true);
+                            lastTriggerValueRef.current = null;
+                            triggerSawNonZeroRef.current = false;
+                            setDisplayTriggerValue(null);
+                            setDisplayTriggerMode(null);
+                            triggerCompilationRef.current = compileGraph(nodes, edges, triggerEdge.source);
+                            triggerCompilationNodeIdRef.current = triggerEdge.source;
+                        } else if (resolvedTriggerValue !== null) {
+                            setArmed(true);
+                            lastTriggerValueRef.current = resolvedTriggerValue;
+                            triggerSawNonZeroRef.current = !isNear(resolvedTriggerValue, triggerTargetValue);
+                            setDisplayTriggerValue(resolvedTriggerValue);
+                            setDisplayTriggerMode('local');
+                        } else {
+                            startRecording();
+                        }
+                    }}
                     disabled={!inputTexture}
                     className={`nodrag w-full py-2 rounded text-sm font-medium transition-colors ${
                         recording 
@@ -467,15 +664,29 @@ void main() {
                             : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
                     }`}
                 >
-                    {recording ? `${t("Stop")} (${Math.round(progress)}%)` : t("Start Bake")}
+                    {recording
+                        ? `${t("Stop")} (${Math.round(progress)}%)`
+                        : (armed ? t("Waiting for Trigger") : t("Start Bake"))}
                 </button>
+
+                <div className="text-xs text-zinc-400">
+                    {(displayTriggerMode === 'sampled' ? t("Trigger Value (0..1)") : t("Trigger Value"))}: {displayTriggerValue === null ? '-' : displayTriggerValue.toFixed(4)}
+                </div>
             </div>
 
-            <Handle 
-                type="target" 
-                position={Position.Left} 
-                id="image" 
-                style={{ top: '20%', background: '#6366f1' }} 
+            <AltDisconnectHandle
+                nodeId={id}
+                handleId="image"
+                handleType="target"
+                position={Position.Left}
+                style={{ top: '20%', background: '#6366f1' }}
+            />
+            <AltDisconnectHandle
+                nodeId={id}
+                handleId="trigger"
+                handleType="target"
+                position={Position.Left}
+                style={{ top: '70%', background: TYPE_COLORS.float }}
             />
         </div>
     );

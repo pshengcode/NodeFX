@@ -10,6 +10,8 @@ import GroupNode from '../GroupNode';
 import NetworkNode from '../NetworkNode';
 import PaintNode from '../PaintNode';
 import BakeNode from '../BakeNode';
+import RegisterNode from '../RegisterNode';
+import GetNode from '../GetNode';
 import SmartEdge from '../SmartEdge';
 import ContextMenu from '../ContextMenu';
 import ShaderPreview from '../ShaderPreview';
@@ -32,6 +34,8 @@ const nodeTypes: NodeTypes = {
   paintNode: PaintNode,
   fluidSimulationNode: FluidSimulationNode,
   bakeNode: BakeNode,
+    registerNode: RegisterNode,
+    getNode: GetNode,
   graphInput: GraphInputNode,
   graphOutput: GraphOutputNode
 };

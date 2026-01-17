@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
+import { Position, NodeProps } from 'reactflow';
 import { NodeData, CompilationResult } from '../types';
 import { Play, Pause, Settings, RotateCcw, Download, Wind, MousePointer2, History, Square, Magnet, Trash2, X, Maximize2, Minimize2, RotateCw, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { registerDynamicTexture, unregisterDynamicTexture } from '../utils/dynamicRegistry';
@@ -10,6 +10,7 @@ import ShaderPreview from './ShaderPreview';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
+import AltDisconnectHandle from './AltDisconnectHandle';
 
 interface ForceField {
     id: string;
@@ -1170,17 +1171,6 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
         setNodes((nds) => nds.filter((n) => n.id !== id));
     }, [getNodes, id, onNodesDelete, reactFlowInstance, setEdges, setNodes]);
 
-    const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
-        if (e.altKey) {
-            e.stopPropagation();
-            e.preventDefault();
-            setEdges((edges) => edges.filter((edge) => {
-                if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
-                else return !(edge.source === id && edge.sourceHandle === handleId);
-            }));
-        }
-    }, [id, setEdges]);
-    
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const emissionCanvasRef = useRef<HTMLCanvasElement>(null);
     const obstacleCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -1592,29 +1582,29 @@ const FluidSimulationNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
 
             <div className="relative w-full aspect-square bg-black">
                 {/* Inputs - Left Side */}
-                <Handle 
-                    type="target" 
-                    position={Position.Left} 
-                    id="input_emission" 
+                <AltDisconnectHandle
+                    nodeId={id}
+                    handleId="input_emission"
+                    handleType="target"
+                    position={Position.Left}
                     className="!w-3 !h-3 !bg-green-500 !border-2 !border-zinc-900 z-20"
                     style={{ top: '40%', left: '-6px', transform: 'translateY(-50%)' }}
                     title={t("Emission Mask (Green)")}
-                    onClick={(e) => handleDisconnect(e, 'input_emission', 'target')}
                 />
-                <Handle 
-                    type="target" 
-                    position={Position.Left} 
-                    id="input_obstacle" 
+                <AltDisconnectHandle
+                    nodeId={id}
+                    handleId="input_obstacle"
+                    handleType="target"
+                    position={Position.Left}
                     className="!w-3 !h-3 !bg-red-500 !border-2 !border-zinc-900 z-20"
                     style={{ top: '60%', left: '-6px', transform: 'translateY(-50%)' }}
                     title={t("Obstacle Mask (Red)")}
-                    onClick={(e) => handleDisconnect(e, 'input_obstacle', 'target')}
                 />
 
                 {/* Outputs - Right Side */}
                  <div className="absolute top-1/2 -right-3 -translate-y-1/2 z-20 flex flex-col gap-2">
-                    <Handle type="source" position={Position.Right} id="image" className="!w-3 !h-3 !bg-pink-500 !border-2 !border-zinc-900" title={t("Image")} onClick={(e) => handleDisconnect(e, 'image', 'source')}/>
-                    <Handle type="source" position={Position.Right} id="flow" className="!w-3 !h-3 !bg-blue-500 !border-2 !border-zinc-900" title={t("Flow Map")} onClick={(e) => handleDisconnect(e, 'flow', 'source')}/>
+                    <AltDisconnectHandle nodeId={id} handleId="image" handleType="source" position={Position.Right} className="!w-3 !h-3 !bg-pink-500 !border-2 !border-zinc-900" title={t("Image")} />
+                    <AltDisconnectHandle nodeId={id} handleId="flow" handleType="source" position={Position.Right} className="!w-3 !h-3 !bg-blue-500 !border-2 !border-zinc-900" title={t("Flow Map")} />
                 </div>
 
                 {/* Hidden Renderers for Inputs */}

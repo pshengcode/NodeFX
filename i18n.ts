@@ -126,7 +126,17 @@ const resources = {
       "Toggle Tiling (3x3)": "Toggle Tiling (3x3)",
       "Toggle Background Color": "Toggle Background Color",
       "Reset View": "Reset View",
-      "Save Image": "Save Image"
+      "Save Image": "Save Image",
+      "Trigger (0 = Start)": "Trigger (0 = Start)"
+      ,"Waiting for Trigger": "Waiting for Trigger"
+      ,"Trigger Value": "Trigger Value"
+      ,"Trigger Value (0..1)": "Trigger Value (0..1)"
+      ,"Register": "Register"
+      ,"Get": "Get"
+      ,"Variable Name": "Variable Name"
+      ,"Registered As": "Registered As"
+      ,"Select Variable": "Select Variable"
+      ,"No Registered Variables": "No Registered Variables"
     }
   },
   zh: {
@@ -314,6 +324,7 @@ const resources = {
       "Height": "高度",
       "FPS": "帧率",
       "Duration (s)": "时长 (秒)",
+      "Trigger (0 = Start)": "触发器 (0 = 开始)",
       "Mode": "模式",
       "Video (WebM)": "视频 (WebM)",
       "Sprite Sheet (Grid)": "精灵图 (网格)",
@@ -322,6 +333,15 @@ const resources = {
       "Rows": "行数",
       "Stop": "停止",
       "Start Bake": "开始烘焙"
+      ,"Waiting for Trigger": "等待触发"
+      ,"Trigger Value": "触发值"
+      ,"Trigger Value (0..1)": "触发值 (0..1)"
+      ,"Register": "注册"
+      ,"Get": "获取"
+      ,"Variable Name": "变量名"
+      ,"Registered As": "已注册为"
+      ,"Select Variable": "选择变量"
+      ,"No Registered Variables": "暂无已注册变量"
     }
   }
 };

@@ -1,0 +1,22 @@
+{
+  "id": "REGISTER_NODE",
+  "label": "Register",
+  "type": "registerNode",
+  "category": "Output",
+  "description": "Registers an input texture under a variable name for reuse.",
+  "locales": {
+    "zh": {
+      "Register": "注册",
+      "Registers an input texture under a variable name for reuse.": "将输入纹理注册为变量名以便复用。",
+      "Image": "图像",
+      "Result": "结果"
+    }
+  },
+  "data": {
+    "glsl": "void run(vec2 uv, sampler2D image) { }",
+    "inputs": [
+      { "id": "image", "name": "Image", "type": "sampler2D" }
+    ],
+    "outputType": "vec4"
+  }
+}

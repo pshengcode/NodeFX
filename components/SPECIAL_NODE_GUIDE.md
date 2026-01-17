@@ -335,24 +335,17 @@ const MySpecialNode = memo(({ id, data }: NodeProps<NodeData>) => {
 
 允许用户按住 Alt 键点击 Handle 来快速断开连接。
 
+**统一实现（必须）**
+
+请使用通用组件 `AltDisconnectHandle`（位置：`components/AltDisconnectHandle.tsx`），
+不要在每个节点里手写 `handleDisconnect` 逻辑。
+
 ```typescript
-import { useProjectDispatch } from '../context/ProjectContext';
-
-const { setEdges } = useProjectDispatch();
-
-const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
-    if (e.altKey) {
-        e.stopPropagation();
-        e.preventDefault();
-        setEdges((edges) => edges.filter((edge) => {
-            if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
-            else return !(edge.source === id && edge.sourceHandle === handleId);
-        }));
-    }
-}, [id, setEdges]);
+import { Position } from 'reactflow';
+import AltDisconnectHandle from './AltDisconnectHandle';
 
 // 使用
-// <Handle onClick={(e) => handleDisconnect(e, 'handle_id', 'source')} ... />
+// <AltDisconnectHandle nodeId={id} handleId="handle_id" handleType="source" position={Position.Right} />
 ```
 
 ## 高级话题

@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
+import { Position, NodeProps } from 'reactflow';
 import { NodeData, CompilationResult, RawTextureData } from '../types';
 import { Eraser, Trash2, PenTool, Layers, Settings, X } from 'lucide-react';
 import { compileGraph } from '../utils/shaderCompiler';
@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useOptimizedNodes } from '../hooks/useOptimizedNodes';
 import { useNodeSettings } from '../hooks/useNodeSync';
 import { useProjectDispatch, useProjectEdges } from '../context/ProjectContext';
+import AltDisconnectHandle from './AltDisconnectHandle';
 
 const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
   const { t } = useTranslation();
@@ -32,17 +33,6 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
         setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
         setNodes((nds) => nds.filter((n) => n.id !== id));
     }, [getNodes, id, onNodesDelete, reactFlowInstance, setEdges, setNodes]);
-
-  const handleDisconnect = useCallback((e: React.MouseEvent, handleId: string, type: 'source' | 'target') => {
-      if (e.altKey) {
-          e.stopPropagation();
-          e.preventDefault();
-          setEdges((edges) => edges.filter((edge) => {
-              if (type === 'target') return !(edge.target === id && edge.targetHandle === handleId);
-              else return !(edge.source === id && edge.sourceHandle === handleId);
-          }));
-      }
-  }, [id, setEdges]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -313,10 +303,10 @@ const PaintNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
 
         <div className="relative w-full aspect-square">
             <div className="absolute top-1/2 -left-3 -translate-y-1/2 z-20">
-                <Handle type="target" position={Position.Left} id="bg" className="!w-3 !h-3 !bg-blue-500 !border-2 !border-zinc-900" onClick={(e) => handleDisconnect(e, 'bg', 'target')}/>
+                <AltDisconnectHandle nodeId={id} handleId="bg" handleType="target" position={Position.Left} className="!w-3 !h-3 !bg-blue-500 !border-2 !border-zinc-900" />
             </div>
             <div className="absolute top-1/2 -right-3 -translate-y-1/2 z-20">
-                <Handle type="source" position={Position.Right} id="result" className="!w-3 !h-3 !bg-pink-500 !border-2 !border-zinc-900" onClick={(e) => handleDisconnect(e, 'result', 'source')}/>
+                <AltDisconnectHandle nodeId={id} handleId="result" handleType="source" position={Position.Right} className="!w-3 !h-3 !bg-pink-500 !border-2 !border-zinc-900" />
             </div>
 
             <div className="w-full h-full bg-[#050505] group nodrag rounded-b-lg overflow-hidden relative" ref={containerRef}>

@@ -1,3 +1,10 @@
+## [1.3.17] - 2026-01-17
+
+feat: Added REGISTER_NODE and GET_NODE.
+Optimized the baking node by adding a float trigger to ensure accurate baking starts from the set time.
+新增功能：添加了 REGISTER_NODE 和 GET_NODE 节点。
+优化了烘焙节点，添加了浮点触发器，以确保烘焙从设定的时间准确开始。
+
 ## [1.3.16] - 2026-01-09
 
 feat: Updated the English and Chinese README, corrected the user guide link to an online document.

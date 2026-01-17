@@ -304,6 +304,8 @@ export function useGraphActions(
         if (def.id === 'PARTICLE_SYSTEM') type = 'particleSystem';
       //  if (def.id === 'FLOW_MAP') type = 'flowMapNode';
         if ((def as any).type === 'bakeNode') type = 'bakeNode';
+        if ((def as any).type === 'registerNode') type = 'registerNode';
+        if ((def as any).type === 'getNode') type = 'getNode';
     
         const baseUniforms: Record<string, UniformVal> = {
             ...(def.data.uniforms || {}),

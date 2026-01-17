@@ -7,7 +7,8 @@
   "data": {
     "glsl": "void run(vec2 uv, sampler2D image, out vec4 preview) { preview = texture(image, uv); }",
     "inputs": [
-      { "id": "image", "name": "Image", "type": "sampler2D" }
+      { "id": "image", "name": "Image", "type": "sampler2D" },
+      { "id": "trigger", "name": "Trigger", "type": "float" }
     ],
     "outputs": [
       { "id": "preview", "name": "Preview", "type": "vec4" }
