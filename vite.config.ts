@@ -6,6 +6,8 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const isProd = mode === 'production';
+  const devPort = Number(process.env.PORT || 5173);
+  const devHost = process.env.HOST || '127.0.0.1';
 
     const getVendorChunkName = (id: string): string | null => {
       const index = id.lastIndexOf('node_modules/');
@@ -22,8 +24,8 @@ export default defineConfig(({ mode }) => {
 
     return {
       server: {
-        port: 3000,
-        host: '0.0.0.0',
+        port: Number.isFinite(devPort) ? devPort : 5173,
+        host: devHost,
       },
       build: {
         chunkSizeWarningLimit: 600, // Increase limit as we have code-split large components

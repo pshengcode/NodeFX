@@ -13,6 +13,7 @@ import {
 import { NodeData, ShaderNodeDefinition, UniformVal, CompilationResult, SerializedNode, SerializedEdge } from '../types';
 import { getNodeDefinition, validateNodeDefinition, normalizeNodeDefinition } from '../nodes/registry';
 import { assetManager } from '../utils/assetManager';
+import { loadImageAssetFromFile } from '../utils/imageUpload';
 import { useTranslation } from 'react-i18next';
 import { getArrayElementTypeString, isArrayTypeString, parseArrayElementHandle } from '../utils/arrayHandles';
 
@@ -539,14 +540,6 @@ export function useGraphActions(
             if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
                 const files = Array.from(event.dataTransfer.files);
 
-                const readFileAsDataURL = (file: File) =>
-                    new Promise<string>((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onerror = () => reject(new Error('Failed to read file as DataURL'));
-                        reader.onload = (e) => resolve(e.target?.result as string);
-                        reader.readAsDataURL(file);
-                    });
-
                 const readFileAsText = (file: File) =>
                     new Promise<string>((resolve, reject) => {
                         const reader = new FileReader();
@@ -554,6 +547,11 @@ export function useGraphActions(
                         reader.onload = (e) => resolve(e.target?.result as string);
                         reader.readAsText(file);
                     });
+
+                const isImageFile = (file: File) => {
+                    const lowerName = file.name.toLowerCase();
+                    return file.type.startsWith('image/') || ['.tga', '.icb', '.vda', '.vst'].some(ext => lowerName.endsWith(ext));
+                };
 
                 void (async () => {
                     const imageDef = getNodeDefinition('SAMP_TEXTURE');
@@ -569,18 +567,17 @@ export function useGraphActions(
                         };
 
                         // Handle Images
-                        if (file.type.startsWith('image/')) {
+                        if (isImageFile(file)) {
                             if (!imageDef) continue;
 
                             try {
-                                const dataUrl = await readFileAsDataURL(file);
+                                const id = assetManager.createId('drop');
+                                const { assetData } = await loadImageAssetFromFile(file, id);
                                 try {
-                                    const id = assetManager.createId('drop');
-                                    await assetManager.save(id, dataUrl);
+                                    await assetManager.save(id, assetData);
                                     addNode(imageDef, filePosition, { image: { type: 'sampler2D', value: id } });
                                 } catch {
-                                    // Fallback to legacy DataURL behavior when IndexedDB isn't available.
-                                    addNode(imageDef, filePosition, { image: { type: 'sampler2D', value: dataUrl } });
+                                    addNode(imageDef, filePosition, { image: { type: 'sampler2D', value: assetData } });
                                 }
 
                                 createdCount += 1;

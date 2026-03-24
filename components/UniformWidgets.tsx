@@ -3,6 +3,7 @@ import { Upload, X, Settings, MousePointer2, Scan, ChevronUp, ChevronDown, Rotat
 import { WidgetConfig } from '../types';
 import { generateGradientTexture } from '../utils/textureGen';
 import { assetManager } from '../utils/assetManager';
+import { loadImageAssetFromFile, resolveImagePreviewUrl } from '../utils/imageUpload';
 import { useTranslation } from 'react-i18next';
 
 // --- WIDGETS ---
@@ -1462,7 +1463,8 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
             if (value.startsWith('asset://') || value.startsWith('builtin://')) {
                 try {
                     const res = await assetManager.get(value);
-                    if (!cancelled) setPreviewUrl(typeof res === 'string' ? res : null);
+                    const nextPreviewUrl = await resolveImagePreviewUrl(res);
+                    if (!cancelled) setPreviewUrl(nextPreviewUrl);
                 } catch {
                     if (!cancelled) setPreviewUrl(null);
                 }
@@ -1479,24 +1481,19 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                if (!event.target?.result) return;
-                const dataUrl = event.target.result as string;
-
-                // Save to Asset Manager (IndexedDB) and store only the ID in node data.
+            const id = assetManager.createId('upload');
+            loadImageAssetFromFile(file, id).then(async ({ assetData, previewUrl: nextPreviewUrl }) => {
                 try {
-                    const id = assetManager.createId('upload');
-                    await assetManager.save(id, dataUrl);
+                    await assetManager.save(id, assetData);
                     onChange(id);
-                    setPreviewUrl(dataUrl);
+                    setPreviewUrl(nextPreviewUrl);
                 } catch {
-                    // Fallback to inline DataURL (legacy behavior) if IndexedDB is unavailable.
-                    onChange(dataUrl);
-                    setPreviewUrl(dataUrl);
+                    onChange(assetData);
+                    setPreviewUrl(nextPreviewUrl);
                 }
-            };
-            reader.readAsDataURL(file);
+            }).catch((error) => {
+                console.error('Failed to load image asset:', error);
+            });
         }
         // Reset the input value to allow selecting the same file again
         e.target.value = '';
@@ -1540,7 +1537,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
                     <Upload size={10} className="text-zinc-400" />
                     <span className="text-[9px] text-zinc-400">{t("Load Image")}</span>
                 </span>
-                <input type="file" className="nodrag hidden" accept="image/*" onChange={handleFileChange} />
+                <input type="file" className="nodrag hidden" accept="image/*,.tga,.icb,.vda,.vst" onChange={handleFileChange} />
             </label>
         </div>
     );

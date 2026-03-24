@@ -8,6 +8,7 @@ import { TYPE_COLORS } from '../constants';
 import CodeEditor from './CodeEditor'; 
 import { assetManager } from '../utils/assetManager';
 import { BUILTIN_TEXTURES } from '../utils/builtinResources';
+import { loadImageAssetFromFile, resolveImagePreviewUrl } from '../utils/imageUpload';
 import { Upload, Scan, Grid } from 'lucide-react';
 import { extractShaderIO, extractAllSignatures } from '../utils/glslParser';
 import { useTranslation } from 'react-i18next';
@@ -400,35 +401,46 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
 
     // Load preview if value is an Asset ID
     useEffect(() => {
-        if (typeof value === 'string') {
-            if (value.startsWith('asset://') || value.startsWith('builtin://')) {
-                assetManager.get(value).then(res => {
-                    if (typeof res === 'string') setPreviewUrl(res);
-                });
-            } else {
-                setPreviewUrl(value);
+        let cancelled = false;
+
+        const resolvePreview = async () => {
+            if (typeof value !== 'string' || !value) {
+                setPreviewUrl(null);
+                return;
             }
-        }
+
+            if (value.startsWith('asset://') || value.startsWith('builtin://')) {
+                const asset = await assetManager.get(value);
+                const nextPreviewUrl = await resolveImagePreviewUrl(asset);
+                if (!cancelled) setPreviewUrl(nextPreviewUrl);
+                return;
+            }
+
+            setPreviewUrl(value);
+        };
+
+        resolvePreview().catch(() => {
+            if (!cancelled) setPreviewUrl(null);
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [value]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                if(event.target?.result) {
-                    const dataUrl = event.target.result as string;
-                    // Save to Asset Manager
-                    const id = assetManager.createId('upload');
-                    await assetManager.save(id, dataUrl);
-                    
-                    // Propagate ID to Node Data
-                    onChange(id);
-                    setPreviewUrl(dataUrl);
-                }
-            };
-            reader.readAsDataURL(file);
+            const id = assetManager.createId('upload');
+            loadImageAssetFromFile(file, id).then(async ({ assetData, previewUrl: nextPreviewUrl }) => {
+                await assetManager.save(id, assetData);
+                onChange(id);
+                setPreviewUrl(nextPreviewUrl);
+            }).catch((error) => {
+                console.error('Failed to load image asset:', error);
+            });
         }
+        e.target.value = '';
     };
 
     const applySize = (e: React.MouseEvent) => {
@@ -471,7 +483,7 @@ export const ImageUploadWidget = ({ value, onChange }: any) => {
                         <Upload size={10} className="text-zinc-400" />
                         <span className="text-[9px] text-zinc-400">{t("Load Image")}</span>
                     </span>
-                    <input type="file" className="nodrag hidden" accept="image/*" onChange={handleFileChange} />
+                    <input type="file" className="nodrag hidden" accept="image/*,.tga,.icb,.vda,.vst" onChange={handleFileChange} />
                 </label>
                 <button 
                     onClick={() => setShowBuiltin(!showBuiltin)}

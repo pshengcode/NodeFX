@@ -1,3 +1,7 @@
+## [1.3.18] - 2026-03-24
+
+feat: Implement image upload functionality with TGA support and enhance asset management
+
 ## [1.3.17] - 2026-01-17
 
 feat: Added REGISTER_NODE and GET_NODE.
