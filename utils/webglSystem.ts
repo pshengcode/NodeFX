@@ -43,6 +43,21 @@ const sanitizeIdForGlsl = (id: string) => {
     return /^[0-9]/.test(safe) ? `p_${safe}` : safe;
 };
 
+const flipRawTextureDataY = (value: RawTextureData) => {
+    if (value.height <= 1) return value.data;
+
+    const rowStride = value.width * 4;
+    const flipped = new Uint8ClampedArray(value.data.length);
+
+    for (let row = 0; row < value.height; row += 1) {
+        const srcStart = row * rowStride;
+        const destStart = (value.height - 1 - row) * rowStride;
+        flipped.set(value.data.subarray(srcStart, srcStart + rowStride), destStart);
+    }
+
+    return flipped;
+};
+
 class WebGLSystem {
     private canvas: HTMLCanvasElement;
     private gl: WebGL2RenderingContext;
@@ -483,7 +498,7 @@ class WebGLSystem {
                 gl.activeTexture(gl.TEXTURE31);
                 gl.bindTexture(gl.TEXTURE_2D, cached);
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, value.data);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, flipRawTextureDataY(value));
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
@@ -521,7 +536,7 @@ class WebGLSystem {
             img.src = value;
         } else {
             // Raw Data
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, value.data);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, value.width, value.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, flipRawTextureDataY(value));
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         }

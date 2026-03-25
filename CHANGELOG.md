@@ -1,3 +1,7 @@
+## [1.3.19] - 2026-03-25
+
+feat: Add texture data flipping functionality for Y-axis in WebGL rendering
+
 ## [1.3.18] - 2026-03-24
 
 feat: Implement image upload functionality with TGA support and enhance asset management
